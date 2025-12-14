@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kumabook.reattachd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{REATTACHD_PATH}}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{LOG_DIR}}/reattachd.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{LOG_DIR}}/reattachd.error.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>8787</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>APNS_KEY_BASE64</key>
+        <string>{{APNS_KEY_BASE64}}</string>
+        <key>APNS_KEY_ID</key>
+        <string>{{APNS_KEY_ID}}</string>
+        <key>APNS_TEAM_ID</key>
+        <string>{{APNS_TEAM_ID}}</string>
+        <key>APNS_BUNDLE_ID</key>
+        <string>{{APNS_BUNDLE_ID}}</string>
+    </dict>
+</dict>
+</plist>

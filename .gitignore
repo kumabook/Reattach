@@ -1,0 +1,31 @@
+# Config files with secrets
+ios/Reattach/Config.xcconfig
+config.local.mk
+
+# Claude Code local settings
+.claude/
+
+# Xcode
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+DerivedData/
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+!default.pbxuser
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+
+# Rust
+reattachd/target/
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.local

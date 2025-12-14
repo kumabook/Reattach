@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{REATTACH_DIR}}/hooks/notify.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

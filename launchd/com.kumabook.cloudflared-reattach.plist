@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kumabook.cloudflared-reattach</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{CLOUDFLARED_PATH}}</string>
+        <string>tunnel</string>
+        <string>run</string>
+        <string>reattach</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{LOG_DIR}}/cloudflared-reattach.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{LOG_DIR}}/cloudflared-reattach.error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,10 @@
+# config.local.mk.sample
+# Copy this file to config.local.mk and fill in your values
+
+# APNs private key (base64 encoded)
+# Generate with: cat your-key.p8 | base64 | tr -d '\n'
+APNS_KEY_BASE64 = YOUR_BASE64_ENCODED_KEY_HERE
+
+APNS_KEY_ID = XXXXXXXXXX
+APNS_TEAM_ID = XXXXXXXXXX
+APNS_BUNDLE_ID = com.example.app
