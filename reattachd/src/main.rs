@@ -1,20 +1,87 @@
 mod api;
 mod apns;
+mod auth;
 mod tmux;
 
 use std::sync::Arc;
 
 use apns::{ApnsConfig, ApnsService};
+use auth::{AuthService, SharedAuthService};
 use axum::{
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::{self, Next},
+    response::Response,
     routing::{delete, get, post},
     Router,
 };
+use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_PORT: u16 = 8787;
 
+#[derive(Parser)]
+#[command(name = "reattachd")]
+#[command(about = "Remote control daemon for tmux sessions")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Start setup mode to register a new device
+    Setup {
+        /// External URL for the server (e.g., https://your-server.example.com)
+        #[arg(long)]
+        url: String,
+    },
+    /// Manage registered devices
+    Devices {
+        #[command(subcommand)]
+        action: Option<DeviceAction>,
+    },
+    /// Send a push notification to registered devices
+    Notify {
+        /// Notification message body
+        message: String,
+        /// Notification title (default: "Reattach")
+        #[arg(short, long, default_value = "Reattach")]
+        title: String,
+        /// Tmux pane target (e.g., "dev:0.0"). Auto-detected if running inside tmux.
+        #[arg(long)]
+        target: Option<String>,
+        /// Server port (default: 8787)
+        #[arg(short, long, default_value = "8787")]
+        port: u16,
+    },
+}
+
+#[derive(Subcommand)]
+enum DeviceAction {
+    /// List all registered devices
+    List,
+    /// Revoke a device by ID
+    Revoke {
+        /// Device ID to revoke
+        id: String,
+    },
+}
+
+fn get_data_dir() -> std::path::PathBuf {
+    std::env::var("REATTACHD_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            dirs::data_local_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("reattachd")
+        })
+}
+
 #[tokio::main]
 async fn main() {
+    let cli = Cli::parse();
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -23,78 +90,183 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let data_dir = std::env::var("REATTACHD_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::data_local_dir()
-                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("reattachd")
-        });
+    let data_dir = get_data_dir();
 
-    let apns_service = match (
-        std::env::var("APNS_KEY_BASE64"),
-        std::env::var("APNS_KEY_ID"),
-        std::env::var("APNS_TEAM_ID"),
-        std::env::var("APNS_BUNDLE_ID"),
-    ) {
-        (Ok(key_base64), Ok(key_id), Ok(team_id), Ok(bundle_id)) => {
-            use base64::{Engine as _, engine::general_purpose::STANDARD};
-            let key = match STANDARD.decode(&key_base64) {
-                Ok(bytes) => match String::from_utf8(bytes) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::error!("Invalid UTF-8 in APNS_KEY_BASE64: {}", e);
-                        return;
+    match cli.command {
+        Some(Commands::Setup { url }) => {
+            run_setup_mode(data_dir, url).await;
+        }
+        Some(Commands::Devices { action }) => {
+            run_device_command(data_dir, action).await;
+        }
+        Some(Commands::Notify { message, title, target, port }) => {
+            run_notify_command(message, title, target, port);
+        }
+        None => {
+            run_daemon(data_dir).await;
+        }
+    }
+}
+
+async fn run_setup_mode(data_dir: std::path::PathBuf, url: String) {
+    let auth_service = AuthService::new(data_dir.clone())
+        .await
+        .expect("Failed to initialize auth service");
+
+    let setup_token = auth_service.generate_setup_token().await;
+
+    // Create setup URL with token
+    let setup_url = format!("{}?setup_token={}", url, setup_token);
+
+    // Generate QR code
+    use qrcode::QrCode;
+    let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
+    let qr_string = code
+        .render::<char>()
+        .quiet_zone(false)
+        .module_dimensions(2, 1)
+        .build();
+
+    println!("\n  Scan this QR code with the Reattach iOS app:\n");
+    println!("{}", qr_string);
+    println!("\n  URL: {}", setup_url);
+    println!("\n  Setup token expires in 10 minutes.");
+    println!("  Make sure reattachd daemon is running.\n");
+}
+
+async fn run_device_command(data_dir: std::path::PathBuf, action: Option<DeviceAction>) {
+    let auth_service = AuthService::new(data_dir)
+        .await
+        .expect("Failed to initialize auth service");
+
+    match action {
+        Some(DeviceAction::Revoke { id }) => {
+            if auth_service.revoke_device(&id).await {
+                println!("Device {} revoked successfully", id);
+            } else {
+                println!("Device {} not found", id);
+            }
+        }
+        Some(DeviceAction::List) | None => {
+            let devices = auth_service.list_devices().await;
+            if devices.is_empty() {
+                println!("No registered devices");
+                println!("\nRun 'reattachd setup --url <URL>' to register a device");
+            } else {
+                println!("Registered devices:\n");
+                for device in devices {
+                    println!("  ID:          {}", device.id);
+                    println!("  Name:        {}", device.name);
+                    println!("  Registered:  {}", device.registered_at);
+                    if let Some(last_seen) = device.last_seen_at {
+                        println!("  Last seen:   {}", last_seen);
                     }
-                },
-                Err(e) => {
-                    tracing::error!("Invalid base64 in APNS_KEY_BASE64: {}", e);
-                    return;
-                }
-            };
-            let apns_config = ApnsConfig {
-                key,
-                key_id,
-                team_id,
-                bundle_id,
-                sandbox: std::env::var("APNS_SANDBOX")
-                    .map(|v| v == "1" || v.to_lowercase() == "true")
-                    .unwrap_or(true),
-                data_dir,
-            };
-            match ApnsService::new(apns_config).await {
-                Ok(service) => {
-                    tracing::info!("APNs service initialized");
-                    Some(Arc::new(service))
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to initialize APNs service: {:?}", e);
-                    None
+                    println!();
                 }
             }
         }
-        _ => {
-            tracing::info!("APNs not configured (missing environment variables)");
-            None
-        }
-    };
+    }
+}
 
+fn run_notify_command(message: String, title: String, target: Option<String>, port: u16) {
+    use serde_json::json;
+    use std::process::Command;
+
+    // Auto-detect tmux pane target if not provided
+    let pane_target = target.or_else(|| {
+        // Try to get current tmux pane target
+        Command::new("tmux")
+            .args(["display-message", "-p", "#{session_name}:#{window_index}.#{pane_index}"])
+            .output()
+            .ok()
+            .and_then(|output| {
+                if output.status.success() {
+                    String::from_utf8(output.stdout)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                } else {
+                    None
+                }
+            })
+    });
+
+    let url = format!("http://localhost:{}/notify", port);
+    let body = json!({
+        "title": title,
+        "body": message,
+        "pane_target": pane_target,
+    });
+
+    let client = reqwest::blocking::Client::new();
+    match client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                if let Some(ref t) = pane_target {
+                    println!("Notification sent successfully (target: {})", t);
+                } else {
+                    println!("Notification sent successfully");
+                }
+            } else {
+                eprintln!("Failed to send notification: HTTP {}", response.status());
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to reattachd: {}", e);
+            eprintln!("Make sure reattachd daemon is running on port {}", port);
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn run_daemon(data_dir: std::path::PathBuf) {
+    let auth_service = AuthService::new(data_dir.clone())
+        .await
+        .expect("Failed to initialize auth service");
+    let auth_service = Arc::new(auth_service);
+
+    // Check if any devices are registered
+    if !auth_service.has_devices().await {
+        tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
+        tracing::info!("Starting in open mode (no authentication required)");
+    }
+
+    let apns_service = init_apns_service(data_dir).await;
+
+    let auth_for_middleware = auth_service.clone();
+
+    // Base routes with authentication
     let base_routes = Router::new()
         .route("/sessions", get(api::list_sessions))
         .route("/sessions", post(api::create_session))
         .route("/panes/{target}", delete(api::delete_pane))
         .route("/panes/{target}/input", post(api::send_input))
         .route("/panes/{target}/escape", post(api::send_escape))
-        .route("/panes/{target}/output", get(api::get_output));
+        .route("/panes/{target}/output", get(api::get_output))
+        .layer(middleware::from_fn_with_state(
+            auth_for_middleware,
+            auth_middleware,
+        ));
+
+    // Registration endpoint (no auth required)
+    let register_routes = Router::new()
+        .route("/register", post(api::register_with_setup_token))
+        .with_state(auth_service.clone());
 
     let app = if let Some(apns) = apns_service {
         let apns_routes = Router::new()
-            .route("/devices", post(api::register_device))
+            .route("/devices", post(api::register_apns_device))
             .route("/notify", post(api::send_notification))
             .with_state(apns);
-        base_routes.merge(apns_routes)
+        base_routes.merge(apns_routes).merge(register_routes)
     } else {
-        base_routes
+        base_routes.merge(register_routes)
     };
 
     let port = std::env::var("PORT")
@@ -107,4 +279,106 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn auth_middleware(
+    State(auth_service): State<SharedAuthService>,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // If no devices registered, allow all requests
+    if !auth_service.has_devices().await {
+        return Ok(next.run(request).await);
+    }
+
+    // Check Authorization header
+    let auth_header = request
+        .headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok());
+
+    let token = match auth_header {
+        Some(header) if header.starts_with("Bearer ") => &header[7..],
+        _ => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    match auth_service.validate_device_token(token).await {
+        Some(device) => {
+            auth_service.update_last_seen(&device.id).await;
+            Ok(next.run(request).await)
+        }
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+fn get_apns_config() -> Option<(String, String, String, String, bool)> {
+    // Try compile-time embedded values first, then fall back to runtime env vars
+    let key_base64 = option_env!("APNS_KEY_BASE64")
+        .map(String::from)
+        .or_else(|| std::env::var("APNS_KEY_BASE64").ok())?;
+    let key_id = option_env!("APNS_KEY_ID")
+        .map(String::from)
+        .or_else(|| std::env::var("APNS_KEY_ID").ok())?;
+    let team_id = option_env!("APNS_TEAM_ID")
+        .map(String::from)
+        .or_else(|| std::env::var("APNS_TEAM_ID").ok())?;
+    let bundle_id = option_env!("APNS_BUNDLE_ID")
+        .map(String::from)
+        .or_else(|| std::env::var("APNS_BUNDLE_ID").ok())?;
+
+    // Sandbox: compile-time default is false for production builds
+    let sandbox = option_env!("APNS_SANDBOX")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or_else(|| {
+            std::env::var("APNS_SANDBOX")
+                .map(|v| v == "1" || v.to_lowercase() == "true")
+                .unwrap_or(false)
+        });
+
+    Some((key_base64, key_id, team_id, bundle_id, sandbox))
+}
+
+async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsService>> {
+    let (key_base64, key_id, team_id, bundle_id, sandbox) = match get_apns_config() {
+        Some(config) => config,
+        None => {
+            tracing::info!("APNs not configured");
+            return None;
+        }
+    };
+
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    let key = match STANDARD.decode(&key_base64) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("Invalid UTF-8 in APNS key: {}", e);
+                return None;
+            }
+        },
+        Err(e) => {
+            tracing::error!("Invalid base64 in APNS key: {}", e);
+            return None;
+        }
+    };
+
+    let apns_config = ApnsConfig {
+        key,
+        key_id,
+        team_id,
+        bundle_id,
+        sandbox,
+        data_dir,
+    };
+
+    match ApnsService::new(apns_config).await {
+        Ok(service) => {
+            tracing::info!("APNs service initialized (sandbox: {})", sandbox);
+            Some(Arc::new(service))
+        }
+        Err(e) => {
+            tracing::warn!("Failed to initialize APNs service: {:?}", e);
+            None
+        }
+    }
 }

@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>BASE_URL</key>
-	<string>$(BASE_URL)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is needed to scan the QR code from reattachd setup</string>
 </dict>
 </plist>

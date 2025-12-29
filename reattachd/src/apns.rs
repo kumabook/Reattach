@@ -96,22 +96,15 @@ impl ApnsService {
         &self,
         title: &str,
         body: &str,
-        cwd: Option<&str>,
+        pane_target: Option<&str>,
     ) -> Result<(), ApnsError> {
         let tokens = self.device_tokens.read().await;
         if tokens.is_empty() {
             return Err(ApnsError::NoDeviceToken);
         }
 
-        let dir_name: Option<String> = cwd.and_then(|c| {
-            std::path::Path::new(c)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.to_string())
-        });
-
-        if let Some(ref name) = dir_name {
-            tracing::info!("Notification dirName: {}", name);
+        if let Some(target) = pane_target {
+            tracing::info!("Notification paneTarget: {}", target);
         }
 
         let options = NotificationOptions {
@@ -127,8 +120,8 @@ impl ApnsService {
         for token in tokens.iter() {
             let mut payload = builder.clone().build(token, options.clone());
 
-            if let Some(ref name) = dir_name {
-                payload.data.insert("dirName", Value::String(name.clone()));
+            if let Some(target) = pane_target {
+                payload.data.insert("paneTarget", Value::String(target.to_string()));
             }
 
             match self.client.send(payload).await {

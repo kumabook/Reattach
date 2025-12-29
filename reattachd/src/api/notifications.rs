@@ -15,10 +15,10 @@ pub struct RegisterDeviceRequest {
 pub struct SendNotificationRequest {
     pub title: String,
     pub body: String,
-    pub cwd: Option<String>,
+    pub pane_target: Option<String>,
 }
 
-pub async fn register_device(
+pub async fn register_apns_device(
     State(apns): State<SharedApnsService>,
     Json(payload): Json<RegisterDeviceRequest>,
 ) -> StatusCode {
@@ -31,7 +31,7 @@ pub async fn send_notification(
     Json(payload): Json<SendNotificationRequest>,
 ) -> StatusCode {
     match apns
-        .send_notification(&payload.title, &payload.body, payload.cwd.as_deref())
+        .send_notification(&payload.title, &payload.body, payload.pane_target.as_deref())
         .await
     {
         Ok(()) => StatusCode::OK,

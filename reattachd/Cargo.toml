@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 axum = "0.8"
+axum-extra = { version = "0.10", features = ["typed-header"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -14,3 +15,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 a2 = "0.10"
 dirs = "5"
 base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+qrcode = "0.14"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }

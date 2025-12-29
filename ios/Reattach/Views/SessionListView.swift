@@ -97,6 +97,9 @@ struct SessionListView: View {
     @State private var selectedPane: PaneNavigationItem?
     @State private var navigationPath = NavigationPath()
     @State private var unreadPanes: Set<String> = []
+    @State private var showServerList = false
+    @State private var configManager = ServerConfigManager.shared
+    @State private var paneToDelete: Pane?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
@@ -112,6 +115,9 @@ struct SessionListView: View {
                 await viewModel.createSession(name: name, cwd: cwd)
             }
         }
+        .sheet(isPresented: $showServerList) {
+            ServerListView()
+        }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
         } message: {
@@ -120,14 +126,14 @@ struct SessionListView: View {
         .task {
             await viewModel.loadSessions()
             unreadPanes = AppDelegate.shared?.unreadPanes ?? []
-            if let dirName = AppDelegate.shared?.pendingNavigationDirName {
-                AppDelegate.shared?.pendingNavigationDirName = nil
-                navigateToPaneWithDir(dirName)
+            if let paneTarget = AppDelegate.shared?.pendingNavigationTarget {
+                AppDelegate.shared?.pendingNavigationTarget = nil
+                navigateToPaneWithTarget(paneTarget)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
-            guard let dirName = notification.userInfo?["dirName"] as? String else { return }
-            navigateToPaneWithDir(dirName)
+            guard let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
+            navigateToPaneWithTarget(paneTarget)
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             unreadPanes = AppDelegate.shared?.unreadPanes ?? []
@@ -142,10 +148,13 @@ struct SessionListView: View {
                 .navigationDestination(for: PaneNavigationItem.self) { item in
                     PaneDetailView(pane: item.pane, windowName: item.windowName)
                         .onAppear {
-                            AppDelegate.shared?.markPaneAsRead(item.pane.shortPath)
+                            AppDelegate.shared?.markPaneAsRead(item.pane.target)
                         }
                 }
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        serverButton
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showingCreateSheet = true
@@ -163,6 +172,9 @@ struct SessionListView: View {
             listContent
                 .navigationTitle("")
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        serverButton
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showingCreateSheet = true
@@ -176,7 +188,7 @@ struct SessionListView: View {
                 PaneDetailView(pane: selected.pane, windowName: selected.windowName)
                     .id(selected.pane.target)
                     .onAppear {
-                        AppDelegate.shared?.markPaneAsRead(selected.pane.shortPath)
+                        AppDelegate.shared?.markPaneAsRead(selected.pane.target)
                     }
             } else {
                 ContentUnavailableView(
@@ -205,23 +217,47 @@ struct SessionListView: View {
                     unreadPanes: unreadPanes,
                     isCompact: horizontalSizeClass == .compact,
                     selectedPane: $selectedPane,
-                    navigationPath: $navigationPath
-                ) { target in
-                    await viewModel.deletePane(target: target)
-                }
+                    navigationPath: $navigationPath,
+                    onRequestDelete: { pane in
+                        paneToDelete = pane
+                    },
+                    onDeletePane: { target in
+                        await viewModel.deletePane(target: target)
+                    }
+                )
             }
             .listStyle(.sidebar)
             .refreshable {
                 await viewModel.loadSessions()
             }
+            .confirmationDialog(
+                "Delete Pane",
+                isPresented: Binding(
+                    get: { paneToDelete != nil },
+                    set: { if !$0 { paneToDelete = nil } }
+                ),
+                presenting: paneToDelete
+            ) { pane in
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await viewModel.deletePane(target: pane.target)
+                        paneToDelete = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    paneToDelete = nil
+                }
+            } message: { pane in
+                Text("Are you sure you want to delete this pane?\n\(pane.shortPath)")
+            }
         }
     }
 
-    private func navigateToPaneWithDir(_ dirName: String) {
+    private func navigateToPaneWithTarget(_ paneTarget: String) {
         for session in viewModel.sessions {
             for window in session.windows {
                 for pane in window.panes {
-                    if pane.shortPath == dirName {
+                    if pane.target == paneTarget {
                         let item = PaneNavigationItem(pane: pane, windowName: window.name)
                         if horizontalSizeClass == .compact {
                             navigationPath.append(item)
@@ -231,6 +267,32 @@ struct SessionListView: View {
                         return
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var serverButton: some View {
+        if configManager.isDemoMode {
+            Button {
+                showServerList = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.circle")
+                    Text("Demo")
+                }
+                .font(.subheadline)
+            }
+        } else if let server = configManager.activeServer {
+            Button {
+                showServerList = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "server.rack")
+                    Text(server.serverName)
+                        .lineLimit(1)
+                }
+                .font(.subheadline)
             }
         }
     }
@@ -251,7 +313,8 @@ struct SessionSection: View {
     let isCompact: Bool
     @Binding var selectedPane: PaneNavigationItem?
     @Binding var navigationPath: NavigationPath
-    let onDeletePane: (String) async -> Void
+    var onRequestDelete: (Pane) -> Void
+    var onDeletePane: (String) async -> Void
 
     var body: some View {
         Section {
@@ -263,7 +326,7 @@ struct SessionSection: View {
                     isCompact: isCompact,
                     selectedPane: $selectedPane,
                     navigationPath: $navigationPath,
-                    onDelete: onDeletePane
+                    onRequestDelete: onRequestDelete
                 )
                 .listRowSeparator(.visible)
             }
@@ -297,13 +360,10 @@ struct WindowRow: View {
     let isCompact: Bool
     @Binding var selectedPane: PaneNavigationItem?
     @Binding var navigationPath: NavigationPath
-    let onDelete: (String) async -> Void
-
-    @State private var paneToDelete: Pane?
-    @State private var showDeleteConfirmation = false
+    var onRequestDelete: (Pane) -> Void
 
     private var hasUnreadPane: Bool {
-        window.panes.contains { unreadPanes.contains($0.shortPath) }
+        window.panes.contains { unreadPanes.contains($0.target) }
     }
 
     private func isSelected(_ pane: Pane) -> Bool {
@@ -324,12 +384,11 @@ struct WindowRow: View {
             if window.panes.count == 1, let pane = window.panes.first {
                 if isCompact {
                     NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.shortPath))
+                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            paneToDelete = pane
-                            showDeleteConfirmation = true
+                            onRequestDelete(pane)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -338,14 +397,13 @@ struct WindowRow: View {
                     Button {
                         selectPane(pane)
                     } label: {
-                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.shortPath))
+                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(isSelected(pane) ? Color.accentColor.opacity(0.2) : nil)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            paneToDelete = pane
-                            showDeleteConfirmation = true
+                            onRequestDelete(pane)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -356,12 +414,11 @@ struct WindowRow: View {
                     ForEach(window.panes) { pane in
                         if isCompact {
                             NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.shortPath))
+                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
-                                    paneToDelete = pane
-                                    showDeleteConfirmation = true
+                                    onRequestDelete(pane)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -371,14 +428,13 @@ struct WindowRow: View {
                             Button {
                                 selectPane(pane)
                             } label: {
-                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.shortPath))
+                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
                             }
                             .buttonStyle(.plain)
                             .listRowBackground(isSelected(pane) ? Color.accentColor.opacity(0.2) : nil)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
-                                    paneToDelete = pane
-                                    showDeleteConfirmation = true
+                                    onRequestDelete(pane)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -390,18 +446,6 @@ struct WindowRow: View {
                     WindowLabel(window: window, isUnread: hasUnreadPane)
                 }
             }
-        }
-        .confirmationDialog(
-            "Delete Pane",
-            isPresented: $showDeleteConfirmation,
-            presenting: paneToDelete
-        ) { pane in
-            Button("Delete", role: .destructive) {
-                Task { await onDelete(pane.target) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { pane in
-            Text("Are you sure you want to delete this pane?\n\(pane.shortPath)")
         }
     }
 }

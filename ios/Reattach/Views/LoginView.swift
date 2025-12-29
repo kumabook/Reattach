@@ -49,7 +49,7 @@ struct LoginView: View {
 
             Spacer()
         }
-        .sheet(isPresented: $showWebView) {
+        .fullScreenCover(isPresented: $showWebView) {
             CloudflareAuthWebView(api: api, isPresented: $showWebView)
         }
     }

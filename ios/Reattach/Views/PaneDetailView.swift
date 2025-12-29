@@ -128,6 +128,8 @@ struct PaneDetailView: View {
     @State private var scrollToBottom = false
     @State private var inputText = ""
     @FocusState private var isInputFocused: Bool
+    @State private var showCommandEditor = false
+    @State private var showCommandPicker = false
 
     init(pane: Pane, windowName: String) {
         self.pane = pane
@@ -262,6 +264,15 @@ struct PaneDetailView: View {
 
                 HStack(spacing: 8) {
                     GlassButton {
+                        showCommandPicker = true
+                    } label: {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.purple)
+                    }
+                    .disabled(viewModel.isSending)
+
+                    GlassButton {
                         Task {
                             await viewModel.sendEscape()
                         }
@@ -307,6 +318,29 @@ struct PaneDetailView: View {
             Button("OK") {}
         } message: {
             Text(viewModel.errorMessage)
+        }
+        .sheet(isPresented: $showCommandEditor) {
+            CommandEditorView()
+        }
+        .sheet(isPresented: $showCommandPicker) {
+            CommandPickerView(
+                onCommandSelected: { command in
+                    Task {
+                        await viewModel.sendInput(command)
+                    }
+                },
+                onCommandInsert: { command in
+                    inputText = command
+                    isInputFocused = true
+                },
+                onEditCommands: {
+                    showCommandPicker = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showCommandEditor = true
+                    }
+                }
+            )
+            .presentationDetents([.medium, .large])
         }
         .task {
             await viewModel.startPolling()
@@ -587,6 +621,7 @@ class PaneDetailViewModel {
 
         do {
             try await api.sendInput(target: target, text: text)
+            CommandHistoryManager.shared.add(text)
             try? await Task.sleep(for: .milliseconds(300))
             await refreshSilently()
         } catch {

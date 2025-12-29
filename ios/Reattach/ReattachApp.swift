@@ -20,8 +20,8 @@ struct ReattachApp: App {
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static var shared: AppDelegate?
     private(set) var deviceToken: String?
-    var pendingNavigationDirName: String?
-    var unreadPanes: Set<String> = []
+    var pendingNavigationTarget: String?
+    var unreadPanes: Set<String> = []  // Tracks pane targets (e.g., "dev:0.0")
 
     func application(
         _ application: UIApplication,
@@ -79,12 +79,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             return
         }
 
+        guard ReattachAPI.shared.isConfigured else {
+            print("Server not configured, skipping APNs registration")
+            return
+        }
+
         Task {
             do {
-                try await ReattachAPI.shared.registerDevice(token: token)
-                print("Device registered successfully")
+                try await ReattachAPI.shared.registerAPNsDevice(token: token)
+                print("APNs device registered successfully")
             } catch {
-                print("Failed to register device: \(error)")
+                print("Failed to register APNs device: \(error)")
             }
         }
     }
@@ -102,8 +107,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
-        if let dirName = userInfo["dirName"] as? String {
-            unreadPanes.insert(dirName)
+        if let paneTarget = userInfo["paneTarget"] as? String {
+            unreadPanes.insert(paneTarget)
             NotificationCenter.default.post(name: .unreadPanesChanged, object: nil)
         }
         completionHandler([.banner, .badge, .sound])
@@ -115,20 +120,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        if let dirName = userInfo["dirName"] as? String {
-            unreadPanes.insert(dirName)
-            pendingNavigationDirName = dirName
+        if let paneTarget = userInfo["paneTarget"] as? String {
+            unreadPanes.insert(paneTarget)
+            pendingNavigationTarget = paneTarget
             NotificationCenter.default.post(
                 name: .navigateToPane,
                 object: nil,
-                userInfo: ["dirName": dirName]
+                userInfo: ["paneTarget": paneTarget]
             )
         }
         completionHandler()
     }
 
-    func markPaneAsRead(_ shortPath: String) {
-        if unreadPanes.remove(shortPath) != nil {
+    func markPaneAsRead(_ paneTarget: String) {
+        if unreadPanes.remove(paneTarget) != nil {
             NotificationCenter.default.post(name: .unreadPanesChanged, object: nil)
         }
     }

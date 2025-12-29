@@ -1,4 +1,0 @@
-// Config.xcconfig.sample
-// Copy this file to Config.xcconfig and fill in your values
-
-BASE_URL = https:/$()/your-server.example.com

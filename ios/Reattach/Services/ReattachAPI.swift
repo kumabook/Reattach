@@ -34,20 +34,23 @@ enum APIError: LocalizedError {
 class ReattachAPI {
     static let shared = ReattachAPI()
 
-    var baseURL: String
     var isAuthenticated: Bool = false
 
-    private static func loadBaseURL() -> String {
-        guard let url = Bundle.main.infoDictionary?["BASE_URL"] as? String, !url.isEmpty else {
-            fatalError("BASE_URL not configured in Info.plist")
-        }
-        return url
+    var baseURL: String {
+        ServerConfigManager.shared.activeServer?.serverURL ?? ""
+    }
+
+    var deviceToken: String? {
+        ServerConfigManager.shared.activeServer?.deviceToken
+    }
+
+    var isConfigured: Bool {
+        ServerConfigManager.shared.isConfigured
     }
 
     private let session: URLSession
 
     init() {
-        self.baseURL = Self.loadBaseURL()
         let config = URLSessionConfiguration.default
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
@@ -93,6 +96,10 @@ class ReattachAPI {
         _ = try await request(path: "/devices", method: "POST", body: body)
     }
 
+    func registerAPNsDevice(token: String) async throws {
+        try await registerDevice(token: token)
+    }
+
     private func request<T: Encodable>(path: String, method: String, body: T? = nil) async throws -> Data {
         guard let url = URL(string: baseURL + path) else {
             throw APIError.invalidURL
@@ -101,6 +108,10 @@ class ReattachAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = deviceToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         if let body = body {
             request.httpBody = try JSONEncoder().encode(body)
