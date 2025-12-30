@@ -16,7 +16,7 @@ APNS_BUNDLE_ID ?=
 # Include local config if exists
 -include config.local.mk
 
-.PHONY: all build install uninstall start stop restart logs clean install-hooks uninstall-hooks
+.PHONY: all build install uninstall start stop restart reinstall logs clean install-hooks uninstall-hooks
 
 all: build
 
@@ -64,6 +64,8 @@ stop:
 
 # Restart services
 restart: stop start
+
+reinstall: stop install start
 
 # View logs
 logs:

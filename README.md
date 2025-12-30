@@ -131,6 +131,7 @@ make uninstall      # Remove launchd services
 make start          # Start services
 make stop           # Stop services
 make restart        # Restart services
+make reinstall      # Rebuild, reinstall, and restart
 make logs           # View logs
 make status         # Check service status
 make install-hooks  # Install Claude Code notification hooks
@@ -144,7 +145,7 @@ make install-hooks  # Install Claude Code notification hooks
 APNS_KEY_PATH = /path/to/AuthKey.p8
 APNS_KEY_ID = XXXXXXXXXX
 APNS_TEAM_ID = XXXXXXXXXX
-APNS_BUNDLE_ID = com.example.app
+APNS_BUNDLE_ID = tokyo.kumabook.tmux.reattach
 ```
 
 ### ios/Reattach/Config.xcconfig
