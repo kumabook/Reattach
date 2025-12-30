@@ -1,8 +1,8 @@
 # Reattach
 
-**Reattach** lets you control your local **Claude Code / Codex CLI** sessions from your iPhone.
+**Reattach** is a remote tmux client for iOS — control your Mac's terminal sessions from anywhere.
 
-Run Claude Code in tmux on your Mac, then monitor and interact with it remotely — all while keeping execution entirely local.
+With optional coding agent integration, get push notifications when Claude Code or other AI assistants need your input.
 
 ## Concept
 
@@ -20,15 +20,15 @@ Run Claude Code in tmux on your Mac, then monitor and interact with it remotely 
          │ localhost:8787
          ▼
 ┌─────────────────┐
-│ reattachd       │──────► tmux ──────► Claude Code
+│ reattachd       │──────► tmux
 │ (Rust daemon)   │
 └─────────────────┘
       Your Mac
 ```
 
-- **Local execution**: All code runs on your Mac, not in the cloud
+- **Remote tmux access**: View and control tmux sessions from your iPhone/iPad
 - **Secure access**: Cloudflare Tunnel provides HTTPS without exposing ports
-- **Push notifications**: Get notified when Claude Code needs your input
+- **Coding agent friendly**: Optional hooks for Claude Code push notifications
 - **Simple architecture**: reattachd is just a thin wrapper around tmux
 
 ## Components
@@ -37,7 +37,7 @@ Run Claude Code in tmux on your Mac, then monitor and interact with it remotely 
 |-----------|-------------|
 | `reattachd` | Rust daemon that exposes tmux sessions via HTTP API |
 | `ios/` | iOS app for remote session control |
-| `hooks/` | Claude Code hooks for push notifications |
+| `hooks/` | Optional hooks for coding agent notifications |
 | `launchd/` | macOS service configuration |
 
 ## Requirements
@@ -99,9 +99,9 @@ cloudflared tunnel run reattach
 
 Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
 
-### 5. Install Claude Code hooks (optional)
+### 5. Install coding agent hooks (optional)
 
-For push notifications when Claude Code stops:
+For push notifications when Claude Code needs input:
 
 ```bash
 make install-hooks
@@ -109,11 +109,10 @@ make install-hooks
 
 ## Usage
 
-### Start a Claude Code session in tmux
+### Start a tmux session
 
 ```bash
-tmux new-session -s claude-myproject -c ~/projects/myproject
-claude
+tmux new-session -s myproject -c ~/projects/myproject
 ```
 
 ### Control from iOS
@@ -121,6 +120,21 @@ claude
 1. Open the Reattach app
 2. Your tmux sessions appear in the list
 3. Tap a session to view output and send input
+
+### Coding Agent Integration (Optional)
+
+Run Claude Code in tmux and get push notifications when it needs input:
+
+```bash
+tmux new-session -s claude -c ~/projects/myproject
+claude
+```
+
+Install hooks to enable notifications:
+
+```bash
+make install-hooks
+```
 
 ## Makefile Commands
 
