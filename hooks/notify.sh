@@ -33,16 +33,18 @@ if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     fi
 fi
 
+PANE_TARGET=""
+
 if [ -n "$CWD" ]; then
     DIR_NAME=$(basename "$CWD")
 
     # Try to find tmux pane with matching cwd
-    PANE_INFO=$(tmux list-panes -a -F '#{session_name}:#{window_index}:#{window_name}:#{pane_current_path}' 2>/dev/null | grep ":${CWD}$" | head -1)
+    PANE_INFO=$(tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}:#{pane_current_path}' 2>/dev/null | grep ":${CWD}$" | head -1)
 
     if [ -n "$PANE_INFO" ]; then
-        SESSION_NAME=$(echo "$PANE_INFO" | cut -d: -f1)
-        WINDOW_INDEX=$(echo "$PANE_INFO" | cut -d: -f2)
-        TITLE="$SESSION_NAME:$WINDOW_INDEX · $DIR_NAME"
+        PANE_TARGET=$(echo "$PANE_INFO" | cut -d: -f1-2)
+        SESSION_WINDOW=$(echo "$PANE_TARGET" | cut -d. -f1)
+        TITLE="$SESSION_WINDOW · $DIR_NAME"
     else
         TITLE="$DIR_NAME"
     fi
@@ -51,7 +53,14 @@ fi
 # Escape special characters for JSON
 BODY_ESCAPED=$(printf '%s' "$BODY" | jq -Rs '.')
 
-# Send notification with cwd info
+# Build JSON payload
+if [ -n "$PANE_TARGET" ]; then
+    PAYLOAD="{\"title\":\"$TITLE\",\"body\":$BODY_ESCAPED,\"pane_target\":\"$PANE_TARGET\"}"
+else
+    PAYLOAD="{\"title\":\"$TITLE\",\"body\":$BODY_ESCAPED}"
+fi
+
+# Send notification
 curl -s -X POST http://localhost:8787/notify \
   -H 'Content-Type: application/json' \
-  -d "{\"title\":\"$TITLE\",\"body\":$BODY_ESCAPED,\"cwd\":\"$CWD\"}"
+  -d "$PAYLOAD"
