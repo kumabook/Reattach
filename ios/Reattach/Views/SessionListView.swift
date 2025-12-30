@@ -211,20 +211,38 @@ struct SessionListView: View {
                 description: Text("Create a new session to get started")
             )
         } else {
-            List(viewModel.sessions) { session in
-                SessionSection(
-                    session: session,
-                    unreadPanes: unreadPanes,
-                    isCompact: horizontalSizeClass == .compact,
-                    selectedPane: $selectedPane,
-                    navigationPath: $navigationPath,
-                    onRequestDelete: { pane in
-                        paneToDelete = pane
-                    },
-                    onDeletePane: { target in
-                        await viewModel.deletePane(target: target)
+            List {
+                if ReattachAPI.shared.isDemoMode {
+                    Section {
+                        HStack {
+                            Image(systemName: "play.circle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Demo Mode")
+                                    .font(.headline)
+                                Text("Showing sample data. Set up a server to connect.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
-                )
+                }
+                ForEach(viewModel.sessions) { session in
+                    SessionSection(
+                        session: session,
+                        unreadPanes: unreadPanes,
+                        isCompact: horizontalSizeClass == .compact,
+                        selectedPane: $selectedPane,
+                        navigationPath: $navigationPath,
+                        onRequestDelete: { pane in
+                            paneToDelete = pane
+                        },
+                        onDeletePane: { target in
+                            await viewModel.deletePane(target: target)
+                        }
+                    )
+                }
             }
             .listStyle(.sidebar)
             .refreshable {

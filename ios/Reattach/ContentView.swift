@@ -9,12 +9,13 @@ struct ContentView: View {
     var api = ReattachAPI.shared
     @State private var configManager = ServerConfigManager.shared
     @State private var isCheckingAuth = true
+    @State private var isDemoMode = false
 
     var body: some View {
         Group {
-            if !configManager.isConfigured {
-                SetupView()
-            } else if isCheckingAuth {
+            if !configManager.isConfigured && !isDemoMode {
+                SetupView(onTryDemo: { isDemoMode = true })
+            } else if isCheckingAuth && !isDemoMode {
                 ProgressView("Connecting...")
             } else {
                 SessionListView()
@@ -64,6 +65,7 @@ struct ContentView: View {
 
 struct SetupView: View {
     @State private var showQRScanner = false
+    var onTryDemo: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -77,7 +79,7 @@ struct SetupView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Resume your local Claude Code sessions from anywhere")
+            Text("Control your tmux sessions remotely")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -102,6 +104,14 @@ struct SetupView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            Button {
+                onTryDemo()
+            } label: {
+                Text("Try Demo Mode")
+                    .foregroundStyle(.tint)
+            }
+            .padding(.top, 8)
+
             Spacer()
         }
         .sheet(isPresented: $showQRScanner) {
@@ -110,6 +120,10 @@ struct SetupView: View {
     }
 }
 
-#Preview {
+#Preview("Content") {
     ContentView()
+}
+
+#Preview("Setup") {
+    SetupView(onTryDemo: {})
 }

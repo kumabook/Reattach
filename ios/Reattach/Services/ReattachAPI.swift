@@ -48,7 +48,12 @@ class ReattachAPI {
         ServerConfigManager.shared.isConfigured
     }
 
+    var isDemoMode: Bool {
+        !isConfigured
+    }
+
     private let session: URLSession
+    private var demoInputHistory: [String: [String]] = [:]
 
     init() {
         let config = URLSessionConfiguration.default
@@ -59,27 +64,46 @@ class ReattachAPI {
     }
 
     func listSessions() async throws -> [Session] {
+        if isDemoMode {
+            return Self.demoSessions
+        }
         let data = try await request(path: "/sessions", method: "GET")
         return try JSONDecoder().decode([Session].self, from: data)
     }
 
     func createSession(name: String, cwd: String) async throws {
+        if isDemoMode { return }
         let body = CreateSessionRequest(name: name, cwd: cwd)
         _ = try await request(path: "/sessions", method: "POST", body: body)
     }
 
     func sendInput(target: String, text: String) async throws {
+        if isDemoMode {
+            var history = demoInputHistory[target] ?? []
+            history.append(text)
+            demoInputHistory[target] = history
+            return
+        }
         let body = SendInputRequest(text: text)
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
         _ = try await request(path: "/panes/\(encodedTarget)/input", method: "POST", body: body)
     }
 
     func sendEscape(target: String) async throws {
+        if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
         _ = try await request(path: "/panes/\(encodedTarget)/escape", method: "POST")
     }
 
     func getOutput(target: String, lines: Int = 200) async throws -> String {
+        if isDemoMode {
+            let baseOutput = Self.demoOutput(for: target)
+            let history = demoInputHistory[target] ?? []
+            if history.isEmpty {
+                return baseOutput
+            }
+            return baseOutput + Self.demoResponse(for: history)
+        }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
         let data = try await request(path: "/panes/\(encodedTarget)/output?lines=\(lines)", method: "GET")
         let response = try JSONDecoder().decode(OutputResponse.self, from: data)
@@ -87,6 +111,7 @@ class ReattachAPI {
     }
 
     func deletePane(target: String) async throws {
+        if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
         _ = try await request(path: "/panes/\(encodedTarget)", method: "DELETE")
     }
@@ -169,5 +194,129 @@ class ReattachAPI {
     private func request(path: String, method: String) async throws -> Data {
         let empty: String? = nil
         return try await request(path: path, method: method, body: empty)
+    }
+}
+
+// MARK: - Demo Mode Data
+extension ReattachAPI {
+    static let demoSessions: [Session] = [
+        Session(
+            name: "myproject",
+            attached: true,
+            windows: [
+                Window(
+                    index: 0,
+                    name: "main",
+                    active: true,
+                    panes: [
+                        Pane(index: 0, active: true, target: "myproject:0.0", currentPath: "/Users/demo/projects/myproject")
+                    ]
+                )
+            ]
+        ),
+        Session(
+            name: "claude-demo",
+            attached: false,
+            windows: [
+                Window(
+                    index: 0,
+                    name: "claude",
+                    active: true,
+                    panes: [
+                        Pane(index: 0, active: true, target: "claude-demo:0.0", currentPath: "/Users/demo/projects/webapp")
+                    ]
+                )
+            ]
+        )
+    ]
+
+    static func demoOutput(for target: String) -> String {
+        if target.contains("claude") {
+            return """
+╭────────────────────────────────────────────────────────────────────╮
+│ ● Claude Code                                                      │
+╰────────────────────────────────────────────────────────────────────╯
+
+> Help me refactor the authentication module
+
+I'll help you refactor the authentication module. Let me first examine the
+current implementation.
+
+⏺ Read src/auth/mod.rs
+⏺ Read src/auth/jwt.rs
+⏺ Read src/auth/session.rs
+
+I've analyzed the authentication module. Here's my refactoring plan:
+
+1. Extract common validation logic into a shared trait
+2. Implement proper error handling with custom error types
+3. Add refresh token support
+
+Would you like me to proceed with these changes?
+
+"""
+        } else {
+            return """
+$ ls -la
+total 24
+drwxr-xr-x   8 demo  staff   256 Dec 30 10:00 .
+drwxr-xr-x  12 demo  staff   384 Dec 30 09:00 ..
+-rw-r--r--   1 demo  staff   220 Dec 30 10:00 Cargo.toml
+drwxr-xr-x   4 demo  staff   128 Dec 30 10:00 src
+-rw-r--r--   1 demo  staff  1024 Dec 30 10:00 README.md
+
+$ _
+"""
+        }
+    }
+
+    static func demoResponse(for inputs: [String]) -> String {
+        var response = "\n"
+        for input in inputs {
+            response += "> \(input)\n\n"
+            response += demoReply(for: input)
+            response += "\n"
+        }
+        return response
+    }
+
+    private static func demoReply(for input: String) -> String {
+        let lowercased = input.lowercased()
+
+        if lowercased.contains("hello") || lowercased.contains("hi") {
+            return "Hello! How can I help you today?\n"
+        }
+        if lowercased.contains("help") {
+            return """
+Available commands:
+  - help: Show this message
+  - status: Check system status
+  - list: List files in current directory
+
+"""
+        }
+        if lowercased.contains("status") {
+            return """
+System Status: OK
+  CPU: 12%
+  Memory: 4.2GB / 16GB
+  Uptime: 3 days, 14 hours
+
+"""
+        }
+        if lowercased.contains("list") || lowercased.contains("ls") {
+            return """
+Cargo.toml  README.md  src/  tests/
+
+"""
+        }
+        if lowercased.contains("yes") || lowercased.contains("y") {
+            return "Great! Proceeding with the changes...\n"
+        }
+        if lowercased.contains("no") || lowercased.contains("n") {
+            return "Okay, let me know if you need anything else.\n"
+        }
+
+        return "I received your input: \"\(input)\"\n"
     }
 }
