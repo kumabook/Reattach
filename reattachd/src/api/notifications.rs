@@ -9,6 +9,8 @@ pub type SharedApnsService = Arc<ApnsService>;
 #[derive(Deserialize)]
 pub struct RegisterDeviceRequest {
     pub token: String,
+    #[serde(default)]
+    pub sandbox: bool,
 }
 
 #[derive(Deserialize)]
@@ -22,7 +24,7 @@ pub async fn register_apns_device(
     State(apns): State<SharedApnsService>,
     Json(payload): Json<RegisterDeviceRequest>,
 ) -> StatusCode {
-    apns.register_device(payload.token).await;
+    apns.register_device(payload.token, payload.sandbox).await;
     StatusCode::CREATED
 }
 

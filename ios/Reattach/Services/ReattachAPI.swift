@@ -91,13 +91,18 @@ class ReattachAPI {
         _ = try await request(path: "/panes/\(encodedTarget)", method: "DELETE")
     }
 
-    func registerDevice(token: String) async throws {
-        let body = ["token": token]
+    func registerDevice(token: String, sandbox: Bool) async throws {
+        let body = RegisterDeviceRequest(token: token, sandbox: sandbox)
         _ = try await request(path: "/devices", method: "POST", body: body)
     }
 
     func registerAPNsDevice(token: String) async throws {
-        try await registerDevice(token: token)
+        #if DEBUG
+        let sandbox = true
+        #else
+        let sandbox = false
+        #endif
+        try await registerDevice(token: token, sandbox: sandbox)
     }
 
     private func request<T: Encodable>(path: String, method: String, body: T? = nil) async throws -> Data {

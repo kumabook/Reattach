@@ -311,8 +311,7 @@ async fn auth_middleware(
     }
 }
 
-fn get_apns_config() -> Option<(String, String, String, String, bool)> {
-    // Try compile-time embedded values first, then fall back to runtime env vars
+fn get_apns_config() -> Option<(String, String, String, String)> {
     let key_base64 = option_env!("APNS_KEY_BASE64")
         .map(String::from)
         .or_else(|| std::env::var("APNS_KEY_BASE64").ok())?;
@@ -326,20 +325,11 @@ fn get_apns_config() -> Option<(String, String, String, String, bool)> {
         .map(String::from)
         .or_else(|| std::env::var("APNS_BUNDLE_ID").ok())?;
 
-    // Sandbox: compile-time default is false for production builds
-    let sandbox = option_env!("APNS_SANDBOX")
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or_else(|| {
-            std::env::var("APNS_SANDBOX")
-                .map(|v| v == "1" || v.to_lowercase() == "true")
-                .unwrap_or(false)
-        });
-
-    Some((key_base64, key_id, team_id, bundle_id, sandbox))
+    Some((key_base64, key_id, team_id, bundle_id))
 }
 
 async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsService>> {
-    let (key_base64, key_id, team_id, bundle_id, sandbox) = match get_apns_config() {
+    let (key_base64, key_id, team_id, bundle_id) = match get_apns_config() {
         Some(config) => config,
         None => {
             tracing::info!("APNs not configured");
@@ -367,13 +357,12 @@ async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsServi
         key_id,
         team_id,
         bundle_id,
-        sandbox,
         data_dir,
     };
 
     match ApnsService::new(apns_config).await {
         Ok(service) => {
-            tracing::info!("APNs service initialized (sandbox: {})", sandbox);
+            tracing::info!("APNs service initialized");
             Some(Arc::new(service))
         }
         Err(e) => {
