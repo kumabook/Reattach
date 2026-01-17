@@ -209,15 +209,18 @@ struct SessionListView: View {
     private var listContent: some View {
         if viewModel.isLoading && viewModel.sessions.isEmpty {
             ProgressView("Loading sessions...")
-        } else if viewModel.sessions.isEmpty {
-            ContentUnavailableView(
-                "No Sessions",
-                systemImage: "terminal",
-                description: Text("Create a new session to get started")
-            )
         } else {
             List {
-                if ReattachAPI.shared.isDemoMode {
+                if viewModel.sessions.isEmpty {
+                    ContentUnavailableView(
+                        "No Sessions",
+                        systemImage: "terminal",
+                        description: Text("Create a new session to get started")
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+                if !viewModel.sessions.isEmpty && ReattachAPI.shared.isDemoMode {
                     Section {
                         HStack {
                             Image(systemName: "play.circle.fill")
