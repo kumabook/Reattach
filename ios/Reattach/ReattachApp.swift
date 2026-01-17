@@ -142,4 +142,5 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 extension Notification.Name {
     static let navigateToPane = Notification.Name("navigateToPane")
     static let unreadPanesChanged = Notification.Name("unreadPanesChanged")
+    static let authenticationRestored = Notification.Name("authenticationRestored")
 }

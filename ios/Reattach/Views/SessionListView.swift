@@ -138,6 +138,11 @@ struct SessionListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             unreadPanes = AppDelegate.shared?.unreadPanes ?? []
         }
+        .onReceive(NotificationCenter.default.publisher(for: .authenticationRestored)) { _ in
+            Task {
+                await viewModel.loadSessions()
+            }
+        }
     }
 
     // MARK: - iPhone Layout (NavigationStack)

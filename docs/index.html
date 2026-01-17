@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reattach - Remote tmux Client for iOS</title>
+    <meta name="description" content="Control your tmux sessions from your iPhone. Perfect for monitoring Claude Code and other coding agents.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --primary-dark: #0056CC;
+            --bg: #000000;
+            --bg-secondary: #1C1C1E;
+            --text: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --border: #38383A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 100px 0 80px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, var(--text), var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: #2C2C2E;
+            transform: translateY(-2px);
+        }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), #5856D6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Architecture */
+        .architecture {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .architecture h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .architecture > .container > p {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 60px;
+        }
+
+        .diagram {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            white-space: pre;
+            line-height: 1.4;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Use Cases */
+        .use-cases {
+            padding: 80px 0;
+        }
+
+        .use-cases h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+
+        .use-case-list {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .use-case {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 32px;
+            align-items: flex-start;
+        }
+
+        .use-case-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .use-case h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .use-case p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1.1rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .features h2,
+            .architecture h2,
+            .use-cases h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="/" class="logo">
+                    <img src="app-icon.png" alt="Reattach" class="logo-icon">
+                    Reattach
+                </a>
+                <div class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="#architecture">How it Works</a>
+                    <a href="https://github.com/kumabook/Reattach">GitHub</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Remote tmux for iOS</h1>
+                <p>Control your terminal sessions from anywhere. Perfect for monitoring Claude Code and other coding agents on the go.</p>
+                <div class="cta-buttons">
+                    <a href="https://github.com/kumabook/Reattach" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                    <a href="#architecture" class="btn btn-secondary">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <div class="container">
+                <h2>Features</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h3>Remote tmux Access</h3>
+                        <p>View and control your tmux sessions from your iPhone or iPad. See real-time output and send commands.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔔</div>
+                        <h3>Push Notifications</h3>
+                        <p>Get notified when Claude Code or other agents need your input. Never miss an important prompt.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Flexible Connectivity</h3>
+                        <p>Use at home on the same WiFi, or access from anywhere via VPN or Cloudflare Tunnel.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">💻</div>
+                        <h3>Local Execution</h3>
+                        <p>All code runs on your machine. Reattach is just a thin remote interface to your local tmux sessions.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Lightweight Daemon</h3>
+                        <p>reattachd is a fast Rust daemon that exposes tmux via HTTP API. Minimal resource usage.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🤖</div>
+                        <h3>Agent Friendly</h3>
+                        <p>Optional hooks for Claude Code integration. Monitor your AI coding assistant from anywhere.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="architecture" id="architecture">
+            <div class="container">
+                <h2>How it Works</h2>
+                <p>Simple architecture — connect from home or anywhere</p>
+                <div class="diagram">
+                    ┌─────────────────┐
+                    │   iOS App       │
+                    │  (iPhone/iPad)  │
+                    └────────┬────────┘
+                             │
+                             │  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+                             │    VPN or Tunnel (optional, for remote access)
+                             │  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+                             │
+                             ▼
+          ┌────────────────────────────────────────────────────────┐
+          │  Your Machine (macOS / Linux)                          │
+          │                                                        │
+          │  ┌─────────────────┐       ┌─────────────────┐         │
+          │  │ reattachd       │──────►│ tmux            │         │
+          │  │ (Rust daemon)   │       │                 │         │
+          │  └─────────────────┘       └─────────────────┘         │
+          └────────────────────────────────────────────────────────┘</div>
+            </div>
+        </section>
+
+        <section class="use-cases">
+            <div class="container">
+                <h2>Use Cases</h2>
+                <div class="use-case-list">
+                    <div class="use-case">
+                        <div class="use-case-icon">🛋️</div>
+                        <div>
+                            <h3>Monitor from the Couch</h3>
+                            <p>Start a long-running task and monitor progress from your phone while relaxing.</p>
+                        </div>
+                    </div>
+                    <div class="use-case">
+                        <div class="use-case-icon">🏃</div>
+                        <div>
+                            <h3>Quick Approvals on the Go</h3>
+                            <p>Get notified when Claude Code needs confirmation. Approve changes without returning to your desk.</p>
+                        </div>
+                    </div>
+                    <div class="use-case">
+                        <div class="use-case-icon">🔧</div>
+                        <div>
+                            <h3>Remote Server Management</h3>
+                            <p>Access your development server's tmux sessions from anywhere with an internet connection.</p>
+                        </div>
+                    </div>
+                    <div class="use-case">
+                        <div class="use-case-icon">🌙</div>
+                        <div>
+                            <h3>Overnight Jobs</h3>
+                            <p>Let your AI assistant work overnight. Get a push notification when it needs your input.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Built with ❤️ by <a href="https://github.com/kumabook">kumabook</a> ・
+                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
+                MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

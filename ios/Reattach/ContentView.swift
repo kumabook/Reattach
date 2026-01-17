@@ -48,12 +48,14 @@ struct ContentView: View {
             CloudflareAuthWebView(api: api, isPresented: $showCloudflareAuth)
                 .onDisappear {
                     api.clearAuthError()
+                    NotificationCenter.default.post(name: .authenticationRestored, object: nil)
                 }
         }
         .sheet(isPresented: $showQRScanner) {
             QRScannerView()
                 .onDisappear {
                     api.clearAuthError()
+                    NotificationCenter.default.post(name: .authenticationRestored, object: nil)
                 }
         }
     }
