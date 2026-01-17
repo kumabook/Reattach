@@ -554,6 +554,12 @@ class SessionListViewModel {
 
         do {
             sessions = try await api.listSessions()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -564,6 +570,12 @@ class SessionListViewModel {
         do {
             try await api.createSession(name: name, cwd: cwd)
             await loadSessions()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -574,6 +586,12 @@ class SessionListViewModel {
         do {
             try await api.deletePane(target: target)
             await loadSessions()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true

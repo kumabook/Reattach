@@ -6,12 +6,17 @@
 import Foundation
 import Observation
 
+enum AuthErrorType {
+    case cloudflareExpired
+    case deviceTokenInvalid
+}
+
 enum APIError: LocalizedError {
     case invalidURL
     case networkError(Error)
     case serverError(String)
     case decodingError(Error)
-    case unauthorized
+    case unauthorized(AuthErrorType)
 
     var errorDescription: String? {
         switch self {
@@ -23,8 +28,13 @@ enum APIError: LocalizedError {
             return "Server error: \(message)"
         case .decodingError(let error):
             return "Decoding error: \(error.localizedDescription)"
-        case .unauthorized:
-            return "Unauthorized - please login again"
+        case .unauthorized(let type):
+            switch type {
+            case .cloudflareExpired:
+                return "Session expired - please sign in again"
+            case .deviceTokenInvalid:
+                return "Device not registered - please scan QR code again"
+            }
         }
     }
 }
@@ -35,6 +45,7 @@ class ReattachAPI {
     static let shared = ReattachAPI()
 
     var isAuthenticated: Bool = false
+    var authErrorType: AuthErrorType?
 
     var baseURL: String {
         ServerConfigManager.shared.activeServer?.serverURL ?? ""
@@ -61,6 +72,10 @@ class ReattachAPI {
         config.httpShouldSetCookies = true
         config.httpCookieStorage = .shared
         self.session = URLSession(configuration: config)
+    }
+
+    func clearAuthError() {
+        authErrorType = nil
     }
 
     func listSessions() async throws -> [Session] {
@@ -158,26 +173,32 @@ class ReattachAPI {
             case 200...299:
                 if data.isEmpty {
                     isAuthenticated = true
+                    authErrorType = nil
                     return data
                 }
                 if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
                    contentType.contains("application/json") {
                     isAuthenticated = true
+                    authErrorType = nil
                     return data
                 } else if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
                           contentType.contains("text/html") {
                     isAuthenticated = false
-                    throw APIError.unauthorized
+                    authErrorType = .cloudflareExpired
+                    throw APIError.unauthorized(.cloudflareExpired)
                 } else {
                     isAuthenticated = true
+                    authErrorType = nil
                     return data
                 }
             case 302, 303, 307, 308:
                 isAuthenticated = false
-                throw APIError.unauthorized
+                authErrorType = .cloudflareExpired
+                throw APIError.unauthorized(.cloudflareExpired)
             case 401, 403:
                 isAuthenticated = false
-                throw APIError.unauthorized
+                authErrorType = .deviceTokenInvalid
+                throw APIError.unauthorized(.deviceTokenInvalid)
             default:
                 if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
                     throw APIError.serverError(errorResponse.error)

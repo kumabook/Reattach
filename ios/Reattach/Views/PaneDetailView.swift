@@ -609,6 +609,12 @@ class PaneDetailViewModel {
             output = newOutput
             quickAction = newAction
             contentVersion = UUID()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -624,6 +630,12 @@ class PaneDetailViewModel {
             CommandHistoryManager.shared.add(text)
             try? await Task.sleep(for: .milliseconds(300))
             await refreshSilently()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -638,6 +650,12 @@ class PaneDetailViewModel {
             try await api.sendEscape(target: target)
             try? await Task.sleep(for: .milliseconds(300))
             await refreshSilently()
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true

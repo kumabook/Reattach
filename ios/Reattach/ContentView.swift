@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var configManager = ServerConfigManager.shared
     @State private var isCheckingAuth = true
     @State private var isDemoMode = false
+    @State private var showCloudflareAuth = false
+    @State private var showQRScanner = false
 
     var body: some View {
         Group {
@@ -32,6 +34,27 @@ struct ContentView: View {
                     await checkAuthentication()
                 }
             }
+        }
+        .onChange(of: api.authErrorType) { _, errorType in
+            guard let errorType else { return }
+            switch errorType {
+            case .cloudflareExpired:
+                showCloudflareAuth = true
+            case .deviceTokenInvalid:
+                showQRScanner = true
+            }
+        }
+        .fullScreenCover(isPresented: $showCloudflareAuth) {
+            CloudflareAuthWebView(api: api, isPresented: $showCloudflareAuth)
+                .onDisappear {
+                    api.clearAuthError()
+                }
+        }
+        .sheet(isPresented: $showQRScanner) {
+            QRScannerView()
+                .onDisappear {
+                    api.clearAuthError()
+                }
         }
     }
 
