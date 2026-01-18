@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Guide - Reattach</title>
+    <meta name="description" content="How to set up reattachd on your Mac or Linux machine.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --primary-dark: #0056CC;
+            --bg: #000000;
+            --bg-secondary: #1C1C1E;
+            --text: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --border: #38383A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--text);
+        }
+
+        /* Content */
+        .content {
+            padding: 60px 0;
+        }
+
+        .content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+        }
+
+        .content h2 {
+            font-size: 1.5rem;
+            margin-top: 48px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .content h3 {
+            font-size: 1.1rem;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .content p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .content ul {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+        }
+
+        pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        code {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+
+        p code {
+            background: var(--bg-secondary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .step {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-right: 12px;
+        }
+
+        .step-title {
+            display: inline;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .step-content {
+            margin-top: 16px;
+        }
+
+        .note {
+            background: rgba(0, 122, 255, 0.1);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+
+        .note p {
+            color: var(--text);
+            margin: 0;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">
+                <img src="app-icon.png" alt="Reattach" class="logo-icon">
+                Reattach
+            </a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/setup.html" class="active">Setup</a>
+                <a href="https://github.com/kumabook/Reattach">GitHub</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="content">
+        <div class="container">
+            <h1>Setup Guide</h1>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <span class="step-title">Install reattachd</span>
+                <div class="step-content">
+                    <p>Run this command on your computer:</p>
+                    <pre><code>curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-title">Set up the daemon</span>
+                <div class="step-content">
+                    <h3>macOS (launchd)</h3>
+                    <pre><code># Create log directory
+mkdir -p ~/Library/Logs/Reattach
+
+# Create plist file
+cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
+&lt;dict&gt;
+    &lt;key&gt;Label&lt;/key&gt;
+    &lt;string&gt;com.kumabook.reattachd&lt;/string&gt;
+    &lt;key&gt;ProgramArguments&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;/usr/local/bin/reattachd&lt;/string&gt;
+    &lt;/array&gt;
+    &lt;key&gt;RunAtLoad&lt;/key&gt;
+    &lt;true/&gt;
+    &lt;key&gt;KeepAlive&lt;/key&gt;
+    &lt;true/&gt;
+    &lt;key&gt;StandardOutPath&lt;/key&gt;
+    &lt;string&gt;~/Library/Logs/Reattach/reattachd.log&lt;/string&gt;
+    &lt;key&gt;StandardErrorPath&lt;/key&gt;
+    &lt;string&gt;~/Library/Logs/Reattach/reattachd.error.log&lt;/string&gt;
+    &lt;key&gt;EnvironmentVariables&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;PORT&lt;/key&gt;
+        &lt;string&gt;8787&lt;/string&gt;
+        &lt;key&gt;PATH&lt;/key&gt;
+        &lt;string&gt;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin&lt;/string&gt;
+    &lt;/dict&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;
+EOF
+
+# Load and start
+launchctl load ~/Library/LaunchAgents/com.kumabook.reattachd.plist</code></pre>
+
+                    <h3>Linux (systemd)</h3>
+                    <pre><code># Create service file
+sudo tee /etc/systemd/system/reattachd.service << 'EOF'
+[Unit]
+Description=Reattach Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/reattachd
+Restart=always
+Environment=PORT=8787
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable reattachd
+sudo systemctl start reattachd</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-title">Configure network access</span>
+                <div class="step-content">
+                    <p>Choose how your iOS device will connect to reattachd:</p>
+
+                    <h3>Local network</h3>
+                    <p>Use your machine's local IP address directly. No additional setup required.</p>
+                    <pre><code>URL: http://192.168.x.x:8787</code></pre>
+
+                    <h3>VPN</h3>
+                    <p>If you have a VPN setup, use the machine's IP address on the VPN network.</p>
+                    <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
+
+                    <h3>Cloudflare Tunnel</h3>
+                    <p>For secure remote access without exposing ports:</p>
+                    <pre><code># Create tunnel
+cloudflared tunnel create reattach
+
+# Configure tunnel (edit ~/.cloudflared/config.yml)
+tunnel: reattach
+credentials-file: /path/to/credentials.json
+
+ingress:
+  - hostname: your-domain.example.com
+    service: http://localhost:8787
+  - service: http_status:404
+
+# Start tunnel
+cloudflared tunnel run reattach</code></pre>
+                    <pre><code>URL: https://your-domain.example.com</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-title">Register your device</span>
+                <div class="step-content">
+                    <p>Generate a QR code to register your iOS device:</p>
+                    <pre><code>reattachd setup --url &lt;your-url&gt;</code></pre>
+                    <p>Scan the QR code with the Reattach iOS app to complete registration.</p>
+                </div>
+            </div>
+
+            <div class="note">
+                <p><strong>Need help?</strong> Check out the <a href="https://github.com/kumabook/Reattach">GitHub repository</a> for more details and troubleshooting.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Built with ❤️ by <a href="https://github.com/kumabook">kumabook</a> ・
+                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
+                MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

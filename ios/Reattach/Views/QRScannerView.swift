@@ -43,12 +43,32 @@ struct QRScannerView: View {
 
                     Spacer()
 
-                    Text("Scan QR code from reattachd setup")
-                        .font(.subheadline)
-                        .foregroundStyle(.white)
-                        .padding()
-                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-                        .padding(.bottom, 50)
+                    VStack(spacing: 12) {
+                        Text("Scan QR code from your PC")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+
+                        Text("Run this command on your computer:")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.8))
+
+                        Text("reattachd setup --url <your-url>")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
+
+                        Link(destination: URL(string: "https://reattach.tmux.kumabook.tokyo/setup.html")!) {
+                            Text("Setup guide")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .padding()
+                    .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
+                    .padding(.bottom, 50)
                 }
             }
             .navigationTitle("Scan QR Code")

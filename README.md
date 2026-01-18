@@ -42,39 +42,109 @@ With optional coding agent integration, get push notifications when Claude Code 
 
 ## Requirements
 
-- macOS
-- [Rust](https://rustup.rs/)
+- macOS or Linux
 - [tmux](https://github.com/tmux/tmux)
-- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (cloudflared)
-- Xcode (for iOS app)
-- Apple Developer account (for push notifications)
+- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (optional, for remote access)
 
-## Setup
+## Installation
 
-### 1. Clone and configure
+### 1. Install reattachd
 
 ```bash
-git clone https://github.com/kumabook/Reattach.git
-cd Reattach
-
-# Copy sample configs
-cp config.local.mk.sample config.local.mk
-cp ios/Reattach/Config.xcconfig.sample ios/Reattach/Config.xcconfig
-
-# Edit with your values
-vim config.local.mk        # APNs credentials
-vim ios/Reattach/Config.xcconfig  # Server URL
+curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
 ```
 
-### 2. Build and install daemon
+### 2. Setup daemon
+
+#### macOS (launchd)
 
 ```bash
-make build
-make install
-make start
+# Create log directory
+mkdir -p ~/Library/Logs/Reattach
+
+# Create plist file
+cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kumabook.reattachd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/reattachd</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>~/Library/Logs/Reattach/reattachd.log</string>
+    <key>StandardErrorPath</key>
+    <string>~/Library/Logs/Reattach/reattachd.error.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>8787</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# Load and start
+launchctl load ~/Library/LaunchAgents/com.kumabook.reattachd.plist
 ```
 
-### 3. Configure Cloudflare Tunnel
+#### Linux (systemd)
+
+```bash
+# Create service file
+sudo tee /etc/systemd/system/reattachd.service << 'EOF'
+[Unit]
+Description=Reattach Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/reattachd
+Restart=always
+Environment=PORT=8787
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable reattachd
+sudo systemctl start reattachd
+```
+
+### 3. Configure network access
+
+Choose how your iOS device will connect to reattachd:
+
+#### Local network
+
+Use your machine's local IP address directly. No additional setup required.
+
+```
+URL: http://192.168.x.x:8787
+```
+
+#### VPN
+
+If you have a VPN setup, use the machine's IP address on the VPN network.
+
+```
+URL: http://<vpn-ip>:8787
+```
+
+#### Cloudflare Tunnel
+
+For secure remote access without exposing ports, set up [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
 
 ```bash
 # Create tunnel
@@ -93,27 +163,39 @@ ingress:
 cloudflared tunnel run reattach
 ```
 
+```
+URL: https://your-domain.example.com
+```
+
 > **Security**: Since Reattach allows remote command execution, you should configure authentication via [Cloudflare Zero Trust](https://developers.cloudflare.com/cloudflare-one/). Add an Access Application policy to restrict access to your tunnel hostname.
 
-### 4. Build iOS app
+### 4. Install iOS app
 
-Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
-
-### 5. Install coding agent hooks (optional)
-
-For push notifications when Claude Code needs input:
-
-```bash
-make install-hooks
-```
+Download from the App Store, or build from source (see [Development](#development)).
 
 ## Usage
 
 ### Start a tmux session
 
 ```bash
+tmux
+```
+
+You can also name the session and set the working directory:
+
+```bash
 tmux new-session -s myproject -c ~/projects/myproject
 ```
+
+### Register your device
+
+Generate a QR code to register your iOS device. Use the URL from your network configuration above:
+
+```bash
+reattachd setup --url <your-url>
+```
+
+Scan the QR code with the Reattach iOS app to complete registration.
 
 ### Control from iOS
 
@@ -121,22 +203,52 @@ tmux new-session -s myproject -c ~/projects/myproject
 2. Your tmux sessions appear in the list
 3. Tap a session to view output and send input
 
-### Coding Agent Integration (Optional)
+## Development
 
-Run Claude Code in tmux and get push notifications when it needs input:
+### Requirements
+
+- [Rust](https://rustup.rs/)
+- Xcode (for iOS app)
+- Apple Developer account (for push notifications)
+
+### Build from source
 
 ```bash
-tmux new-session -s claude -c ~/projects/myproject
-claude
+git clone https://github.com/kumabook/Reattach.git
+cd Reattach
+
+# Copy sample configs
+cp config.local.mk.sample config.local.mk
+cp ios/Reattach/Config.xcconfig.sample ios/Reattach/Config.xcconfig
+
+# Edit with your values
+vim config.local.mk        # APNs credentials
+vim ios/Reattach/Config.xcconfig  # Server URL
+
+# Build and install daemon
+make build
+make install
+make start
 ```
 
-Install hooks to enable notifications:
+### Configuration
 
-```bash
-make install-hooks
+#### config.local.mk
+
+```makefile
+APNS_KEY_PATH = /path/to/AuthKey.p8
+APNS_KEY_ID = XXXXXXXXXX
+APNS_TEAM_ID = XXXXXXXXXX
+APNS_BUNDLE_ID = tokyo.kumabook.tmux.reattach
 ```
 
-## Makefile Commands
+#### ios/Reattach/Config.xcconfig
+
+```
+BASE_URL = https:/$()/your-domain.example.com
+```
+
+### Makefile Commands
 
 ```bash
 make build          # Build reattachd
@@ -151,22 +263,9 @@ make status         # Check service status
 make install-hooks  # Install Claude Code notification hooks
 ```
 
-## Configuration
+### Build iOS app
 
-### config.local.mk
-
-```makefile
-APNS_KEY_PATH = /path/to/AuthKey.p8
-APNS_KEY_ID = XXXXXXXXXX
-APNS_TEAM_ID = XXXXXXXXXX
-APNS_BUNDLE_ID = tokyo.kumabook.tmux.reattach
-```
-
-### ios/Reattach/Config.xcconfig
-
-```
-BASE_URL = https:/$()/your-domain.example.com
-```
+Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
 
 ## License
 
