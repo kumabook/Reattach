@@ -192,6 +192,17 @@
             margin: 0;
         }
 
+        .step-image {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .step-image img {
+            max-width: 200px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
         /* Footer */
         footer {
             padding: 40px 0;
@@ -360,6 +371,9 @@ cloudflared tunnel run reattach</code></pre>
                     <p>Generate a QR code to register your iOS device:</p>
                     <pre><code>reattachd setup --url &lt;your-url&gt;</code></pre>
                     <p>Scan the QR code with the Reattach iOS app to complete registration.</p>
+                    <div class="step-image">
+                        <img src="images/scan.png" alt="Scan QR Code screen">
+                    </div>
                 </div>
             </div>
 
