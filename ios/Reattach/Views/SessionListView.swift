@@ -166,7 +166,10 @@ struct SessionListView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        serverButton
+                        HStack(spacing: 16) {
+                            serverListButton
+                            currentServerButton
+                        }
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -186,7 +189,10 @@ struct SessionListView: View {
                 .navigationTitle("")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        serverButton
+                        HStack(spacing: 16) {
+                            serverListButton
+                            currentServerButton
+                        }
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -305,33 +311,35 @@ struct SessionListView: View {
         }
     }
 
+    private var serverListButton: some View {
+        Button {
+            showServerList = true
+        } label: {
+            Image(systemName: "list.bullet")
+        }
+    }
+
     @ViewBuilder
-    private var serverButton: some View {
-        HStack(spacing: 12) {
+    private var currentServerButton: some View {
+        if configManager.isDemoMode {
+            HStack(spacing: 4) {
+                Image(systemName: "play.circle")
+                Text("Demo")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        } else if let server = configManager.activeServer {
             Button {
-                showServerList = true
+                showServerSettings = true
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "server.rack")
-                    if configManager.isDemoMode {
-                        Text("Demo")
-                    } else if let server = configManager.activeServer {
-                        Text(server.serverName)
-                            .lineLimit(1)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Text(server.serverName)
+                        .lineLimit(1)
+                    Image(systemName: "gearshape")
+                        .font(.caption)
                 }
                 .font(.subheadline)
-            }
-            if !configManager.isDemoMode && configManager.activeServer != nil {
-                Button {
-                    showServerSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.subheadline)
-                }
             }
         }
     }
