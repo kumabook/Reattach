@@ -98,6 +98,7 @@ struct SessionListView: View {
     @State private var navigationPath = NavigationPath()
     @State private var unreadPanes: Set<String> = []
     @State private var showServerList = false
+    @State private var showServerSettings = false
     @State private var configManager = ServerConfigManager.shared
     @State private var paneToDelete: Pane?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -117,6 +118,13 @@ struct SessionListView: View {
         }
         .sheet(isPresented: $showServerList) {
             ServerListView()
+        }
+        .sheet(isPresented: $showServerSettings) {
+            if let server = configManager.activeServer {
+                NavigationStack {
+                    ServerDetailView(server: server)
+                }
+            }
         }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
@@ -310,15 +318,23 @@ struct SessionListView: View {
                 .font(.subheadline)
             }
         } else if let server = configManager.activeServer {
-            Button {
-                showServerList = true
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "server.rack")
-                    Text(server.serverName)
-                        .lineLimit(1)
+            HStack(spacing: 12) {
+                Button {
+                    showServerList = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "server.rack")
+                        Text(server.serverName)
+                            .lineLimit(1)
+                    }
+                    .font(.subheadline)
                 }
-                .font(.subheadline)
+                Button {
+                    showServerSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.subheadline)
+                }
             }
         }
     }

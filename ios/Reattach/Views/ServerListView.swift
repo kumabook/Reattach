@@ -116,6 +116,13 @@ struct ServerListView: View {
             }
             .tint(.gray)
         }
+        .contextMenu {
+            NavigationLink {
+                ServerDetailView(server: server)
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+        }
     }
 
     private var addServerSection: some View {
