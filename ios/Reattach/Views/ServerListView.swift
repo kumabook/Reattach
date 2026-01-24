@@ -76,6 +76,16 @@ struct ServerListView: View {
                 }
                 .buttonStyle(.bordered)
             }
+            Button {
+                showUpgrade = true
+            } label: {
+                HStack {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(.yellow)
+                    Text("View Pro Features")
+                        .foregroundStyle(.primary)
+                }
+            }
         } footer: {
             Text("You're viewing demo data. Exit to connect to a real server.")
         }
