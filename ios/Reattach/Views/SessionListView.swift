@@ -166,10 +166,10 @@ struct SessionListView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        HStack(spacing: 16) {
-                            serverListButton
-                            currentServerButton
-                        }
+                        serverListButton
+                    }
+                    ToolbarItem(placement: .principal) {
+                        currentServerButton
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -189,10 +189,10 @@ struct SessionListView: View {
                 .navigationTitle("")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        HStack(spacing: 16) {
-                            serverListButton
-                            currentServerButton
-                        }
+                        serverListButton
+                    }
+                    ToolbarItem(placement: .principal) {
+                        currentServerButton
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -322,24 +322,21 @@ struct SessionListView: View {
     @ViewBuilder
     private var currentServerButton: some View {
         if configManager.isDemoMode {
-            HStack(spacing: 4) {
-                Image(systemName: "play.circle")
-                Text("Demo")
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            Text("Demo")
+                .font(.headline)
+                .foregroundStyle(.secondary)
         } else if let server = configManager.activeServer {
             Button {
                 showServerSettings = true
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "server.rack")
+                HStack(spacing: 6) {
                     Text(server.serverName)
                         .lineLimit(1)
                     Image(systemName: "gearshape")
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .font(.subheadline)
+                .font(.headline)
             }
         }
     }
