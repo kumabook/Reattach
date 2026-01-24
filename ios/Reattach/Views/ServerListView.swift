@@ -11,7 +11,6 @@ struct ServerListView: View {
     @State private var purchaseManager = PurchaseManager.shared
     @State private var showQRScanner = false
     @State private var showUpgrade = false
-    @State private var serverToDelete: ServerConfig?
 
     var body: some View {
         NavigationStack {
@@ -39,24 +38,6 @@ struct ServerListView: View {
             }
             .sheet(isPresented: $showUpgrade) {
                 UpgradeView()
-            }
-            .confirmationDialog(
-                "Delete Server",
-                isPresented: Binding(
-                    get: { serverToDelete != nil },
-                    set: { if !$0 { serverToDelete = nil } }
-                ),
-                presenting: serverToDelete
-            ) { server in
-                Button("Delete", role: .destructive) {
-                    configManager.removeServer(server.id)
-                    serverToDelete = nil
-                }
-                Button("Cancel", role: .cancel) {
-                    serverToDelete = nil
-                }
-            } message: { server in
-                Text("Remove \(server.serverName)?")
             }
         }
     }
@@ -127,12 +108,7 @@ struct ServerListView: View {
             configManager.setActiveServer(server.id)
             dismiss()
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                serverToDelete = server
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
+        .swipeActions(edge: .trailing) {
             NavigationLink {
                 ServerDetailView(server: server)
             } label: {

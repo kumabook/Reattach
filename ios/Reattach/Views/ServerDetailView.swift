@@ -14,6 +14,7 @@ struct ServerDetailView: View {
     @State private var serverName: String = ""
     @State private var cfAccessClientId: String = ""
     @State private var cfAccessClientSecret: String = ""
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         Form {
@@ -36,6 +37,27 @@ struct ServerDetailView: View {
             } footer: {
                 Text("Enter your Service Token credentials if using Cloudflare Access.")
             }
+
+            Section {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Delete Server")
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .confirmationDialog("Delete Server", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                configManager.removeServer(server.id)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete \(server.serverName)?")
         }
         .navigationTitle("Server Settings")
         .navigationBarTitleDisplayMode(.inline)
