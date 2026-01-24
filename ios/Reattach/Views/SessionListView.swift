@@ -307,28 +307,25 @@ struct SessionListView: View {
 
     @ViewBuilder
     private var serverButton: some View {
-        if configManager.isDemoMode {
+        HStack(spacing: 12) {
             Button {
                 showServerList = true
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "play.circle")
-                    Text("Demo")
-                }
-                .font(.subheadline)
-            }
-        } else if let server = configManager.activeServer {
-            HStack(spacing: 12) {
-                Button {
-                    showServerList = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "server.rack")
+                    Image(systemName: "server.rack")
+                    if configManager.isDemoMode {
+                        Text("Demo")
+                    } else if let server = configManager.activeServer {
                         Text(server.serverName)
                             .lineLimit(1)
                     }
-                    .font(.subheadline)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
+                .font(.subheadline)
+            }
+            if !configManager.isDemoMode && configManager.activeServer != nil {
                 Button {
                     showServerSettings = true
                 } label: {
