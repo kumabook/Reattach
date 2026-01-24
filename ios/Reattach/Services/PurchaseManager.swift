@@ -16,7 +16,7 @@ class PurchaseManager {
     private(set) var isLoading: Bool = false
     var errorMessage: String?
 
-    private let productId = "com.kumabook.reattach.pro"
+    private let productId = "tokyo.kumabook.tmux.reattach.pro"
     private var product: Product?
     private var updateListenerTask: Task<Void, Error>?
 
