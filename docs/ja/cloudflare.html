@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflareセットアップ - Reattach</title>
+    <meta name="description" content="Cloudflare TunnelとAccessを使用してreattachdへのセキュアなリモートアクセスを設定する方法。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --primary-dark: #0056CC;
+            --bg: #000000;
+            --bg-secondary: #1C1C1E;
+            --text: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --border: #38383A;
+            --warning: #FF9500;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--text);
+        }
+
+        /* Content */
+        .content {
+            padding: 60px 0;
+        }
+
+        .content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .content .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+
+        .content h2 {
+            font-size: 1.5rem;
+            margin-top: 48px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .content h3 {
+            font-size: 1.1rem;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .content p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .content ul, .content ol {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        code {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+
+        p code {
+            background: var(--bg-secondary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .step {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-right: 12px;
+        }
+
+        .step-title {
+            display: inline;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .step-content {
+            margin-top: 16px;
+        }
+
+        .note {
+            background: rgba(0, 122, 255, 0.1);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+
+        .note p {
+            color: var(--text);
+            margin: 0;
+        }
+
+        .warning {
+            background: rgba(255, 149, 0, 0.1);
+            border: 1px solid rgba(255, 149, 0, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+
+        .warning p {
+            color: var(--text);
+            margin: 0;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            text-decoration: none;
+            margin-bottom: 24px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/ja/" class="logo">
+                <img src="../app-icon.png" alt="Reattach" class="logo-icon">
+                Reattach
+            </a>
+            <div class="nav-links">
+                <a href="/ja/">ホーム</a>
+                <a href="/ja/setup.html">セットアップ</a>
+                <a href="https://github.com/kumabook/Reattach">GitHub</a>
+                <a href="/cloudflare.html">English</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="content">
+        <div class="container">
+            <a href="/ja/setup.html" class="back-link">&larr; セットアップガイドに戻る</a>
+
+            <h1>Cloudflareセットアップ</h1>
+            <p class="subtitle">Cloudflare TunnelとAccessを使用してreattachdへのセキュアなリモートアクセスを設定します。</p>
+
+            <div class="note">
+                <p><strong>前提条件：</strong> Cloudflareアカウントと、Cloudflareで管理されているドメインが必要です。</p>
+            </div>
+
+            <h2>概要</h2>
+            <p>このガイドでは2つのコンポーネントについて説明します：</p>
+            <ol>
+                <li><strong>Cloudflare Tunnel</strong> - ポートを開放せずにreattachdをインターネットに安全に公開</li>
+                <li><strong>Cloudflare Access</strong> - Service Tokenを使用してトンネルに認証を追加し保護</li>
+            </ol>
+
+            <h2>cloudflaredをインストール</h2>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <span class="step-title">cloudflaredをインストール</span>
+                <div class="step-content">
+                    <h3>macOS</h3>
+                    <pre><code>brew install cloudflared</code></pre>
+
+                    <h3>Linux</h3>
+                    <pre><code># Debian/Ubuntu
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+# その他のディストリビューション
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ を参照</code></pre>
+                </div>
+            </div>
+
+            <h2>クイックスタート（テスト用）</h2>
+
+            <p>ドメインを設定せずにリモートアクセスを素早くテストしたい場合は、<strong>Quick Tunnel</strong>を使用できます：</p>
+
+            <pre><code>cloudflared tunnel --url http://localhost:8787</code></pre>
+
+            <p><code>https://xxxx-xxxx-xxxx.trycloudflare.com</code> のような一時的なURLが生成されます。</p>
+
+            <div class="note">
+                <p><strong>注意：</strong> Quick Tunnelはテスト専用です。コマンドを再起動するたびにURLが変わるため、毎回QRコードを再スキャンする必要があります。独自ドメインで恒久的にセットアップするには、以下に進んでください。</p>
+            </div>
+
+            <h2>独自ドメインでの恒久的なセットアップ</h2>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-title">Cloudflareで認証</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel login</code></pre>
+                    <p>ブラウザが開き、Cloudflareアカウントに対してcloudflaredを認証・承認します。</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-title">トンネルを作成</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel create reattach</code></pre>
+                    <p>トンネルが作成され、<code>~/.cloudflared/&lt;TUNNEL_ID&gt;.json</code>に認証情報ファイルが生成されます。</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-title">トンネルを設定</span>
+                <div class="step-content">
+                    <p><code>~/.cloudflared/config.yml</code>を作成または編集します：</p>
+                    <pre><code>tunnel: reattach
+credentials-file: /Users/YOUR_USERNAME/.cloudflared/TUNNEL_ID.json
+
+ingress:
+  - hostname: reattach.your-domain.com
+    service: http://localhost:8787
+  - service: http_status:404</code></pre>
+                    <p><code>YOUR_USERNAME</code>、<code>TUNNEL_ID</code>、<code>your-domain.com</code>を実際の値に置き換えてください。</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">5</span>
+                <span class="step-title">DNSレコードを作成</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel route dns reattach reattach.your-domain.com</code></pre>
+                    <p>トンネルを指すCNAMEレコードが作成されます。</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">6</span>
+                <span class="step-title">トンネルを実行</span>
+                <div class="step-content">
+                    <p>トンネルをテスト：</p>
+                    <pre><code>cloudflared tunnel run reattach</code></pre>
+
+                    <h3>サービスとして実行（macOS）</h3>
+                    <pre><code>sudo cloudflared service install
+sudo launchctl start com.cloudflare.cloudflared</code></pre>
+
+                    <h3>サービスとして実行（Linux）</h3>
+                    <pre><code>sudo cloudflared service install
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared</code></pre>
+                </div>
+            </div>
+
+            <h2>パート2: Service Tokenを使用したCloudflare Access</h2>
+
+            <p>Cloudflare Accessはトンネルに認証を追加します。Service Tokenを使用すると、Reattach iOSアプリが対話的なログインなしで認証できます。</p>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <span class="step-title">Accessアプリケーションを作成</span>
+                <div class="step-content">
+                    <ol>
+                        <li><a href="https://one.dash.cloudflare.com/" target="_blank">Cloudflare Zero Trust Dashboard</a>にアクセス</li>
+                        <li><strong>Access</strong> &rarr; <strong>Applications</strong>に移動</li>
+                        <li><strong>Add an application</strong>をクリック</li>
+                        <li><strong>Self-hosted</strong>を選択</li>
+                        <li>アプリケーションを設定：
+                            <ul>
+                                <li><strong>Application name:</strong> Reattach</li>
+                                <li><strong>Session duration:</strong> 24 hours（またはお好みで）</li>
+                                <li><strong>Application domain:</strong> <code>reattach.your-domain.com</code></li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-title">Service Tokenを作成</span>
+                <div class="step-content">
+                    <ol>
+                        <li>Zero Trust Dashboardで<strong>Access</strong> &rarr; <strong>Service Auth</strong>に移動</li>
+                        <li><strong>Create Service Token</strong>をクリック</li>
+                        <li>名前を入力（例：「Reattach iOS」）</li>
+                        <li>トークンの有効期間を設定（例：1年）</li>
+                        <li><strong>Generate token</strong>をクリック</li>
+                    </ol>
+
+                    <div class="warning">
+                        <p><strong>重要：</strong> <code>CF-Access-Client-Id</code>と<code>CF-Access-Client-Secret</code>の両方をすぐにコピーしてください。シークレットは一度しか表示されません！</p>
+                    </div>
+
+                    <p>2つの値が取得できます：</p>
+                    <pre><code>CF-Access-Client-Id: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.access
+CF-Access-Client-Secret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-title">Accessポリシーを作成</span>
+                <div class="step-content">
+                    <ol>
+                        <li><strong>Access</strong> &rarr; <strong>Applications</strong>でReattachアプリケーションに戻る</li>
+                        <li>アプリケーションをクリックして編集</li>
+                        <li><strong>Policies</strong>タブに移動</li>
+                        <li>ポリシーを追加：
+                            <ul>
+                                <li><strong>Policy name:</strong> Service Token Access</li>
+                                <li><strong>Action:</strong> Service Auth</li>
+                                <li><strong>Include:</strong> Service Token &rarr; 作成したトークンを選択</li>
+                            </ul>
+                        </li>
+                        <li>ポリシーを保存</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-title">iOSアプリを設定</span>
+                <div class="step-content">
+                    <p>Reattach iOSアプリで：</p>
+                    <ol>
+                        <li>サーバー設定に移動</li>
+                        <li>Service Tokenの認証情報を入力：
+                            <ul>
+                                <li><strong>Client ID:</strong> CF-Access-Client-Id</li>
+                                <li><strong>Client Secret:</strong> CF-Access-Client-Secret</li>
+                            </ul>
+                        </li>
+                        <li>設定を保存</li>
+                    </ol>
+                    <p>アプリはすべてのAPIリクエストにこれらのヘッダーを自動的に含めます。</p>
+                </div>
+            </div>
+
+            <h2>動作確認</h2>
+
+            <p>すべてが正しく動作していることをテストします：</p>
+
+            <pre><code># 認証なしでテスト（403で失敗するはず）
+curl https://reattach.your-domain.com/sessions
+
+# Service Tokenでテスト（セッション一覧が返るはず）
+curl -H "CF-Access-Client-Id: YOUR_CLIENT_ID" \
+     -H "CF-Access-Client-Secret: YOUR_CLIENT_SECRET" \
+     https://reattach.your-domain.com/sessions</code></pre>
+
+            <div class="note">
+                <p><strong>サポートが必要ですか？</strong> 詳細やトラブルシューティングについては<a href="https://github.com/kumabook/Reattach">GitHubリポジトリ</a>をご覧ください。</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Built with &#10084; by <a href="https://github.com/kumabook">kumabook</a> ・
+                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
+                MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

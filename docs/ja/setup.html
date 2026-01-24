@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Setup Guide - Reattach</title>
-    <meta name="description" content="How to set up reattachd on your Mac or Linux machine.">
+    <title>セットアップガイド - Reattach</title>
+    <meta name="description" content="MacまたはLinuxでreattachdをセットアップする方法。">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -127,6 +127,15 @@
             margin-bottom: 8px;
         }
 
+        .content a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
         pre {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -239,41 +248,41 @@
 <body>
     <header>
         <nav>
-            <a href="/" class="logo">
-                <img src="app-icon.png" alt="Reattach" class="logo-icon">
+            <a href="/ja/" class="logo">
+                <img src="../app-icon.png" alt="Reattach" class="logo-icon">
                 Reattach
             </a>
             <div class="nav-links">
-                <a href="/">Home</a>
-                <a href="/setup.html" class="active">Setup</a>
+                <a href="/ja/">ホーム</a>
+                <a href="/ja/setup.html" class="active">セットアップ</a>
                 <a href="https://github.com/kumabook/Reattach">GitHub</a>
-                <a href="/ja/setup.html">日本語</a>
+                <a href="/setup.html">English</a>
             </div>
         </nav>
     </header>
 
     <main class="content">
         <div class="container">
-            <h1>Setup Guide</h1>
+            <h1>セットアップガイド</h1>
 
             <div class="step">
                 <span class="step-number">1</span>
-                <span class="step-title">Install reattachd</span>
+                <span class="step-title">reattachdをインストール</span>
                 <div class="step-content">
-                    <p>Run this command on your computer:</p>
+                    <p>お使いのコンピュータで以下のコマンドを実行します：</p>
                     <pre><code>curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh</code></pre>
                 </div>
             </div>
 
             <div class="step">
                 <span class="step-number">2</span>
-                <span class="step-title">Set up the daemon</span>
+                <span class="step-title">デーモンを設定</span>
                 <div class="step-content">
                     <h3>macOS (launchd)</h3>
-                    <pre><code># Create log directory
+                    <pre><code># ログディレクトリを作成
 mkdir -p ~/Library/Logs/Reattach
 
-# Create plist file
+# plistファイルを作成
 cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
 &lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
@@ -304,11 +313,11 @@ cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
 &lt;/plist&gt;
 EOF
 
-# Load and start
+# 読み込んで開始
 launchctl load ~/Library/LaunchAgents/com.kumabook.reattachd.plist</code></pre>
 
                     <h3>Linux (systemd)</h3>
-                    <pre><code># Create service file
+                    <pre><code># サービスファイルを作成
 sudo tee /etc/systemd/system/reattachd.service << 'EOF'
 [Unit]
 Description=Reattach Daemon
@@ -324,7 +333,7 @@ Environment=PORT=8787
 WantedBy=multi-user.target
 EOF
 
-# Enable and start
+# 有効化して開始
 sudo systemctl daemon-reload
 sudo systemctl enable reattachd
 sudo systemctl start reattachd</code></pre>
@@ -333,40 +342,40 @@ sudo systemctl start reattachd</code></pre>
 
             <div class="step">
                 <span class="step-number">3</span>
-                <span class="step-title">Configure network access</span>
+                <span class="step-title">ネットワークアクセスを設定</span>
                 <div class="step-content">
-                    <p>Choose how your iOS device will connect to reattachd:</p>
+                    <p>iOSデバイスからreattachdへの接続方法を選択します：</p>
 
-                    <h3>Local network</h3>
-                    <p>Use your machine's local IP address directly. No additional setup required.</p>
+                    <h3>ローカルネットワーク</h3>
+                    <p>マシンのローカルIPアドレスを直接使用します。追加の設定は不要です。</p>
                     <pre><code>URL: http://192.168.x.x:8787</code></pre>
 
                     <h3>VPN</h3>
-                    <p>If you have a VPN setup, use the machine's IP address on the VPN network.</p>
+                    <p>VPNを設定している場合は、VPNネットワーク上のマシンのIPアドレスを使用します。</p>
                     <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
 
                     <h3>Cloudflare Tunnel</h3>
-                    <p>For secure remote access without exposing ports. Recommended for accessing reattachd from outside your local network.</p>
+                    <p>ポートを公開せずにセキュアなリモートアクセスを実現します。ローカルネットワーク外からreattachdにアクセスする場合におすすめです。</p>
                     <pre><code>URL: https://your-domain.example.com</code></pre>
-                    <p><a href="/cloudflare.html">See the detailed Cloudflare setup guide &rarr;</a></p>
+                    <p><a href="/ja/cloudflare.html">Cloudflareの詳細なセットアップガイドはこちら &rarr;</a></p>
                 </div>
             </div>
 
             <div class="step">
                 <span class="step-number">4</span>
-                <span class="step-title">Register your device</span>
+                <span class="step-title">デバイスを登録</span>
                 <div class="step-content">
-                    <p>Generate a QR code to register your iOS device:</p>
+                    <p>iOSデバイスを登録するためのQRコードを生成します：</p>
                     <pre><code>reattachd setup --url &lt;your-url&gt;</code></pre>
-                    <p>Scan the QR code with the Reattach iOS app to complete registration.</p>
+                    <p>Reattach iOSアプリでQRコードをスキャンして登録を完了します。</p>
                     <div class="step-image">
-                        <img src="images/scan.png" alt="Scan QR Code screen">
+                        <img src="../images/scan.png" alt="QRコードスキャン画面">
                     </div>
                 </div>
             </div>
 
             <div class="note">
-                <p><strong>Need help?</strong> Check out the <a href="https://github.com/kumabook/Reattach">GitHub repository</a> for more details and troubleshooting.</p>
+                <p><strong>サポートが必要ですか？</strong> 詳細やトラブルシューティングについては<a href="https://github.com/kumabook/Reattach">GitHubリポジトリ</a>をご覧ください。</p>
             </div>
         </div>
     </main>
@@ -374,7 +383,7 @@ sudo systemctl start reattachd</code></pre>
     <footer>
         <div class="container">
             <p>
-                Built with ❤️ by <a href="https://github.com/kumabook">kumabook</a> ・
+                Built with &#10084; by <a href="https://github.com/kumabook">kumabook</a> ・
                 <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
                 MIT License
             </p>

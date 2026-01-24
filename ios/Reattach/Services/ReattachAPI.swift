@@ -55,6 +55,14 @@ class ReattachAPI {
         ServerConfigManager.shared.activeServer?.deviceToken
     }
 
+    var cfAccessClientId: String? {
+        ServerConfigManager.shared.activeServer?.cfAccessClientId
+    }
+
+    var cfAccessClientSecret: String? {
+        ServerConfigManager.shared.activeServer?.cfAccessClientSecret
+    }
+
     var isConfigured: Bool {
         ServerConfigManager.shared.isConfigured
     }
@@ -156,6 +164,12 @@ class ReattachAPI {
 
         if let token = deviceToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        if let clientId = cfAccessClientId, let clientSecret = cfAccessClientSecret,
+           !clientId.isEmpty, !clientSecret.isEmpty {
+            request.setValue(clientId, forHTTPHeaderField: "CF-Access-Client-Id")
+            request.setValue(clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
         }
 
         if let body = body {

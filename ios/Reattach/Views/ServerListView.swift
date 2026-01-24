@@ -64,28 +64,38 @@ struct ServerListView: View {
     }
 
     private func serverRow(_ server: ServerConfig) -> some View {
-        Button {
-            configManager.setActiveServer(server.id)
-            dismiss()
-        } label: {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(server.serverName)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                    Text(server.serverURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-                if server.id == configManager.activeServerId {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.blue)
+        HStack {
+            Button {
+                configManager.setActiveServer(server.id)
+                dismiss()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(server.serverName)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                        Text(server.serverURL)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    if server.id == configManager.activeServerId {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.blue)
+                    }
                 }
             }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                ServerDetailView(server: server)
+            } label: {
+                Image(systemName: "gearshape")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
                 serverToDelete = server

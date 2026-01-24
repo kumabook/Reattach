@@ -14,6 +14,8 @@ struct ServerConfig: Codable, Identifiable, Equatable {
     var deviceName: String
     var serverName: String  // User-friendly name for the server
     var registeredAt: Date
+    var cfAccessClientId: String?
+    var cfAccessClientSecret: String?
 }
 
 @MainActor
@@ -87,6 +89,13 @@ class ServerConfigManager {
             activeServerId = servers.first?.id
         }
         save()
+    }
+
+    func updateServer(_ server: ServerConfig) {
+        if let index = servers.firstIndex(where: { $0.id == server.id }) {
+            servers[index] = server
+            save()
+        }
     }
 
     func setActiveServer(_ serverId: String) {

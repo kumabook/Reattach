@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Setup - Reattach</title>
+    <meta name="description" content="How to set up Cloudflare Tunnel and Access for secure remote access to reattachd.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --primary-dark: #0056CC;
+            --bg: #000000;
+            --bg-secondary: #1C1C1E;
+            --text: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --border: #38383A;
+            --warning: #FF9500;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--text);
+        }
+
+        /* Content */
+        .content {
+            padding: 60px 0;
+        }
+
+        .content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .content .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+
+        .content h2 {
+            font-size: 1.5rem;
+            margin-top: 48px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .content h3 {
+            font-size: 1.1rem;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .content p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .content ul, .content ol {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        code {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+
+        p code {
+            background: var(--bg-secondary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .step {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-right: 12px;
+        }
+
+        .step-title {
+            display: inline;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .step-content {
+            margin-top: 16px;
+        }
+
+        .note {
+            background: rgba(0, 122, 255, 0.1);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+
+        .note p {
+            color: var(--text);
+            margin: 0;
+        }
+
+        .warning {
+            background: rgba(255, 149, 0, 0.1);
+            border: 1px solid rgba(255, 149, 0, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+
+        .warning p {
+            color: var(--text);
+            margin: 0;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            text-decoration: none;
+            margin-bottom: 24px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">
+                <img src="app-icon.png" alt="Reattach" class="logo-icon">
+                Reattach
+            </a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/setup.html">Setup</a>
+                <a href="https://github.com/kumabook/Reattach">GitHub</a>
+                <a href="/ja/cloudflare.html">日本語</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="content">
+        <div class="container">
+            <a href="/setup.html" class="back-link">&larr; Back to Setup Guide</a>
+
+            <h1>Cloudflare Setup</h1>
+            <p class="subtitle">Secure remote access to reattachd using Cloudflare Tunnel and Access.</p>
+
+            <div class="note">
+                <p><strong>Prerequisites:</strong> A Cloudflare account and a domain managed by Cloudflare.</p>
+            </div>
+
+            <h2>Overview</h2>
+            <p>This guide covers two components:</p>
+            <ol>
+                <li><strong>Cloudflare Tunnel</strong> - Securely expose reattachd to the internet without opening ports</li>
+                <li><strong>Cloudflare Access</strong> - Add authentication to protect your tunnel with Service Tokens</li>
+            </ol>
+
+            <h2>Install cloudflared</h2>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <span class="step-title">Install cloudflared</span>
+                <div class="step-content">
+                    <h3>macOS</h3>
+                    <pre><code>brew install cloudflared</code></pre>
+
+                    <h3>Linux</h3>
+                    <pre><code># Debian/Ubuntu
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+# Other distributions
+# See https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/</code></pre>
+                </div>
+            </div>
+
+            <h2>Quick Start (for testing)</h2>
+
+            <p>If you just want to quickly test remote access without setting up a domain, you can use <strong>Quick Tunnel</strong>:</p>
+
+            <pre><code>cloudflared tunnel --url http://localhost:8787</code></pre>
+
+            <p>This will generate a temporary URL like <code>https://xxxx-xxxx-xxxx.trycloudflare.com</code>.</p>
+
+            <div class="note">
+                <p><strong>Note:</strong> Quick Tunnel is for testing only. The URL changes every time you restart the command, so you'll need to re-scan the QR code each time. For permanent setup with your own domain, continue below.</p>
+            </div>
+
+            <h2>Permanent Setup with Custom Domain</h2>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-title">Authenticate with Cloudflare</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel login</code></pre>
+                    <p>This opens a browser to authenticate and authorize cloudflared for your Cloudflare account.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-title">Create a tunnel</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel create reattach</code></pre>
+                    <p>This creates a tunnel and generates a credentials file at <code>~/.cloudflared/&lt;TUNNEL_ID&gt;.json</code>.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-title">Configure the tunnel</span>
+                <div class="step-content">
+                    <p>Create or edit <code>~/.cloudflared/config.yml</code>:</p>
+                    <pre><code>tunnel: reattach
+credentials-file: /Users/YOUR_USERNAME/.cloudflared/TUNNEL_ID.json
+
+ingress:
+  - hostname: reattach.your-domain.com
+    service: http://localhost:8787
+  - service: http_status:404</code></pre>
+                    <p>Replace <code>YOUR_USERNAME</code>, <code>TUNNEL_ID</code>, and <code>your-domain.com</code> with your values.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">5</span>
+                <span class="step-title">Create DNS record</span>
+                <div class="step-content">
+                    <pre><code>cloudflared tunnel route dns reattach reattach.your-domain.com</code></pre>
+                    <p>This creates a CNAME record pointing to your tunnel.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">6</span>
+                <span class="step-title">Run the tunnel</span>
+                <div class="step-content">
+                    <p>Test the tunnel:</p>
+                    <pre><code>cloudflared tunnel run reattach</code></pre>
+
+                    <h3>Run as a service (macOS)</h3>
+                    <pre><code>sudo cloudflared service install
+sudo launchctl start com.cloudflare.cloudflared</code></pre>
+
+                    <h3>Run as a service (Linux)</h3>
+                    <pre><code>sudo cloudflared service install
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared</code></pre>
+                </div>
+            </div>
+
+            <h2>Part 2: Cloudflare Access with Service Token</h2>
+
+            <p>Cloudflare Access adds authentication to your tunnel. Service Tokens allow the Reattach iOS app to authenticate without interactive login.</p>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <span class="step-title">Create an Access Application</span>
+                <div class="step-content">
+                    <ol>
+                        <li>Go to <a href="https://one.dash.cloudflare.com/" target="_blank">Cloudflare Zero Trust Dashboard</a></li>
+                        <li>Navigate to <strong>Access</strong> &rarr; <strong>Applications</strong></li>
+                        <li>Click <strong>Add an application</strong></li>
+                        <li>Select <strong>Self-hosted</strong></li>
+                        <li>Configure the application:
+                            <ul>
+                                <li><strong>Application name:</strong> Reattach</li>
+                                <li><strong>Session duration:</strong> 24 hours (or your preference)</li>
+                                <li><strong>Application domain:</strong> <code>reattach.your-domain.com</code></li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-title">Create a Service Token</span>
+                <div class="step-content">
+                    <ol>
+                        <li>In the Zero Trust Dashboard, go to <strong>Access</strong> &rarr; <strong>Service Auth</strong></li>
+                        <li>Click <strong>Create Service Token</strong></li>
+                        <li>Enter a name (e.g., "Reattach iOS")</li>
+                        <li>Set token duration (e.g., 1 year)</li>
+                        <li>Click <strong>Generate token</strong></li>
+                    </ol>
+
+                    <div class="warning">
+                        <p><strong>Important:</strong> Copy both <code>CF-Access-Client-Id</code> and <code>CF-Access-Client-Secret</code> immediately. The secret is only shown once!</p>
+                    </div>
+
+                    <p>You will get two values:</p>
+                    <pre><code>CF-Access-Client-Id: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.access
+CF-Access-Client-Secret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-title">Create Access Policy</span>
+                <div class="step-content">
+                    <ol>
+                        <li>Go back to your Reattach application in <strong>Access</strong> &rarr; <strong>Applications</strong></li>
+                        <li>Click on the application to edit it</li>
+                        <li>Go to the <strong>Policies</strong> tab</li>
+                        <li>Add a policy:
+                            <ul>
+                                <li><strong>Policy name:</strong> Service Token Access</li>
+                                <li><strong>Action:</strong> Service Auth</li>
+                                <li><strong>Include:</strong> Service Token &rarr; Select your token</li>
+                            </ul>
+                        </li>
+                        <li>Save the policy</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-title">Configure the iOS App</span>
+                <div class="step-content">
+                    <p>In the Reattach iOS app:</p>
+                    <ol>
+                        <li>Go to server settings</li>
+                        <li>Enter your Service Token credentials:
+                            <ul>
+                                <li><strong>Client ID:</strong> Your CF-Access-Client-Id</li>
+                                <li><strong>Client Secret:</strong> Your CF-Access-Client-Secret</li>
+                            </ul>
+                        </li>
+                        <li>Save the settings</li>
+                    </ol>
+                    <p>The app will automatically include these headers in all API requests.</p>
+                </div>
+            </div>
+
+            <h2>Verification</h2>
+
+            <p>Test that everything is working:</p>
+
+            <pre><code># Test without authentication (should fail with 403)
+curl https://reattach.your-domain.com/sessions
+
+# Test with Service Token (should return session list)
+curl -H "CF-Access-Client-Id: YOUR_CLIENT_ID" \
+     -H "CF-Access-Client-Secret: YOUR_CLIENT_SECRET" \
+     https://reattach.your-domain.com/sessions</code></pre>
+
+            <div class="note">
+                <p><strong>Need help?</strong> Check out the <a href="https://github.com/kumabook/Reattach">GitHub repository</a> for more details and troubleshooting.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Built with &#10084; by <a href="https://github.com/kumabook">kumabook</a> ・
+                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
+                MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -7,16 +7,24 @@ import SwiftUI
 import AVFoundation
 import WebKit
 
+struct ScannedServer: Identifiable {
+    let id = UUID()
+    let serverURL: String
+    let setupToken: String
+}
+
 struct QRScannerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isScanning = true
-    @State private var scannedURL: String?
     @State private var isRegistering = false
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var showCloudflareAuth = false
+    @State private var scannedServer: ScannedServer?
     @State private var pendingServerURL: String?
     @State private var pendingSetupToken: String?
+    @State private var cfAccessClientId: String = ""
+    @State private var cfAccessClientSecret: String = ""
 
     var body: some View {
         NavigationStack {
@@ -87,6 +95,25 @@ struct QRScannerView: View {
             } message: {
                 Text(errorMessage ?? "Unknown error")
             }
+            .sheet(item: $scannedServer) { server in
+                ServerConfirmView(
+                    serverURL: server.serverURL,
+                    cfAccessClientId: $cfAccessClientId,
+                    cfAccessClientSecret: $cfAccessClientSecret,
+                    onRegister: {
+                        scannedServer = nil
+                        pendingServerURL = server.serverURL
+                        pendingSetupToken = server.setupToken
+                        registerDevice(serverURL: server.serverURL, setupToken: server.setupToken)
+                    },
+                    onCancel: {
+                        scannedServer = nil
+                        cfAccessClientId = ""
+                        cfAccessClientSecret = ""
+                        isScanning = true
+                    }
+                )
+            }
             .fullScreenCover(isPresented: $showCloudflareAuth) {
                 if let serverURL = pendingServerURL {
                     CloudflareAuthView(
@@ -128,9 +155,7 @@ struct QRScannerView: View {
             return
         }
 
-        pendingServerURL = baseURL
-        pendingSetupToken = setupToken
-        registerDevice(serverURL: baseURL, setupToken: setupToken)
+        scannedServer = ScannedServer(serverURL: baseURL, setupToken: setupToken)
     }
 
     private func registerDevice(serverURL: String, setupToken: String) {
@@ -151,6 +176,11 @@ struct QRScannerView: View {
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpShouldHandleCookies = true
+
+                if !cfAccessClientId.isEmpty && !cfAccessClientSecret.isEmpty {
+                    request.setValue(cfAccessClientId, forHTTPHeaderField: "CF-Access-Client-Id")
+                    request.setValue(cfAccessClientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
+                }
 
                 let body = ["setup_token": setupToken, "device_name": deviceName]
                 request.httpBody = try JSONEncoder().encode(body)
@@ -203,7 +233,9 @@ struct QRScannerView: View {
                     deviceId: registerResponse.device_id,
                     deviceName: deviceName,
                     serverName: serverName,
-                    registeredAt: Date()
+                    registeredAt: Date(),
+                    cfAccessClientId: cfAccessClientId.isEmpty ? nil : cfAccessClientId,
+                    cfAccessClientSecret: cfAccessClientSecret.isEmpty ? nil : cfAccessClientSecret
                 )
 
                 await MainActor.run {
@@ -215,6 +247,64 @@ struct QRScannerView: View {
                     isRegistering = false
                     errorMessage = error.localizedDescription
                     showError = true
+                }
+            }
+        }
+    }
+}
+
+struct ServerConfirmView: View {
+    let serverURL: String
+    @Binding var cfAccessClientId: String
+    @Binding var cfAccessClientSecret: String
+    let onRegister: () -> Void
+    let onCancel: () -> Void
+
+    @State private var showCloudflareFields = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("Server URL", value: serverURL)
+                } header: {
+                    Text("Server")
+                }
+
+                Section {
+                    Toggle("Use Service Token", isOn: $showCloudflareFields)
+
+                    if showCloudflareFields {
+                        TextField("Client ID", text: $cfAccessClientId)
+                            .textContentType(.username)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                        SecureField("Client Secret", text: $cfAccessClientSecret)
+                            .textContentType(.password)
+                    }
+                } header: {
+                    Text("Cloudflare Access")
+                } footer: {
+                    Text("Enable this if your server uses Cloudflare Access with Service Token authentication.")
+                }
+
+                Section {
+                    Button(action: onRegister) {
+                        HStack {
+                            Spacer()
+                            Text("Register Device")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                    }
+                    .disabled(showCloudflareFields && (cfAccessClientId.isEmpty || cfAccessClientSecret.isEmpty))
+                }
+            }
+            .navigationTitle("Add Server")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
                 }
             }
         }
