@@ -138,6 +138,7 @@ struct SetupView: View {
                 .foregroundStyle(.secondary)
 
             Button {
+                ServerConfigManager.shared.enableDemoMode()
                 onTryDemo()
             } label: {
                 Text("Try Demo Mode")
