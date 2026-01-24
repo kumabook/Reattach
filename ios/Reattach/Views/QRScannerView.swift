@@ -174,7 +174,8 @@ struct QRScannerView: View {
                 config.httpCookieAcceptPolicy = .always
                 config.httpShouldSetCookies = true
                 config.httpCookieStorage = .shared
-                let session = URLSession(configuration: config)
+                let delegate = NonRedirectingDelegate()
+                let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
                 var request = URLRequest(url: registerURL)
                 request.httpMethod = "POST"
@@ -204,7 +205,7 @@ struct QRScannerView: View {
                     return
                 }
 
-                if httpResponse.statusCode == 302 || httpResponse.statusCode == 303 {
+                if httpResponse.statusCode == 302 || httpResponse.statusCode == 303 || httpResponse.statusCode == 405 {
                     await MainActor.run {
                         isRegistering = false
                         showCloudflareAuth = true
@@ -520,6 +521,13 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
 
         AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
         delegate?.didScanCode(code)
+    }
+}
+
+class NonRedirectingDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        // Don't follow redirects - return nil to stop the redirect
+        completionHandler(nil)
     }
 }
 
