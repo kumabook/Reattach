@@ -164,19 +164,13 @@ struct SessionListView: View {
                             AppDelegate.shared?.markPaneAsRead(item.pane.target)
                         }
                 }
+                .navigationTitle(currentServerName)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         serverListButton
                     }
-                    ToolbarItem(placement: .principal) {
-                        currentServerButton
-                    }
                     ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingCreateSheet = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
+                        settingsButton
                     }
                 }
         }
@@ -186,20 +180,13 @@ struct SessionListView: View {
     private var regularLayout: some View {
         NavigationSplitView {
             listContent
-                .navigationTitle("")
+                .navigationTitle(currentServerName)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         serverListButton
                     }
-                    ToolbarItem(placement: .principal) {
-                        currentServerButton
-                    }
                     ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingCreateSheet = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
+                        settingsButton
                     }
                 }
         } detail: {
@@ -265,6 +252,13 @@ struct SessionListView: View {
                         }
                     )
                 }
+                Section {
+                    Button {
+                        showingCreateSheet = true
+                    } label: {
+                        Label("New Session", systemImage: "plus.circle")
+                    }
+                }
             }
             .listStyle(.sidebar)
             .refreshable {
@@ -319,24 +313,22 @@ struct SessionListView: View {
         }
     }
 
-    @ViewBuilder
-    private var currentServerButton: some View {
+    private var currentServerName: String {
         if configManager.isDemoMode {
-            Text("Demo")
-                .font(.headline)
-                .foregroundStyle(.secondary)
+            return "Demo"
         } else if let server = configManager.activeServer {
+            return server.serverName
+        }
+        return ""
+    }
+
+    @ViewBuilder
+    private var settingsButton: some View {
+        if !configManager.isDemoMode && configManager.activeServer != nil {
             Button {
                 showServerSettings = true
             } label: {
-                HStack(spacing: 6) {
-                    Text(server.serverName)
-                        .lineLimit(1)
-                    Image(systemName: "gearshape")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .font(.headline)
+                Image(systemName: "gearshape")
             }
         }
     }
