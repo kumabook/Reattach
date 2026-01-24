@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		67BA10B52F24E24E00C2E0DD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67BA10B42F24E24E00C2E0DD /* StoreKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		670759372EEDBDE3004D3434 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -28,6 +32,7 @@
 		670759362EEDBDE3004D3434 /* ReattachTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReattachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		670759402EEDBDE3004D3434 /* ReattachUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReattachUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		670759602EEE6AD0004D3434 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		67BA10B42F24E24E00C2E0DD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -66,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				67BA10B52F24E24E00C2E0DD /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +100,7 @@
 				670759432EEDBDE3004D3434 /* ReattachUITests */,
 				6707592A2EEDBDE1004D3434 /* Products */,
 				67075A3D2EEED34C004D3434 /* Recovered References */,
+				67BA10B32F24E24E00C2E0DD /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -113,6 +120,14 @@
 				670759602EEE6AD0004D3434 /* Config.xcconfig */,
 			);
 			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		67BA10B32F24E24E00C2E0DD /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				67BA10B42F24E24E00C2E0DD /* StoreKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
