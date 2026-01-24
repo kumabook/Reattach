@@ -19,8 +19,11 @@ struct ServerDetailView: View {
     var body: some View {
         Form {
             Section {
+                LabeledContent("Name") {
+                    TextField("Server Name", text: $serverName)
+                        .multilineTextAlignment(.trailing)
+                }
                 LabeledContent("URL", value: server.serverURL)
-                TextField("Server Name", text: $serverName)
             } header: {
                 Text("Server")
             }

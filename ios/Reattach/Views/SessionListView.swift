@@ -157,14 +157,13 @@ struct SessionListView: View {
     private var compactLayout: some View {
         NavigationStack(path: $navigationPath) {
             listContent
-                .navigationTitle("")
+                .navigationTitle(currentServerName)
                 .navigationDestination(for: PaneNavigationItem.self) { item in
                     PaneDetailView(pane: item.pane, windowName: item.windowName)
                         .onAppear {
                             AppDelegate.shared?.markPaneAsRead(item.pane.target)
                         }
                 }
-                .navigationTitle(currentServerName)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         serverListButton
