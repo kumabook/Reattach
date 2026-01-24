@@ -105,37 +105,27 @@ struct ServerListView: View {
     }
 
     private func serverRow(_ server: ServerConfig) -> some View {
-        HStack {
-            Button {
-                configManager.setActiveServer(server.id)
-                dismiss()
-            } label: {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(server.serverName)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                        Text(server.serverURL)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    if server.id == configManager.activeServerId {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.blue)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink {
-                ServerDetailView(server: server)
-            } label: {
-                Image(systemName: "gearshape")
+        let isSelected = server.id == configManager.activeServerId
+        return HStack {
+            VStack(alignment: .leading) {
+                Text(server.serverName)
+                    .font(.body)
+                Text(server.serverURL)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .buttonStyle(.plain)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.blue)
+                    .fontWeight(.semibold)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            configManager.setActiveServer(server.id)
+            dismiss()
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
@@ -143,6 +133,12 @@ struct ServerListView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            NavigationLink {
+                ServerDetailView(server: server)
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .tint(.gray)
         }
     }
 
