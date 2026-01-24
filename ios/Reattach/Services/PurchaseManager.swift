@@ -20,9 +20,13 @@ class PurchaseManager {
     private var product: Product?
     private var updateListenerTask: Task<Void, Error>?
 
+    #if DEBUG
+    var debugSimulateFreeMode = false
+    #endif
+
     var isPro: Bool {
         #if DEBUG
-        return true
+        return debugSimulateFreeMode ? isPurchased : true
         #else
         return isPurchased
         #endif

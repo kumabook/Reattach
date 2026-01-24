@@ -18,6 +18,9 @@ struct ServerListView: View {
             List {
                 serversSection
                 addServerSection
+                #if DEBUG
+                debugSection
+                #endif
             }
             .navigationTitle("Servers")
             .navigationBarTitleDisplayMode(.inline)
@@ -137,6 +140,16 @@ struct ServerListView: View {
             }
         }
     }
+
+    #if DEBUG
+    private var debugSection: some View {
+        Section {
+            Toggle("Simulate Free Mode", isOn: $purchaseManager.debugSimulateFreeMode)
+        } header: {
+            Text("Debug")
+        }
+    }
+    #endif
 }
 
 #Preview {
