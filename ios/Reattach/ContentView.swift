@@ -9,15 +9,14 @@ struct ContentView: View {
     var api = ReattachAPI.shared
     @State private var configManager = ServerConfigManager.shared
     @State private var isCheckingAuth = true
-    @State private var isDemoMode = false
     @State private var showCloudflareAuth = false
     @State private var showQRScanner = false
 
     var body: some View {
         Group {
-            if !configManager.isConfigured && !isDemoMode {
-                SetupView(onTryDemo: { isDemoMode = true })
-            } else if isCheckingAuth && !isDemoMode {
+            if !configManager.isConfigured {
+                SetupView(onTryDemo: { configManager.enableDemoMode() })
+            } else if isCheckingAuth && !configManager.isDemoMode {
                 ProgressView("Connecting...")
             } else {
                 SessionListView()
@@ -138,7 +137,6 @@ struct SetupView: View {
                 .foregroundStyle(.secondary)
 
             Button {
-                ServerConfigManager.shared.enableDemoMode()
                 onTryDemo()
             } label: {
                 Text("Try Demo Mode")
