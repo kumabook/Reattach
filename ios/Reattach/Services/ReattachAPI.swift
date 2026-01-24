@@ -68,7 +68,7 @@ class ReattachAPI {
     }
 
     var isDemoMode: Bool {
-        !isConfigured
+        ServerConfigManager.shared.isDemoMode
     }
 
     private let session: URLSession
