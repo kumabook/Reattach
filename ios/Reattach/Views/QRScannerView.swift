@@ -23,6 +23,7 @@ struct QRScannerView: View {
     @State private var scannedServer: ScannedServer?
     @State private var pendingServerURL: String?
     @State private var pendingSetupToken: String?
+    @State private var serverName: String = ""
     @State private var cfAccessClientId: String = ""
     @State private var cfAccessClientSecret: String = ""
 
@@ -98,6 +99,7 @@ struct QRScannerView: View {
             .sheet(item: $scannedServer) { server in
                 ServerConfirmView(
                     serverURL: server.serverURL,
+                    serverName: $serverName,
                     cfAccessClientId: $cfAccessClientId,
                     cfAccessClientSecret: $cfAccessClientSecret,
                     onRegister: {
@@ -108,6 +110,7 @@ struct QRScannerView: View {
                     },
                     onCancel: {
                         scannedServer = nil
+                        serverName = ""
                         cfAccessClientId = ""
                         cfAccessClientSecret = ""
                         isScanning = true
@@ -155,6 +158,7 @@ struct QRScannerView: View {
             return
         }
 
+        serverName = URL(string: baseURL)?.host ?? baseURL
         scannedServer = ScannedServer(serverURL: baseURL, setupToken: setupToken)
     }
 
@@ -225,14 +229,14 @@ struct QRScannerView: View {
                 }
 
                 let registerResponse = try JSONDecoder().decode(RegisterResponse.self, from: data)
-                let serverName = URL(string: serverURL)?.host ?? serverURL
+                let finalServerName = serverName.isEmpty ? (URL(string: serverURL)?.host ?? serverURL) : serverName
 
                 let serverConfig = ServerConfig(
                     serverURL: serverURL,
                     deviceToken: registerResponse.device_token,
                     deviceId: registerResponse.device_id,
                     deviceName: deviceName,
-                    serverName: serverName,
+                    serverName: finalServerName,
                     registeredAt: Date(),
                     cfAccessClientId: cfAccessClientId.isEmpty ? nil : cfAccessClientId,
                     cfAccessClientSecret: cfAccessClientSecret.isEmpty ? nil : cfAccessClientSecret
@@ -255,6 +259,7 @@ struct QRScannerView: View {
 
 struct ServerConfirmView: View {
     let serverURL: String
+    @Binding var serverName: String
     @Binding var cfAccessClientId: String
     @Binding var cfAccessClientSecret: String
     let onRegister: () -> Void
@@ -266,7 +271,11 @@ struct ServerConfirmView: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Server URL", value: serverURL)
+                    LabeledContent("Name") {
+                        TextField("Server Name", text: $serverName)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("URL", value: serverURL)
                 } header: {
                     Text("Server")
                 }
