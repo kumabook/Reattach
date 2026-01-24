@@ -39,7 +39,15 @@ struct ContentView: View {
             guard let errorType else { return }
             switch errorType {
             case .cloudflareExpired:
-                showCloudflareAuth = true
+                // Service Tokenが設定されている場合は自動で認証されるのでWebViewは不要
+                if let server = configManager.activeServer,
+                   let clientId = server.cfAccessClientId,
+                   let clientSecret = server.cfAccessClientSecret,
+                   !clientId.isEmpty, !clientSecret.isEmpty {
+                    api.clearAuthError()
+                } else {
+                    showCloudflareAuth = true
+                }
             case .deviceTokenInvalid:
                 showQRScanner = true
             }
