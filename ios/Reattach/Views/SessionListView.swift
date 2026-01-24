@@ -141,7 +141,10 @@ struct SessionListView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
-            navigateToPaneWithTarget(paneTarget)
+            Task {
+                await viewModel.loadSessions()
+                navigateToPaneWithTarget(paneTarget)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             unreadPanes = AppDelegate.shared?.unreadPanes ?? []
@@ -293,6 +296,7 @@ struct SessionListView: View {
                     if pane.target == paneTarget {
                         let item = PaneNavigationItem(pane: pane, windowName: window.name)
                         if horizontalSizeClass == .compact {
+                            navigationPath = NavigationPath()
                             navigationPath.append(item)
                         } else {
                             selectedPane = item
