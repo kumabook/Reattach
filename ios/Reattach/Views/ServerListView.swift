@@ -16,6 +16,9 @@ struct ServerListView: View {
     var body: some View {
         NavigationStack {
             List {
+                if configManager.isDemoMode {
+                    demoModeSection
+                }
                 serversSection
                 addServerSection
                 #if DEBUG
@@ -55,6 +58,26 @@ struct ServerListView: View {
             } message: { server in
                 Text("Remove \(server.serverName)?")
             }
+        }
+    }
+
+    private var demoModeSection: some View {
+        Section {
+            HStack {
+                Image(systemName: "play.circle.fill")
+                    .foregroundStyle(.orange)
+                Text("Demo Mode")
+                Spacer()
+                Button("Exit") {
+                    configManager.disableDemoMode()
+                    if configManager.servers.isEmpty {
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+        } footer: {
+            Text("You're viewing demo data. Exit to connect to a real server.")
         }
     }
 
