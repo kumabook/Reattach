@@ -8,7 +8,9 @@ import SwiftUI
 struct CommandEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var commandManager = SavedCommandManager.shared
+    @State private var purchaseManager = PurchaseManager.shared
     @State private var showAddSheet = false
+    @State private var showUpgrade = false
     @State private var editingCommand: SavedCommand?
 
     var body: some View {
@@ -53,7 +55,11 @@ struct CommandEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        showAddSheet = true
+                        if commandManager.canAddCommand {
+                            showAddSheet = true
+                        } else {
+                            showUpgrade = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -67,6 +73,9 @@ struct CommandEditorView: View {
             }
             .sheet(item: $editingCommand) { command in
                 CommandFormView(mode: .edit(command))
+            }
+            .sheet(isPresented: $showUpgrade) {
+                UpgradeView()
             }
         }
     }
@@ -367,7 +376,9 @@ struct SaveFromHistoryView: View {
     let command: String
     @Environment(\.dismiss) private var dismiss
     @State private var commandManager = SavedCommandManager.shared
+    @State private var purchaseManager = PurchaseManager.shared
     @State private var label: String = ""
+    @State private var showUpgrade = false
 
     private var isValid: Bool {
         !label.trimmingCharacters(in: .whitespaces).isEmpty
@@ -396,15 +407,22 @@ struct SaveFromHistoryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let newCommand = SavedCommand(
-                            label: label.trimmingCharacters(in: .whitespaces),
-                            command: command
-                        )
-                        commandManager.add(newCommand)
-                        dismiss()
+                        if commandManager.canAddCommand {
+                            let newCommand = SavedCommand(
+                                label: label.trimmingCharacters(in: .whitespaces),
+                                command: command
+                            )
+                            commandManager.add(newCommand)
+                            dismiss()
+                        } else {
+                            showUpgrade = true
+                        }
                     }
                     .disabled(!isValid)
                 }
+            }
+            .sheet(isPresented: $showUpgrade) {
+                UpgradeView()
             }
         }
     }

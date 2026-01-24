@@ -51,7 +51,12 @@ class SavedCommandManager {
         UserDefaults.standard.set(data, forKey: userDefaultsKey)
     }
 
+    var canAddCommand: Bool {
+        commands.count < PurchaseManager.shared.bookmarkLimit
+    }
+
     func add(_ command: SavedCommand) {
+        guard canAddCommand else { return }
         commands.append(command)
         save()
     }
@@ -99,7 +104,10 @@ class CommandHistoryManager {
 
     private(set) var history: [CommandHistoryItem] = []
     private let userDefaultsKey = "commandHistory"
-    private let maxCount = 100
+
+    private var maxCount: Int {
+        PurchaseManager.shared.historyLimit
+    }
 
     private init() {
         load()

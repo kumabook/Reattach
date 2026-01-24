@@ -8,7 +8,9 @@ import SwiftUI
 struct ServerListView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var configManager = ServerConfigManager.shared
+    @State private var purchaseManager = PurchaseManager.shared
     @State private var showQRScanner = false
+    @State private var showUpgrade = false
     @State private var serverToDelete: ServerConfig?
 
     var body: some View {
@@ -28,6 +30,9 @@ struct ServerListView: View {
             }
             .sheet(isPresented: $showQRScanner) {
                 QRScannerView()
+            }
+            .sheet(isPresented: $showUpgrade) {
+                UpgradeView()
             }
             .confirmationDialog(
                 "Delete Server",
@@ -108,14 +113,27 @@ struct ServerListView: View {
     private var addServerSection: some View {
         Section {
             Button {
-                showQRScanner = true
+                if configManager.canAddServer {
+                    showQRScanner = true
+                } else {
+                    showUpgrade = true
+                }
             } label: {
                 HStack {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(.blue)
                     Text("Add Server")
                         .foregroundStyle(.blue)
+                    if !configManager.canAddServer {
+                        Spacer()
+                        Image(systemName: "lock.fill")
+                            .foregroundStyle(.secondary)
+                    }
                 }
+            }
+        } footer: {
+            if !purchaseManager.isPro {
+                Text("Free: \(configManager.servers.count)/\(PurchaseManager.freeServerLimit) servers")
             }
         }
     }

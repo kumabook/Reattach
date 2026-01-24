@@ -71,9 +71,20 @@ class ServerConfigManager {
         userDefaults.set(activeServerId, forKey: activeServerKey)
     }
 
+    var canAddServer: Bool {
+        servers.count < PurchaseManager.shared.serverLimit
+    }
+
     func addServer(_ config: ServerConfig) {
         // Remove existing config with same deviceId if exists
+        let isUpdate = servers.contains { $0.deviceId == config.deviceId }
         servers.removeAll { $0.deviceId == config.deviceId }
+
+        // Check limit only for new servers
+        if !isUpdate && !canAddServer {
+            return
+        }
+
         servers.append(config)
 
         // Set as active if it's the first server
