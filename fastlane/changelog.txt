@@ -1,0 +1,12 @@
+First release! / 初回リリース!
+
+Please test all features:
+主な機能:
+
+- QR code registration / QRコード登録
+- Session list & pane control / セッション一覧・ペイン操作
+- Push notifications / プッシュ通知
+- Quick commands & bookmarks / クイックコマンド・ブックマーク
+- Pro upgrade / Proアップグレード
+
+Feedback welcome! / フィードバック歓迎!

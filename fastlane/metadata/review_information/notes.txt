@@ -1,1 +1,14 @@
+This app requires connection to the user's own server running "reattachd" daemon.
 
+For review purposes, please use the built-in Demo Mode:
+
+1. Launch the app
+2. On the setup screen, tap "Try Demo Mode"
+3. You can now test all features:
+   - View sample tmux sessions (myproject, claude-demo)
+   - Browse panes and view terminal output
+   - Send commands (try: ls, pwd, git status)
+   - Access Settings and Pro upgrade screen
+
+Demo Mode shows simulated data without requiring a real server connection.
+To exit Demo Mode, tap the "Demo Mode" badge at the top.
