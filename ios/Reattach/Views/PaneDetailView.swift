@@ -349,6 +349,11 @@ struct PaneDetailView: View {
         .onDisappear {
             viewModel.stopPolling()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
+            if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
+                AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: pane.target)
+            }
+        }
     }
 }
 
