@@ -4,5 +4,18 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is needed to scan the QR code from reattachd setup</string>
+	<key>kMDItemKeywords</key>
+	<array>
+		<string>tmux</string>
+		<string>reattach</string>
+		<string>cli</string>
+		<string>claude</string>
+		<string>codex</string>
+		<string>coding agent</string>
+		<string>ssh</string>
+		<string>shell</string>
+		<string>terminal</string>
+		<string>remote</string>
+	</array>
 </dict>
 </plist>
