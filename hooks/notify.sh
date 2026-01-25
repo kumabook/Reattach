@@ -16,7 +16,7 @@ BODY="Waiting for input"
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     # Get the last assistant message from the JSONL transcript
     # Extract text content from the message
-    LAST_MESSAGE=$(tac "$TRANSCRIPT_PATH" 2>/dev/null | \
+    LAST_MESSAGE=$(tail -r "$TRANSCRIPT_PATH" 2>/dev/null | \
         while IFS= read -r line; do
             ROLE=$(echo "$line" | jq -r '.type // empty')
             if [ "$ROLE" = "assistant" ]; then

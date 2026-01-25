@@ -19,6 +19,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_PORT: u16 = 8787;
+const DEFAULT_BIND_ADDR: &str = "127.0.0.1";
 
 #[derive(Parser)]
 #[command(name = "reattachd")]
@@ -286,7 +287,7 @@ async fn run_daemon(data_dir: std::path::PathBuf) {
         .unwrap_or(DEFAULT_PORT);
 
     let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1".to_string());
+        .unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_string());
     let addr = format!("{}:{}", bind_addr, port);
     tracing::info!("Starting reattachd on {}", addr);
 
