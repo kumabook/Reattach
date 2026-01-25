@@ -144,10 +144,7 @@ struct SessionListView: View {
         .task {
             await viewModel.loadSessions()
             unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
-            if let key = AppDelegate.shared?.pendingNavigationTarget {
-                AppDelegate.shared?.pendingNavigationTarget = nil
-                navigateToPaneWithKey(key)
-            }
+            handlePendingNavigation()
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let deviceId = notification.userInfo?["deviceId"] as? String,
@@ -164,6 +161,7 @@ struct SessionListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .authenticationRestored)) { _ in
             Task {
                 await viewModel.loadSessions()
+                handlePendingNavigation()
             }
         }
     }
@@ -303,6 +301,13 @@ struct SessionListView: View {
                 Text("Are you sure you want to delete this pane?\n\(pane.shortPath)")
             }
         }
+    }
+
+    private func handlePendingNavigation() {
+        guard let key = AppDelegate.shared?.pendingNavigationTarget,
+              !viewModel.sessions.isEmpty else { return }
+        AppDelegate.shared?.pendingNavigationTarget = nil
+        navigateToPaneWithKey(key)
     }
 
     private func navigateToPaneWithKey(_ key: String) {
