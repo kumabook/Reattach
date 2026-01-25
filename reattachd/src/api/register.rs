@@ -40,10 +40,17 @@ pub async fn register_with_setup_token(
                 code: "TOKEN_EXPIRED".to_string(),
             }),
         )),
+        Err(SetupTokenValidation::AlreadyUsed) => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(RegisterError {
+                error: "This QR code has already been used. Please generate a new QR code.".to_string(),
+                code: "TOKEN_ALREADY_USED".to_string(),
+            }),
+        )),
         Err(_) => Err((
             StatusCode::UNAUTHORIZED,
             Json(RegisterError {
-                error: "Invalid setup token".to_string(),
+                error: "Invalid or already used QR code. Please generate a new QR code.".to_string(),
                 code: "TOKEN_INVALID".to_string(),
             }),
         )),

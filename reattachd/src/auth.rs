@@ -19,6 +19,8 @@ pub struct SetupToken {
     pub token: String,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
+    #[serde(default)]
+    pub used: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -33,6 +35,7 @@ pub enum SetupTokenValidation {
     Valid,
     Invalid,
     Expired,
+    AlreadyUsed,
 }
 
 pub struct AuthService {
@@ -73,6 +76,7 @@ impl AuthService {
             token: token.clone(),
             created_at: now,
             expires_at: now + chrono::Duration::minutes(10),
+            used: false,
         };
 
         {
@@ -92,6 +96,8 @@ impl AuthService {
         if let Some(setup_token) = &store.setup_token {
             if setup_token.token != token {
                 SetupTokenValidation::Invalid
+            } else if setup_token.used {
+                SetupTokenValidation::AlreadyUsed
             } else if Utc::now() >= setup_token.expires_at {
                 SetupTokenValidation::Expired
             } else {
@@ -134,7 +140,9 @@ impl AuthService {
         {
             let mut store = self.store.write().await;
             store.devices.push(device.clone());
-            store.setup_token = None; // Invalidate setup token after use
+            if let Some(ref mut setup_token) = store.setup_token {
+                setup_token.used = true;
+            }
         }
 
         let _ = self.save().await;
