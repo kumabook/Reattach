@@ -1,0 +1,1 @@
+tmux,reattach,cli,claude,codex,coding agent,ssh,shell

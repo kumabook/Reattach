@@ -1,1 +1,1 @@
-
+Control tmux from your iPhone. Get push notifications from Claude Code and other AI assistants.

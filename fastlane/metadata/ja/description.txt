@@ -1,0 +1,20 @@
+Your terminal, on your phone.
+PCから離れていても、tmuxセッションを操作できます。
+
+Claude Codeなどの AI コーディングアシスタントを使っているなら、プッシュ通知で入力を促されたときにその場で応答できます。
+
+【主な機能】
+• tmuxセッションの表示・操作
+• キーボードからのコマンド入力
+• 複数セッション・ペインの切り替え
+• よく使うコマンドをワンタップで送信
+
+【リモートアクセス】
+VPNやCloudflare Tunnelを使えば、外出先からも安全にアクセスできます。
+
+【必要な環境】
+• macOSまたはLinux
+• tmux
+• reattachd（無料・オープンソース）
+
+セットアップ方法: https://github.com/kumabook/Reattach
