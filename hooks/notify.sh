@@ -38,15 +38,26 @@ PANE_TARGET=""
 if [ -n "$CWD" ]; then
     DIR_NAME=$(basename "$CWD")
 
-    # Try to find tmux pane with matching cwd
-    PANE_INFO=$(tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}:#{pane_current_path}' 2>/dev/null | grep ":${CWD}$" | head -1)
-
-    if [ -n "$PANE_INFO" ]; then
-        PANE_TARGET=$(echo "$PANE_INFO" | cut -d: -f1-2)
-        SESSION_WINDOW=$(echo "$PANE_TARGET" | cut -d. -f1)
-        TITLE="$SESSION_WINDOW · $DIR_NAME"
+    # Use TMUX_PANE if available for exact pane identification
+    if [ -n "$TMUX_PANE" ]; then
+        PANE_TARGET=$(tmux display-message -p -t "$TMUX_PANE" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null)
+        if [ -n "$PANE_TARGET" ]; then
+            SESSION_WINDOW=$(echo "$PANE_TARGET" | cut -d. -f1)
+            TITLE="$SESSION_WINDOW · $DIR_NAME"
+        else
+            TITLE="$DIR_NAME"
+        fi
     else
-        TITLE="$DIR_NAME"
+        # Fallback: find tmux pane with matching cwd
+        PANE_INFO=$(tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}:#{pane_current_path}' 2>/dev/null | grep ":${CWD}$" | head -1)
+
+        if [ -n "$PANE_INFO" ]; then
+            PANE_TARGET=$(echo "$PANE_INFO" | cut -d: -f1-2)
+            SESSION_WINDOW=$(echo "$PANE_TARGET" | cut -d. -f1)
+            TITLE="$SESSION_WINDOW · $DIR_NAME"
+        else
+            TITLE="$DIR_NAME"
+        fi
     fi
 fi
 

@@ -96,7 +96,17 @@ struct SessionListView: View {
     @State private var showingCreateSheet = false
     @State private var selectedPane: PaneNavigationItem?
     @State private var navigationPath = NavigationPath()
-    @State private var unreadPanes: Set<String> = []
+    @State private var unreadPaneKeys: Set<String> = []
+
+    private var unreadPanes: Set<String> {
+        guard let deviceId = ServerConfigManager.shared.activeServer?.deviceId else {
+            return []
+        }
+        let prefix = "\(deviceId):"
+        return Set(unreadPaneKeys.compactMap { key in
+            key.hasPrefix(prefix) ? String(key.dropFirst(prefix.count)) : nil
+        })
+    }
     @State private var showServerList = false
     @State private var showServerSettings = false
     @State private var configManager = ServerConfigManager.shared
@@ -133,21 +143,23 @@ struct SessionListView: View {
         }
         .task {
             await viewModel.loadSessions()
-            unreadPanes = AppDelegate.shared?.unreadPanes ?? []
-            if let paneTarget = AppDelegate.shared?.pendingNavigationTarget {
+            unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
+            if let key = AppDelegate.shared?.pendingNavigationTarget {
                 AppDelegate.shared?.pendingNavigationTarget = nil
-                navigateToPaneWithTarget(paneTarget)
+                navigateToPaneWithKey(key)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
-            guard let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
+            guard let deviceId = notification.userInfo?["deviceId"] as? String,
+                  let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
             Task {
+                ServerConfigManager.shared.setActiveServer(deviceId)
                 await viewModel.loadSessions()
                 navigateToPaneWithTarget(paneTarget)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
-            unreadPanes = AppDelegate.shared?.unreadPanes ?? []
+            unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
         }
         .onReceive(NotificationCenter.default.publisher(for: .authenticationRestored)) { _ in
             Task {
@@ -164,7 +176,9 @@ struct SessionListView: View {
                 .navigationDestination(for: PaneNavigationItem.self) { item in
                     PaneDetailView(pane: item.pane, windowName: item.windowName)
                         .onAppear {
-                            AppDelegate.shared?.markPaneAsRead(item.pane.target)
+                            if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
+                                AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: item.pane.target)
+                            }
                         }
                 }
                 .toolbar {
@@ -196,7 +210,9 @@ struct SessionListView: View {
                 PaneDetailView(pane: selected.pane, windowName: selected.windowName)
                     .id(selected.pane.target)
                     .onAppear {
-                        AppDelegate.shared?.markPaneAsRead(selected.pane.target)
+                        if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
+                            AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: selected.pane.target)
+                        }
                     }
             } else {
                 ContentUnavailableView(
@@ -286,6 +302,19 @@ struct SessionListView: View {
             } message: { pane in
                 Text("Are you sure you want to delete this pane?\n\(pane.shortPath)")
             }
+        }
+    }
+
+    private func navigateToPaneWithKey(_ key: String) {
+        let components = key.split(separator: ":", maxSplits: 1)
+        guard components.count == 2 else { return }
+        let deviceId = String(components[0])
+        let paneTarget = String(components[1])
+
+        Task {
+            ServerConfigManager.shared.setActiveServer(deviceId)
+            await viewModel.loadSessions()
+            navigateToPaneWithTarget(paneTarget)
         }
     }
 

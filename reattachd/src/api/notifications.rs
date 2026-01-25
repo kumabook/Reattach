@@ -11,6 +11,10 @@ pub struct RegisterDeviceRequest {
     pub token: String,
     #[serde(default)]
     pub sandbox: bool,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default)]
+    pub server_name: String,
 }
 
 #[derive(Deserialize)]
@@ -24,7 +28,7 @@ pub async fn register_apns_device(
     State(apns): State<SharedApnsService>,
     Json(payload): Json<RegisterDeviceRequest>,
 ) -> StatusCode {
-    apns.register_device(payload.token, payload.sandbox).await;
+    apns.register_device(payload.token, payload.sandbox, payload.device_id, payload.server_name).await;
     StatusCode::CREATED
 }
 

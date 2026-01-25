@@ -52,6 +52,14 @@ struct SendInputRequest: Codable {
 struct RegisterDeviceRequest: Codable {
     let token: String
     let sandbox: Bool
+    let deviceId: String
+    let serverName: String
+
+    enum CodingKeys: String, CodingKey {
+        case token, sandbox
+        case deviceId = "device_id"
+        case serverName = "server_name"
+    }
 }
 
 struct OutputResponse: Codable {

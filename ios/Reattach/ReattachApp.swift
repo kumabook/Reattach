@@ -21,7 +21,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     static var shared: AppDelegate?
     private(set) var deviceToken: String?
     var pendingNavigationTarget: String?
-    var unreadPanes: Set<String> = []  // Tracks pane targets (e.g., "dev:0.0")
+    var unreadPanes: Set<String> = []  // Tracks "deviceId:paneTarget" keys (e.g., "abc123:dev:0.0")
 
     func application(
         _ application: UIApplication,
@@ -107,8 +107,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
-        if let paneTarget = userInfo["paneTarget"] as? String {
-            unreadPanes.insert(paneTarget)
+        if let deviceId = userInfo["deviceId"] as? String,
+           let paneTarget = userInfo["paneTarget"] as? String {
+            let key = "\(deviceId):\(paneTarget)"
+            unreadPanes.insert(key)
             NotificationCenter.default.post(name: .unreadPanesChanged, object: nil)
         }
         completionHandler([.banner, .badge, .sound])
@@ -120,20 +122,23 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        if let paneTarget = userInfo["paneTarget"] as? String {
-            unreadPanes.insert(paneTarget)
-            pendingNavigationTarget = paneTarget
+        if let deviceId = userInfo["deviceId"] as? String,
+           let paneTarget = userInfo["paneTarget"] as? String {
+            let key = "\(deviceId):\(paneTarget)"
+            unreadPanes.insert(key)
+            pendingNavigationTarget = key
             NotificationCenter.default.post(
                 name: .navigateToPane,
                 object: nil,
-                userInfo: ["paneTarget": paneTarget]
+                userInfo: ["deviceId": deviceId, "paneTarget": paneTarget]
             )
         }
         completionHandler()
     }
 
-    func markPaneAsRead(_ paneTarget: String) {
-        if unreadPanes.remove(paneTarget) != nil {
+    func markPaneAsRead(deviceId: String, paneTarget: String) {
+        let key = "\(deviceId):\(paneTarget)"
+        if unreadPanes.remove(key) != nil {
             NotificationCenter.default.post(name: .unreadPanesChanged, object: nil)
         }
     }

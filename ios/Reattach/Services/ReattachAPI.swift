@@ -139,18 +139,21 @@ class ReattachAPI {
         _ = try await request(path: "/panes/\(encodedTarget)", method: "DELETE")
     }
 
-    func registerDevice(token: String, sandbox: Bool) async throws {
-        let body = RegisterDeviceRequest(token: token, sandbox: sandbox)
+    func registerDevice(token: String, sandbox: Bool, deviceId: String, serverName: String) async throws {
+        let body = RegisterDeviceRequest(token: token, sandbox: sandbox, deviceId: deviceId, serverName: serverName)
         _ = try await request(path: "/devices", method: "POST", body: body)
     }
 
     func registerAPNsDevice(token: String) async throws {
+        guard let server = ServerConfigManager.shared.activeServer else {
+            return
+        }
         #if DEBUG
         let sandbox = true
         #else
         let sandbox = false
         #endif
-        try await registerDevice(token: token, sandbox: sandbox)
+        try await registerDevice(token: token, sandbox: sandbox, deviceId: server.deviceId, serverName: server.serverName)
     }
 
     private func request<T: Encodable>(path: String, method: String, body: T? = nil) async throws -> Data {

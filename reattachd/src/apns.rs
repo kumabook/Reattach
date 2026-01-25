@@ -24,6 +24,10 @@ pub enum ApnsError {
 pub struct DeviceToken {
     pub token: String,
     pub sandbox: bool,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default)]
+    pub server_name: String,
 }
 
 pub struct ApnsConfig {
@@ -89,11 +93,12 @@ impl ApnsService {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
-    pub async fn register_device(&self, token: String, sandbox: bool) {
+    pub async fn register_device(&self, token: String, sandbox: bool, device_id: String, server_name: String) {
         let mut tokens = self.device_tokens.write().await;
-        let device_token = DeviceToken { token: token.clone(), sandbox };
+        let device_token = DeviceToken { token: token.clone(), sandbox, device_id: device_id.clone(), server_name: server_name.clone() };
 
         if let Some(existing) = tokens.iter_mut().find(|t| t.token == token) {
+            let mut updated = false;
             if existing.sandbox != sandbox {
                 tracing::info!(
                     "Updated device token: {}... (sandbox: {} -> {})",
@@ -102,15 +107,40 @@ impl ApnsService {
                     sandbox
                 );
                 existing.sandbox = sandbox;
+                updated = true;
+            }
+            if existing.device_id != device_id {
+                tracing::info!(
+                    "Updated device token: {}... (device_id: {} -> {})",
+                    &token[..20.min(token.len())],
+                    existing.device_id,
+                    device_id
+                );
+                existing.device_id = device_id;
+                updated = true;
+            }
+            if existing.server_name != server_name {
+                tracing::info!(
+                    "Updated device token: {}... (server_name: {} -> {})",
+                    &token[..20.min(token.len())],
+                    existing.server_name,
+                    server_name
+                );
+                existing.server_name = server_name;
+                updated = true;
+            }
+            if updated {
                 if let Err(e) = Self::save_tokens(&self.tokens_file, &tokens) {
                     tracing::error!("Failed to save device tokens: {}", e);
                 }
             }
         } else {
             tracing::info!(
-                "Registered device token: {}... (sandbox: {})",
+                "Registered device token: {}... (sandbox: {}, device_id: {}, server_name: {})",
                 &token[..20.min(token.len())],
-                sandbox
+                sandbox,
+                device_id,
+                server_name
             );
             tokens.push(device_token);
             if let Err(e) = Self::save_tokens(&self.tokens_file, &tokens) {
@@ -139,18 +169,40 @@ impl ApnsService {
             ..Default::default()
         };
 
-        let builder = DefaultNotificationBuilder::new()
-            .set_title(title)
-            .set_body(body)
-            .set_sound("default");
-
         let mut invalid_tokens = Vec::new();
 
         for device_token in tokens.iter() {
-            let mut payload = builder.clone().build(&device_token.token, options.clone());
+            let notification_title = if device_token.server_name.is_empty() {
+                title.to_string()
+            } else {
+                let full_title = format!("{}: {}", device_token.server_name, title);
+                const MAX_TITLE_LEN: usize = 40;
+                if full_title.chars().count() > MAX_TITLE_LEN {
+                    let prefix = format!("{}: ...", device_token.server_name);
+                    let prefix_len = prefix.chars().count();
+                    let remaining = MAX_TITLE_LEN.saturating_sub(prefix_len);
+                    let title_chars: Vec<char> = title.chars().collect();
+                    let skip = title_chars.len().saturating_sub(remaining);
+                    let truncated: String = title_chars.into_iter().skip(skip).collect();
+                    format!("{}: ...{}", device_token.server_name, truncated)
+                } else {
+                    full_title
+                }
+            };
+
+            let builder = DefaultNotificationBuilder::new()
+                .set_title(&notification_title)
+                .set_body(body)
+                .set_sound("default");
+
+            let mut payload = builder.build(&device_token.token, options.clone());
 
             if let Some(target) = pane_target {
                 payload.data.insert("paneTarget", Value::String(target.to_string()));
+            }
+
+            if !device_token.device_id.is_empty() {
+                payload.data.insert("deviceId", Value::String(device_token.device_id.clone()));
             }
 
             let client = if device_token.sandbox {
