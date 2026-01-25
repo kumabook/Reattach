@@ -265,6 +265,10 @@
         <div class="container">
             <h1>セットアップガイド</h1>
 
+            <div class="note" style="background: rgba(255, 149, 0, 0.1); border-color: rgba(255, 149, 0, 0.3);">
+                <p><strong>⚠️ 自己責任でご使用ください。</strong> Reattachはマシン上でリモートコマンド実行を可能にします。使用前にセキュリティ上のリスクをご理解ください。reattachdにはデバイスベースの認証機能がありますが、インターネットに公開する場合は追加のセキュリティ対策（VPN、Cloudflare Zero Trustなど）を推奨します。</p>
+            </div>
+
             <div class="step">
                 <span class="step-number">1</span>
                 <span class="step-title">reattachdをインストール</span>
@@ -304,7 +308,7 @@ cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
     &lt;string&gt;~/Library/Logs/Reattach/reattachd.error.log&lt;/string&gt;
     &lt;key&gt;EnvironmentVariables&lt;/key&gt;
     &lt;dict&gt;
-        &lt;key&gt;PORT&lt;/key&gt;
+        &lt;key&gt;REATTACHD_PORT&lt;/key&gt;
         &lt;string&gt;8787&lt;/string&gt;
         &lt;key&gt;PATH&lt;/key&gt;
         &lt;string&gt;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin&lt;/string&gt;
@@ -327,7 +331,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/reattachd
 Restart=always
-Environment=PORT=8787
+Environment=REATTACHD_PORT=8787
 
 [Install]
 WantedBy=multi-user.target
@@ -346,7 +350,9 @@ sudo systemctl start reattachd</code></pre>
                 <div class="step-content">
                     <p>iOSデバイスからreattachdへの接続方法を選択します：</p>
 
-                    <h3>ローカルネットワーク</h3>
+                    <h2 style="font-size: 1.2rem; margin-top: 24px; border: none; padding: 0;">ローカルネットワーク</h2>
+
+                    <h3>直接接続</h3>
                     <p>マシンのローカルIPアドレスを直接使用します。追加の設定は不要です。</p>
                     <pre><code>URL: http://192.168.x.x:8787</code></pre>
 
@@ -354,10 +360,20 @@ sudo systemctl start reattachd</code></pre>
                     <p>VPNを設定している場合は、VPNネットワーク上のマシンのIPアドレスを使用します。</p>
                     <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
 
-                    <h3>Cloudflare Tunnel</h3>
-                    <p>ポートを公開せずにセキュアなリモートアクセスを実現します。ローカルネットワーク外からreattachdにアクセスする場合におすすめです。</p>
+                    <h2 style="font-size: 1.2rem; margin-top: 32px; border: none; padding: 0;">リモートアクセス</h2>
+
+                    <h3>Cloudflare Tunnel + Zero Trust Access（推奨）</h3>
+                    <p>ポートを公開せずにリモートアクセスを実現します。<a href="https://developers.cloudflare.com/cloudflare-one/">Cloudflare Zero Trust</a>のAccess機能を使用することで、認証レイヤーを追加できます。</p>
                     <pre><code>URL: https://your-domain.example.com</code></pre>
                     <p><a href="/ja/cloudflare.html">Cloudflareの詳細なセットアップガイドはこちら &rarr;</a></p>
+
+                    <h3>パブリックIP / ドメイン</h3>
+                    <p>パブリックIPやドメインで直接公開します。</p>
+                    <pre><code>URL: http://your-public-ip:8787
+URL: https://your-domain.com:8787</code></pre>
+                    <div class="note" style="background: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3);">
+                        <p><strong>⚠️ セキュリティ警告:</strong> この方法はマシンをインターネットに直接公開します。マシンが攻撃対象となり、デバイストークンが漏洩した場合、攻撃者がシステム上でコマンドを実行できる可能性があります。HTTPSを使用し、追加のセキュリティ対策（ファイアウォールルール、fail2banなど）を検討してください。</p>
+                    </div>
                 </div>
             </div>
 

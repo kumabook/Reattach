@@ -256,6 +256,10 @@
         <div class="container">
             <h1>Setup Guide</h1>
 
+            <div class="note" style="background: rgba(255, 149, 0, 0.1); border-color: rgba(255, 149, 0, 0.3);">
+                <p><strong>⚠️ Use at your own risk.</strong> Reattach allows remote command execution on your machine. Please understand the security implications before using this software. reattachd includes device-based authentication, but for internet-exposed setups, we recommend adding additional security layers (VPN, Cloudflare Zero Trust, etc.).</p>
+            </div>
+
             <div class="step">
                 <span class="step-number">1</span>
                 <span class="step-title">Install reattachd</span>
@@ -295,7 +299,7 @@ cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
     &lt;string&gt;~/Library/Logs/Reattach/reattachd.error.log&lt;/string&gt;
     &lt;key&gt;EnvironmentVariables&lt;/key&gt;
     &lt;dict&gt;
-        &lt;key&gt;PORT&lt;/key&gt;
+        &lt;key&gt;REATTACHD_PORT&lt;/key&gt;
         &lt;string&gt;8787&lt;/string&gt;
         &lt;key&gt;PATH&lt;/key&gt;
         &lt;string&gt;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin&lt;/string&gt;
@@ -318,7 +322,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/reattachd
 Restart=always
-Environment=PORT=8787
+Environment=REATTACHD_PORT=8787
 
 [Install]
 WantedBy=multi-user.target
@@ -337,7 +341,9 @@ sudo systemctl start reattachd</code></pre>
                 <div class="step-content">
                     <p>Choose how your iOS device will connect to reattachd:</p>
 
-                    <h3>Local network</h3>
+                    <h2 style="font-size: 1.2rem; margin-top: 24px; border: none; padding: 0;">Local Network</h2>
+
+                    <h3>Direct connection</h3>
                     <p>Use your machine's local IP address directly. No additional setup required.</p>
                     <pre><code>URL: http://192.168.x.x:8787</code></pre>
 
@@ -345,10 +351,20 @@ sudo systemctl start reattachd</code></pre>
                     <p>If you have a VPN setup, use the machine's IP address on the VPN network.</p>
                     <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
 
-                    <h3>Cloudflare Tunnel</h3>
-                    <p>For secure remote access without exposing ports. Recommended for accessing reattachd from outside your local network.</p>
+                    <h2 style="font-size: 1.2rem; margin-top: 32px; border: none; padding: 0;">Remote Access</h2>
+
+                    <h3>Cloudflare Tunnel + Zero Trust Access (Recommended)</h3>
+                    <p>Remote access without exposing ports. Use <a href="https://developers.cloudflare.com/cloudflare-one/">Cloudflare Zero Trust</a> Access to add an authentication layer.</p>
                     <pre><code>URL: https://your-domain.example.com</code></pre>
                     <p><a href="/cloudflare.html">See the detailed Cloudflare setup guide &rarr;</a></p>
+
+                    <h3>Public IP / Domain</h3>
+                    <p>Expose directly via public IP or domain.</p>
+                    <pre><code>URL: http://your-public-ip:8787
+URL: https://your-domain.com:8787</code></pre>
+                    <div class="note" style="background: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3);">
+                        <p><strong>⚠️ Security Warning:</strong> This method exposes your machine directly to the internet. Your machine becomes a target for attacks, and if device tokens are compromised, attackers can execute commands on your system. Use HTTPS and consider additional security measures (firewall rules, fail2ban, etc.).</p>
+                    </div>
                 </div>
             </div>
 
