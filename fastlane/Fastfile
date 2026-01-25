@@ -1,0 +1,83 @@
+default_platform(:ios)
+
+# App Store Connect API Key を環境変数から取得
+def api_key
+  app_store_connect_api_key(
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+    key_filepath: ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+  )
+end
+
+# APIキーのJSONファイルを生成
+def generate_api_key_json
+  require 'json'
+  key_content = File.read(ENV["APP_STORE_CONNECT_API_KEY_PATH"])
+  api_key_json = {
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+    key: key_content,
+    in_house: false
+  }
+  json_path = "api_key.json"
+  File.write(json_path, JSON.pretty_generate(api_key_json))
+  json_path
+end
+
+platform :ios do
+  # App Store Connect からメタデータをダウンロード
+  desc "Download metadata from App Store Connect"
+  lane :download_metadata do
+    json_path = generate_api_key_json
+    sh("bundle exec fastlane deliver download_metadata --api_key_path #{json_path}")
+  end
+
+  # App Store Connect からスクリーンショットをダウンロード
+  desc "Download screenshots from App Store Connect"
+  lane :download_screenshots do
+    json_path = generate_api_key_json
+    sh("bundle exec fastlane deliver download_screenshots --api_key_path #{json_path}")
+  end
+
+  # メタデータをApp Store Connect にアップロード
+  desc "Upload metadata to App Store Connect"
+  lane :upload_metadata do
+    deliver(
+      api_key: api_key,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      force: true,
+      run_precheck_before_submit: false,
+      submit_for_review: false
+    )
+  end
+
+  # スクリーンショットをApp Store Connect にアップロード
+  desc "Upload screenshots to App Store Connect"
+  lane :upload_screenshots do
+    deliver(
+      api_key: api_key,
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      skip_metadata: true,
+      force: true,
+      run_precheck_before_submit: false,
+      submit_for_review: false
+    )
+  end
+
+  # メタデータとスクリーンショットを両方アップロード
+  desc "Upload metadata and screenshots to App Store Connect"
+  lane :upload_all do
+    deliver(
+      api_key: api_key,
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      skip_metadata: false,
+      force: true,
+      run_precheck_before_submit: false,
+      submit_for_review: false
+    )
+  end
+end

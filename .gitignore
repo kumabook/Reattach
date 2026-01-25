@@ -29,3 +29,7 @@ reattachd/target/
 # Environment files
 .env
 .env.local
+
+# Fastlane
+fastlane/api_key.json
+ios/AuthKey_*.p8
