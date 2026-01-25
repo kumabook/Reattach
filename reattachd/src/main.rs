@@ -325,18 +325,38 @@ async fn auth_middleware(
     }
 }
 
+include!(concat!(env!("OUT_DIR"), "/apns_config.rs"));
+
+const XOR_KEY: &[u8] = b"reattachd_obfuscation_key_2026";
+
+fn xor_decode(hex_input: &str) -> Option<String> {
+    let bytes: Vec<u8> = (0..hex_input.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex_input[i..i + 2], 16))
+        .collect::<Result<Vec<u8>, _>>()
+        .ok()?;
+
+    let decoded: Vec<u8> = bytes
+        .iter()
+        .enumerate()
+        .map(|(i, b)| b ^ XOR_KEY[i % XOR_KEY.len()])
+        .collect();
+
+    String::from_utf8(decoded).ok()
+}
+
 fn get_apns_config() -> Option<(String, String, String, String)> {
-    let key_base64 = option_env!("APNS_KEY_BASE64")
-        .map(String::from)
+    let key_base64 = APNS_KEY_BASE64_OBFUSCATED
+        .and_then(xor_decode)
         .or_else(|| std::env::var("APNS_KEY_BASE64").ok())?;
-    let key_id = option_env!("APNS_KEY_ID")
-        .map(String::from)
+    let key_id = APNS_KEY_ID_OBFUSCATED
+        .and_then(xor_decode)
         .or_else(|| std::env::var("APNS_KEY_ID").ok())?;
-    let team_id = option_env!("APNS_TEAM_ID")
-        .map(String::from)
+    let team_id = APNS_TEAM_ID_OBFUSCATED
+        .and_then(xor_decode)
         .or_else(|| std::env::var("APNS_TEAM_ID").ok())?;
-    let bundle_id = option_env!("APNS_BUNDLE_ID")
-        .map(String::from)
+    let bundle_id = APNS_BUNDLE_ID_OBFUSCATED
+        .and_then(xor_decode)
         .or_else(|| std::env::var("APNS_BUNDLE_ID").ok())?;
 
     Some((key_base64, key_id, team_id, bundle_id))
