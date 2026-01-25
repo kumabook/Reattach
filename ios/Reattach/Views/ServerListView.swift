@@ -23,6 +23,7 @@ struct ServerListView: View {
                 #if DEBUG
                 debugSection
                 #endif
+                versionSection
             }
             .navigationTitle("Servers")
             .navigationBarTitleDisplayMode(.inline)
@@ -162,6 +163,16 @@ struct ServerListView: View {
         }
     }
     #endif
+
+    private var versionSection: some View {
+        Section {
+        } footer: {
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+            Text("Version \(version) (\(build))")
+                .frame(maxWidth: .infinity)
+        }
+    }
 }
 
 #Preview {

@@ -22,6 +22,7 @@ const DEFAULT_PORT: u16 = 8787;
 
 #[derive(Parser)]
 #[command(name = "reattachd")]
+#[command(version)]
 #[command(about = "Remote control daemon for tmux sessions")]
 struct Cli {
     #[command(subcommand)]
@@ -269,7 +270,8 @@ async fn run_daemon(data_dir: std::path::PathBuf) {
         base_routes.merge(register_routes)
     };
 
-    let port = std::env::var("PORT")
+    let port = std::env::var("REATTACHD_PORT")
+        .or_else(|_| std::env::var("PORT"))
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
