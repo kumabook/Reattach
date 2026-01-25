@@ -261,11 +261,20 @@ async fn run_daemon(data_dir: std::path::PathBuf) {
         .with_state(auth_service.clone());
 
     let app = if let Some(apns) = apns_service {
-        let apns_routes = Router::new()
+        let devices_route = Router::new()
             .route("/devices", post(api::register_apns_device))
+            .with_state(Arc::clone(&apns))
+            .layer(middleware::from_fn_with_state(
+                auth_service.clone(),
+                auth_middleware,
+            ));
+        let notify_route = Router::new()
             .route("/notify", post(api::send_notification))
             .with_state(apns);
-        base_routes.merge(apns_routes).merge(register_routes)
+        base_routes
+            .merge(devices_route)
+            .merge(notify_route)
+            .merge(register_routes)
     } else {
         base_routes.merge(register_routes)
     };
@@ -276,7 +285,9 @@ async fn run_daemon(data_dir: std::path::PathBuf) {
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
 
-    let addr = format!("0.0.0.0:{}", port);
+    let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr = format!("{}:{}", bind_addr, port);
     tracing::info!("Starting reattachd on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();

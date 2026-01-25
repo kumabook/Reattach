@@ -84,8 +84,11 @@ cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
     <string>~/Library/Logs/Reattach/reattachd.error.log</string>
     <key>EnvironmentVariables</key>
     <dict>
-        <key>PORT</key>
+        <key>REATTACHD_PORT</key>
         <string>8787</string>
+        <!-- Uncomment to allow local network access (default: 127.0.0.1) -->
+        <!-- <key>REATTACHD_BIND_ADDR</key> -->
+        <!-- <string>0.0.0.0</string> -->
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
@@ -110,7 +113,9 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/reattachd
 Restart=always
-Environment=PORT=8787
+Environment=REATTACHD_PORT=8787
+# Uncomment to allow local network access (default: 127.0.0.1)
+# Environment=REATTACHD_BIND_ADDR=0.0.0.0
 
 [Install]
 WantedBy=multi-user.target
@@ -266,6 +271,47 @@ make install-hooks  # Install Claude Code notification hooks
 ### Build iOS app
 
 Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
+
+## Security
+
+⚠️ **Use at your own risk.** Reattach allows remote command execution on your machine. Please understand the security implications before using this software.
+
+### Network Binding
+
+reattachd binds to `127.0.0.1:8787` by default (localhost only). This is secure by default - only local processes and tunnels can access the API.
+
+To change the port or bind address:
+
+```bash
+REATTACHD_PORT=9000 reattachd
+REATTACHD_BIND_ADDR=0.0.0.0 reattachd  # Listen on all interfaces (use with caution)
+```
+
+For remote access, use Cloudflare Tunnel (connects to localhost) or explicitly set `REATTACHD_BIND_ADDR=0.0.0.0` with appropriate firewall rules.
+
+### Authentication
+
+reattachd includes device-based authentication:
+- Devices must be registered via QR code (setup token)
+- Each device receives a unique token for API access
+- Unregistered devices cannot access the API
+
+### Cloudflare Tunnel (Recommended for remote access)
+
+When exposing reattachd to the internet via Cloudflare Tunnel, we strongly recommend adding an extra layer of security with [Cloudflare Zero Trust](https://developers.cloudflare.com/cloudflare-one/):
+
+1. Create an Access Application for your tunnel hostname
+2. Configure authentication policies (e.g., email OTP, SSO)
+3. Enable the Cloudflare Access service token or identity verification
+
+This provides defense-in-depth: even if someone obtains a device token, they still need to pass Cloudflare's authentication.
+
+### Recommendations
+
+- Use HTTPS (via Cloudflare Tunnel or your own certificates)
+- Regularly review registered devices (`reattachd devices list`)
+- Revoke unused devices (`reattachd devices revoke <id>`)
+- Monitor reattachd logs for suspicious activity
 
 ## License
 

@@ -301,6 +301,9 @@ cat > ~/Library/LaunchAgents/com.kumabook.reattachd.plist << 'EOF'
     &lt;dict&gt;
         &lt;key&gt;REATTACHD_PORT&lt;/key&gt;
         &lt;string&gt;8787&lt;/string&gt;
+        &lt;!-- Uncomment to allow local network access (default: 127.0.0.1) --&gt;
+        &lt;!-- &lt;key&gt;REATTACHD_BIND_ADDR&lt;/key&gt; --&gt;
+        &lt;!-- &lt;string&gt;0.0.0.0&lt;/string&gt; --&gt;
         &lt;key&gt;PATH&lt;/key&gt;
         &lt;string&gt;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin&lt;/string&gt;
     &lt;/dict&gt;
@@ -323,6 +326,8 @@ Type=simple
 ExecStart=/usr/local/bin/reattachd
 Restart=always
 Environment=REATTACHD_PORT=8787
+# Uncomment to allow local network access (default: 127.0.0.1)
+# Environment=REATTACHD_BIND_ADDR=0.0.0.0
 
 [Install]
 WantedBy=multi-user.target
