@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プライバシーポリシー - Reattach</title>
+    <meta name="description" content="Reattach iOSアプリのプライバシーポリシー">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --primary-dark: #0056CC;
+            --bg: #000000;
+            --bg-secondary: #1C1C1E;
+            --text: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --border: #38383A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+        }
+
+        .content {
+            padding: 60px 0;
+        }
+
+        .content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+        }
+
+        .content h2 {
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 16px;
+        }
+
+        .content p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .content ul {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .last-updated {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .content h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/ja/" class="logo">
+                <img src="../app-icon.png" alt="Reattach" class="logo-icon">
+                Reattach
+            </a>
+            <div class="nav-links">
+                <a href="/ja/">ホーム</a>
+                <a href="/ja/setup.html">セットアップ</a>
+                <a href="https://github.com/kumabook/Reattach">GitHub</a>
+                <a href="/privacy.html">English</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="content">
+        <div class="container">
+            <h1>プライバシーポリシー</h1>
+
+            <p>このプライバシーポリシーは、Reattach（以下「本アプリ」）における情報の取り扱いについて説明します。</p>
+
+            <h2>データの収集</h2>
+            <p>本アプリは、開発者が運営する外部サーバーに個人データを収集、保存、送信することはありません。</p>
+
+            <h2>データの保存</h2>
+            <p>以下のデータはお使いのデバイスにローカルで保存されます：</p>
+            <ul>
+                <li>サーバー接続設定（URL、認証トークン）</li>
+                <li>保存したコマンド</li>
+                <li>プッシュ通知用デバイストークン</li>
+            </ul>
+            <p>これらのデータはデバイス上に保持され、第三者と共有されることはありません。</p>
+
+            <h2>ネットワーク通信</h2>
+            <p>本アプリは、お客様が設定したサーバー（reattachd）と直接通信します。この接続はお客様のデバイスとお客様自身のサーバー間で行われ、開発者が運営する中間サーバーを経由することはありません。</p>
+
+            <h2>プッシュ通知</h2>
+            <p>プッシュ通知を有効にした場合、Apple Push Notification service（APNs）を使用して通知が配信されます。デバイストークンは、この機能を有効にするためにお客様が設定したサーバーに保存されます。</p>
+
+            <h2>サードパーティサービス</h2>
+            <p>本アプリは、サードパーティの分析、広告、トラッキングサービスを一切使用していません。</p>
+
+            <h2>ポリシーの変更</h2>
+            <p>このプライバシーポリシーは随時更新される場合があります。変更があった場合は、このページに掲載されます。</p>
+
+            <h2>お問い合わせ</h2>
+            <p>このプライバシーポリシーに関するご質問は、<a href="https://github.com/kumabook/Reattach/issues">GitHub Issues</a> からお問い合わせください。</p>
+
+            <p class="last-updated">最終更新日：2026年1月25日</p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Built with ❤️ by <a href="https://github.com/kumabook">kumabook</a> ・
+                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
+                MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
