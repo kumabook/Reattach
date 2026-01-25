@@ -82,6 +82,7 @@ struct UpgradeView: View {
     private var purchaseSection: some View {
         VStack(spacing: 16) {
             Button {
+                guard !purchaseManager.isLoading else { return }
                 Task {
                     let success = await purchaseManager.purchase()
                     if success {
@@ -104,7 +105,6 @@ struct UpgradeView: View {
                 .padding()
             }
             .buttonStyle(.borderedProminent)
-            .disabled(purchaseManager.isLoading)
 
             Button {
                 Task {
