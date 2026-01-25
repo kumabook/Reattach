@@ -32,4 +32,4 @@ reattachd/target/
 
 # Fastlane
 fastlane/api_key.json
-ios/AuthKey_*.p8
+*.p8
