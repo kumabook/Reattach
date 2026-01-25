@@ -143,7 +143,7 @@ struct PaneDetailView: View {
 
     private var hasQuickAction: Bool {
         switch viewModel.quickAction {
-        case .options, .yesNo:
+        case .options, .suggestions, .yesNo:
             return true
         case .none:
             return false
@@ -248,6 +248,29 @@ struct PaneDetailView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
+                .background(.bar)
+                Divider()
+
+            case .suggestions(let suggestions):
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(suggestions, id: \.self) { suggestion in
+                            Button {
+                                Task {
+                                    await viewModel.sendInput(suggestion)
+                                }
+                            } label: {
+                                Text(suggestion)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.orange)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
+                }
                 .background(.bar)
                 Divider()
 
@@ -382,6 +405,7 @@ struct DetectedOption {
 
 enum QuickAction {
     case options([DetectedOption])
+    case suggestions([String])
     case yesNo
     case none
 }
@@ -417,7 +441,45 @@ class PaneDetailViewModel {
         if !options.isEmpty {
             return .options(options)
         }
+        let suggestions = parseSuggestions(from: text)
+        if !suggestions.isEmpty {
+            return .suggestions(suggestions)
+        }
         return .none
+    }
+
+    nonisolated private static func parseSuggestions(from text: String) -> [String] {
+        let lines = text.components(separatedBy: "\n").suffix(20)
+        var suggestions: [String] = []
+        let prefixes = ["❯", "›", "▶", "▸", "➤", "⟩"]
+        let trailingPattern = #"\s*↵\s*\w*\s*$"#
+
+        for line in lines {
+            var cleanLine = line.replacingOccurrences(
+                of: "\u{1B}\\[[0-9;]*m",
+                with: "",
+                options: .regularExpression
+            ).trimmingCharacters(in: .whitespaces)
+
+            // Remove trailing "↵ send" or similar
+            cleanLine = cleanLine.replacingOccurrences(
+                of: trailingPattern,
+                with: "",
+                options: .regularExpression
+            ).trimmingCharacters(in: .whitespaces)
+
+            for prefix in prefixes {
+                if cleanLine.hasPrefix(prefix) {
+                    let suggestion = String(cleanLine.dropFirst()).trimmingCharacters(in: .whitespaces)
+                    if !suggestion.isEmpty && suggestion.count < 100 {
+                        suggestions.append(suggestion)
+                    }
+                    break
+                }
+            }
+        }
+
+        return suggestions
     }
 
     nonisolated private static func detectYesNoPrompt(from text: String) -> Bool {
