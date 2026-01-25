@@ -321,6 +321,7 @@ struct PaneDetailView: View {
         }
         .sheet(isPresented: $showCommandEditor) {
             CommandEditorView()
+                .modifier(iPadPagePresentationModifier())
         }
         .sheet(isPresented: $showCommandPicker) {
             CommandPickerView(
@@ -340,13 +341,29 @@ struct PaneDetailView: View {
                     }
                 }
             )
-            .presentationDetents([.medium, .large])
+            .modifier(iPadPagePresentationModifier())
         }
         .task {
             await viewModel.startPolling()
         }
         .onDisappear {
             viewModel.stopPolling()
+        }
+    }
+}
+
+// MARK: - iPadPagePresentationModifier
+
+struct iPadPagePresentationModifier: ViewModifier {
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    func body(content: Content) -> some View {
+        if isIPad {
+            content.presentationDetents([.large])
+        } else {
+            content.presentationDetents([.medium, .large])
         }
     }
 }
