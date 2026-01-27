@@ -21,7 +21,12 @@ case "$ARCH" in
     *)       echo "Unsupported architecture: $ARCH"; exit 1;;
 esac
 
-PLATFORM="${OS_NAME}-${ARCH_NAME}"
+# Linux uses musl build for better compatibility
+if [ "$OS_NAME" = "linux" ]; then
+    PLATFORM="${OS_NAME}-${ARCH_NAME}-musl"
+else
+    PLATFORM="${OS_NAME}-${ARCH_NAME}"
+fi
 echo "Detected platform: $PLATFORM"
 
 # Get latest release version
