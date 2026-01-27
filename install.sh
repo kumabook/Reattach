@@ -64,21 +64,28 @@ fi
 # Install
 INSTALL_DIR="/usr/local/bin"
 if [ ! -w "$INSTALL_DIR" ]; then
-    INSTALL_DIR="$HOME/.local/bin"
-    mkdir -p "$INSTALL_DIR"
+    if command -v sudo > /dev/null 2>&1; then
+        echo "Installing to $INSTALL_DIR (requires sudo)..."
+        sudo mv "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
+        sudo chmod +x "$INSTALL_DIR/$BINARY"
+    else
+        INSTALL_DIR="$HOME/.local/bin"
+        mkdir -p "$INSTALL_DIR"
+        mv "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
+        chmod +x "$INSTALL_DIR/$BINARY"
+    fi
+else
+    mv "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
+    chmod +x "$INSTALL_DIR/$BINARY"
 fi
-
-mv "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
-chmod +x "$INSTALL_DIR/$BINARY"
 
 echo ""
 echo "Installed $BINARY to $INSTALL_DIR/$BINARY"
 echo ""
 
-# Check if in PATH
-if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-    echo "Add $INSTALL_DIR to your PATH:"
-    echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+if [ "$INSTALL_DIR" != "/usr/local/bin" ]; then
+    echo "Note: For systemd service, copy to /usr/local/bin:"
+    echo "  sudo cp $INSTALL_DIR/$BINARY /usr/local/bin/"
     echo ""
 fi
 
