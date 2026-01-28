@@ -164,6 +164,11 @@ struct SessionListView: View {
                 handlePendingNavigation()
             }
         }
+        .onChange(of: configManager.activeServerId) { _, _ in
+            Task {
+                await viewModel.loadSessions()
+            }
+        }
     }
 
     // MARK: - iPhone Layout (NavigationStack)
