@@ -37,6 +37,9 @@ enum Commands {
         /// External URL for the server (e.g., https://your-server.example.com)
         #[arg(long)]
         url: String,
+        /// Create a reusable token that doesn't expire (for demo servers)
+        #[arg(long)]
+        reusable: bool,
     },
     /// Manage registered devices
     Devices {
@@ -95,8 +98,8 @@ async fn main() {
     let data_dir = get_data_dir();
 
     match cli.command {
-        Some(Commands::Setup { url }) => {
-            run_setup_mode(data_dir, url).await;
+        Some(Commands::Setup { url, reusable }) => {
+            run_setup_mode(data_dir, url, reusable).await;
         }
         Some(Commands::Devices { action }) => {
             run_device_command(data_dir, action).await;
@@ -110,12 +113,12 @@ async fn main() {
     }
 }
 
-async fn run_setup_mode(data_dir: std::path::PathBuf, url: String) {
+async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool) {
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
 
-    let setup_token = auth_service.generate_setup_token().await;
+    let setup_token = auth_service.generate_setup_token(reusable).await;
 
     // Create setup URL with token
     let setup_url = format!("{}?setup_token={}", url, setup_token);

@@ -21,6 +21,8 @@ pub struct SetupToken {
     pub expires_at: DateTime<Utc>,
     #[serde(default)]
     pub used: bool,
+    #[serde(default)]
+    pub reusable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -68,15 +70,22 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn generate_setup_token(&self) -> String {
+    pub async fn generate_setup_token(&self, reusable: bool) -> String {
         let token = generate_token();
         let now = Utc::now();
+
+        let expires_at = if reusable {
+            now + chrono::Duration::days(365 * 10)
+        } else {
+            now + chrono::Duration::minutes(10)
+        };
 
         let setup_token = SetupToken {
             token: token.clone(),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(10),
+            expires_at,
             used: false,
+            reusable,
         };
 
         {
@@ -96,7 +105,7 @@ impl AuthService {
         if let Some(setup_token) = &store.setup_token {
             if setup_token.token != token {
                 SetupTokenValidation::Invalid
-            } else if setup_token.used {
+            } else if setup_token.used && !setup_token.reusable {
                 SetupTokenValidation::AlreadyUsed
             } else if Utc::now() >= setup_token.expires_at {
                 SetupTokenValidation::Expired
@@ -141,7 +150,9 @@ impl AuthService {
             let mut store = self.store.write().await;
             store.devices.push(device.clone());
             if let Some(ref mut setup_token) = store.setup_token {
-                setup_token.used = true;
+                if !setup_token.reusable {
+                    setup_token.used = true;
+                }
             }
         }
 
