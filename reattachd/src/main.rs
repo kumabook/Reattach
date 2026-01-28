@@ -135,7 +135,11 @@ async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: boo
     println!("\n  Scan this QR code with the Reattach iOS app:\n");
     println!("{}", qr_string);
     println!("\n  URL: {}", setup_url);
-    println!("\n  Setup token expires in 10 minutes.");
+    if reusable {
+        println!("\n  Setup token is reusable (no expiration).");
+    } else {
+        println!("\n  Setup token expires in 10 minutes.");
+    }
     println!("  Make sure reattachd daemon is running.\n");
 }
 
