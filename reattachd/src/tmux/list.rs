@@ -39,7 +39,10 @@ pub fn list_sessions() -> Result<Vec<Session>, TmuxError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("no server running") || stderr.contains("no sessions") {
+        if stderr.contains("no server running")
+            || stderr.contains("no sessions")
+            || stderr.contains("No such file or directory")
+        {
             return Ok(vec![]);
         }
         return Err(TmuxError::Command(stderr.to_string()));

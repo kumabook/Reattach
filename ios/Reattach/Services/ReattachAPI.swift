@@ -8,6 +8,7 @@ import Observation
 
 enum AuthErrorType {
     case cloudflareExpired
+    case cloudflareServiceTokenInvalid
     case deviceTokenInvalid
 }
 
@@ -32,6 +33,8 @@ enum APIError: LocalizedError {
             switch type {
             case .cloudflareExpired:
                 return "Session expired - please sign in again"
+            case .cloudflareServiceTokenInvalid:
+                return "Cloudflare Access denied - please check your Service Token credentials"
             case .deviceTokenInvalid:
                 return "Device not registered - please scan QR code again"
             }
@@ -214,6 +217,17 @@ class ReattachAPI {
                 throw APIError.unauthorized(.cloudflareExpired)
             case 401, 403:
                 isAuthenticated = false
+                let responseText = String(data: data, encoding: .utf8) ?? ""
+                if responseText.contains("access denied") || responseText.contains("Cloudflare") ||
+                   responseText.contains("CF-Access") || httpResponse.value(forHTTPHeaderField: "CF-RAY") != nil {
+                    if cfAccessClientId != nil && cfAccessClientSecret != nil {
+                        authErrorType = .cloudflareServiceTokenInvalid
+                        throw APIError.unauthorized(.cloudflareServiceTokenInvalid)
+                    } else {
+                        authErrorType = .cloudflareExpired
+                        throw APIError.unauthorized(.cloudflareExpired)
+                    }
+                }
                 authErrorType = .deviceTokenInvalid
                 throw APIError.unauthorized(.deviceTokenInvalid)
             default:
