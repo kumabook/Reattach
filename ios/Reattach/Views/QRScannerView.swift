@@ -245,6 +245,7 @@ struct QRScannerView: View {
 
                 await MainActor.run {
                     ServerConfigManager.shared.addServer(serverConfig)
+                    ServerConfigManager.shared.setActiveServer(serverConfig.id)
                     dismiss()
                 }
             } catch {
