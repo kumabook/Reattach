@@ -37,9 +37,12 @@ enum Commands {
         /// External URL for the server (e.g., https://your-server.example.com)
         #[arg(long)]
         url: String,
-        /// Create a reusable token that doesn't expire (for demo servers)
+        /// Create a reusable token that can be used multiple times
         #[arg(long)]
         reusable: bool,
+        /// Token expiration time (e.g., 10m, 1h, 1d, never). Default: 10m
+        #[arg(long, default_value = "10m")]
+        expires: String,
     },
     /// Manage registered devices
     Devices {
@@ -98,8 +101,8 @@ async fn main() {
     let data_dir = get_data_dir();
 
     match cli.command {
-        Some(Commands::Setup { url, reusable }) => {
-            run_setup_mode(data_dir, url, reusable).await;
+        Some(Commands::Setup { url, reusable, expires }) => {
+            run_setup_mode(data_dir, url, reusable, expires).await;
         }
         Some(Commands::Devices { action }) => {
             run_device_command(data_dir, action).await;
@@ -113,12 +116,38 @@ async fn main() {
     }
 }
 
-async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool) {
+fn parse_duration(s: &str) -> Option<chrono::Duration> {
+    if s == "never" {
+        return Some(chrono::Duration::days(365 * 100));
+    }
+
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+
+    let (num_str, unit) = s.split_at(s.len() - 1);
+    let num: i64 = num_str.parse().ok()?;
+
+    match unit {
+        "m" => Some(chrono::Duration::minutes(num)),
+        "h" => Some(chrono::Duration::hours(num)),
+        "d" => Some(chrono::Duration::days(num)),
+        _ => None,
+    }
+}
+
+async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool, expires: String) {
+    let duration = parse_duration(&expires).unwrap_or_else(|| {
+        eprintln!("Invalid expiration format: {}. Using default 10m.", expires);
+        chrono::Duration::minutes(10)
+    });
+
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
 
-    let setup_token = auth_service.generate_setup_token(reusable).await;
+    let setup_token = auth_service.generate_setup_token(reusable, duration).await;
 
     // Create setup URL with token
     let setup_url = format!("{}?setup_token={}", url, setup_token);
@@ -135,11 +164,17 @@ async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: boo
     println!("\n  Scan this QR code with the Reattach iOS app:\n");
     println!("{}", qr_string);
     println!("\n  URL: {}", setup_url);
+
+    let mut notes = vec![];
     if reusable {
-        println!("\n  Setup token is reusable (no expiration).");
-    } else {
-        println!("\n  Setup token expires in 10 minutes.");
+        notes.push("reusable".to_string());
     }
+    if expires == "never" {
+        notes.push("no expiration".to_string());
+    } else {
+        notes.push(format!("expires in {}", expires));
+    }
+    println!("\n  Token: {}", notes.join(", "));
     println!("  Make sure reattachd daemon is running.\n");
 }
 
