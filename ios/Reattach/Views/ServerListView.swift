@@ -11,6 +11,7 @@ struct ServerListView: View {
     @State private var purchaseManager = PurchaseManager.shared
     @State private var showQRScanner = false
     @State private var showUpgrade = false
+    @State private var serverCountOnOpen = 0
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,11 @@ struct ServerListView: View {
             }
             .sheet(isPresented: $showQRScanner) {
                 QRScannerView()
+                    .onDisappear {
+                        if configManager.servers.count > serverCountOnOpen {
+                            dismiss()
+                        }
+                    }
             }
             .sheet(isPresented: $showUpgrade) {
                 UpgradeView()
@@ -130,6 +136,7 @@ struct ServerListView: View {
         Section {
             Button {
                 if configManager.canAddServer {
+                    serverCountOnOpen = configManager.servers.count
                     showQRScanner = true
                 } else {
                     showUpgrade = true
