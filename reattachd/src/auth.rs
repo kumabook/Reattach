@@ -70,15 +70,10 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn generate_setup_token(&self, reusable: bool) -> String {
+    pub async fn generate_setup_token(&self, reusable: bool, duration: chrono::Duration) -> String {
         let token = generate_token();
         let now = Utc::now();
-
-        let expires_at = if reusable {
-            now + chrono::Duration::days(365 * 10)
-        } else {
-            now + chrono::Duration::minutes(10)
-        };
+        let expires_at = now + duration;
 
         let setup_token = SetupToken {
             token: token.clone(),
