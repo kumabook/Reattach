@@ -51,11 +51,15 @@ enum Commands {
     },
     /// Send a push notification to registered devices
     Notify {
-        /// Notification message body
-        message: String,
-        /// Notification title (default: "Reattach")
-        #[arg(short, long, default_value = "Reattach")]
-        title: String,
+        /// Agent event JSON payload. If omitted, JSON is read from stdin.
+        #[arg(long)]
+        from_agent_json: Option<String>,
+        /// Manual notification body (debug override)
+        #[arg(long)]
+        body: Option<String>,
+        /// Manual notification title (debug override)
+        #[arg(short, long)]
+        title: Option<String>,
         /// Tmux pane target (e.g., "dev:0.0"). Auto-detected if running inside tmux.
         #[arg(long)]
         target: Option<String>,
@@ -107,8 +111,14 @@ async fn main() {
         Some(Commands::Devices { action }) => {
             run_device_command(data_dir, action).await;
         }
-        Some(Commands::Notify { message, title, target, port }) => {
-            run_notify_command(message, title, target, port);
+        Some(Commands::Notify {
+            from_agent_json,
+            body,
+            title,
+            target,
+            port,
+        }) => {
+            run_notify_command(from_agent_json, body, title, target, port).await;
         }
         None => {
             run_daemon(data_dir).await;
@@ -212,42 +222,246 @@ async fn run_device_command(data_dir: std::path::PathBuf, action: Option<DeviceA
     }
 }
 
-fn run_notify_command(message: String, title: String, target: Option<String>, port: u16) {
-    use serde_json::json;
-    use std::process::Command;
+struct NotifyPayload {
+    title: String,
+    body: String,
+    cwd: Option<String>,
+    pane_target: Option<String>,
+}
 
-    // Auto-detect tmux pane target if not provided
-    let pane_target = target.or_else(|| {
-        // Try to get current tmux pane target
-        Command::new("tmux")
-            .args(["display-message", "-p", "#{session_name}:#{window_index}.#{pane_index}"])
-            .output()
-            .ok()
-            .and_then(|output| {
-                if output.status.success() {
-                    String::from_utf8(output.stdout)
-                        .ok()
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                } else {
-                    None
-                }
+fn extract_last_assistant_message(transcript_path: &str) -> Option<String> {
+    let content = std::fs::read_to_string(transcript_path).ok()?;
+    for line in content.lines().rev() {
+        let value: serde_json::Value = serde_json::from_str(line).ok()?;
+        let role = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if role != "assistant" {
+            continue;
+        }
+
+        let texts = value
+            .pointer("/message/content")
+            .and_then(|v| v.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        let t = item.get("type").and_then(|v| v.as_str())?;
+                        if t != "text" {
+                            return None;
+                        }
+                        item.get("text").and_then(|v| v.as_str()).map(str::to_string)
+                    })
+                    .collect::<Vec<_>>()
             })
-    });
+            .unwrap_or_default();
+
+        if !texts.is_empty() {
+            return Some(texts.join("\n"));
+        }
+    }
+    None
+}
+
+fn parse_agent_notify_payload(input: &str) -> Result<Option<NotifyPayload>, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(input).map_err(|e| format!("Invalid JSON input: {}", e))?;
+
+    let event_type = value.get("type").and_then(|v| v.as_str());
+    if let Some(t) = event_type {
+        if t != "agent-turn-complete" {
+            return Ok(None);
+        }
+    }
+
+    let cwd = value
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty());
+
+    let mut title = if let Some(agent) = value.get("agent").and_then(|v| v.as_str()) {
+        if !agent.is_empty() {
+            agent.to_string()
+        } else if event_type.is_some() {
+            "Codex".to_string()
+        } else {
+            "Coding Agent".to_string()
+        }
+    } else if event_type.is_some() {
+        "Codex".to_string()
+    } else {
+        "Coding Agent".to_string()
+    };
+
+    let mut body = value
+        .get("last-assistant-message")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Waiting for input".to_string());
+
+    if body == "Waiting for input" {
+        if let Some(path) = value.get("transcript_path").and_then(|v| v.as_str()) {
+            if !path.is_empty() {
+                if let Some(last) = extract_last_assistant_message(path) {
+                    body = last;
+                }
+            }
+        }
+    }
+
+    if let Some(ref c) = cwd {
+        if let Some(dir_name) = std::path::Path::new(c).file_name().and_then(|v| v.to_str()) {
+            title = dir_name.to_string();
+        }
+    }
+
+    Ok(Some(NotifyPayload {
+        title,
+        body,
+        cwd,
+        pane_target: None,
+    }))
+}
+
+fn auto_detect_tmux_target_from_env() -> Option<String> {
+    let tmux_pane = std::env::var("TMUX_PANE").ok()?;
+    let output = std::process::Command::new("tmux")
+        .args([
+            "display-message",
+            "-p",
+            "-t",
+            &tmux_pane,
+            "#{session_name}:#{window_index}.#{pane_index}",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn auto_detect_tmux_target_from_cwd(cwd: &str) -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args([
+            "list-panes",
+            "-a",
+            "-F",
+            "#{session_name}:#{window_index}.#{pane_index}:#{pane_current_path}",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let out = String::from_utf8(output.stdout).ok()?;
+    out.lines().find_map(|line| {
+        line.rfind(':').and_then(|idx| {
+            let (target, path_part) = line.split_at(idx);
+            let path = path_part.strip_prefix(':').unwrap_or(path_part);
+            if path == cwd {
+                Some(target.to_string())
+            } else {
+                None
+            }
+        })
+    })
+}
+
+fn title_for_target_and_cwd(target: &str, cwd: Option<&str>) -> String {
+    if let Some(c) = cwd {
+        if let Some(dir_name) = std::path::Path::new(c).file_name().and_then(|v| v.to_str()) {
+            let session_window = target.split('.').next().unwrap_or(target);
+            return format!("{} · {}", session_window, dir_name);
+        }
+    }
+    target.to_string()
+}
+
+fn read_stdin_if_available() -> Option<String> {
+    use std::io::IsTerminal;
+    use std::io::Read;
+
+    if std::io::stdin().is_terminal() {
+        return None;
+    }
+
+    let mut input = String::new();
+    if std::io::stdin().read_to_string(&mut input).is_ok() {
+        let trimmed = input.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
+    }
+    None
+}
+
+async fn run_notify_command(
+    from_agent_json: Option<String>,
+    body: Option<String>,
+    title: Option<String>,
+    target: Option<String>,
+    port: u16,
+) {
+    use serde_json::json;
+
+    let mut payload = if body.is_some() || title.is_some() {
+        NotifyPayload {
+            title: title.unwrap_or_else(|| "Reattach".to_string()),
+            body: body.unwrap_or_else(|| "Notification".to_string()),
+            cwd: None,
+            pane_target: None,
+        }
+    } else {
+        let input = from_agent_json.or_else(read_stdin_if_available).unwrap_or_else(|| {
+            eprintln!("No input provided.");
+            eprintln!(
+                "Use --from-agent-json '<json>' or pipe JSON via stdin, or pass --body/--title for debug."
+            );
+            std::process::exit(2);
+        });
+
+        match parse_agent_notify_payload(&input) {
+            Ok(Some(p)) => p,
+            Ok(None) => {
+                // Non-target event type; skip as success.
+                return;
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(2);
+            }
+        }
+    };
+
+    let pane_target = target
+        .or(payload.pane_target.clone())
+        .or_else(auto_detect_tmux_target_from_env)
+        .or_else(|| payload.cwd.as_deref().and_then(auto_detect_tmux_target_from_cwd));
+
+    if let Some(ref t) = pane_target {
+        payload.title = title_for_target_and_cwd(t, payload.cwd.as_deref());
+    }
 
     let url = format!("http://localhost:{}/notify", port);
     let body = json!({
-        "title": title,
-        "body": message,
+        "title": payload.title,
+        "body": payload.body,
         "pane_target": pane_target,
     });
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     match client
         .post(&url)
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
+        .await
     {
         Ok(response) => {
             if response.status().is_success() {

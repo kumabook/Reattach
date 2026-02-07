@@ -92,7 +92,7 @@ status:
 
 # Install coding agent hooks (Claude Code + Codex)
 install-hooks:
-	@./hooks/install-hooks.sh
+	@./install-hooks.sh
 
 # Uninstall coding agent hooks (Claude Code + Codex)
 uninstall-hooks:
@@ -104,7 +104,7 @@ uninstall-hooks:
 		echo "No Claude settings file found"; \
 	fi
 	@if [ -f $(HOME)/.codex/config.toml ]; then \
-		sed '/^# Reattach push notification hook$$/d; /^notify = \["$(PROJECT_ROOT)\/hooks\/notify.sh"\]$$/d' $(HOME)/.codex/config.toml > $(HOME)/.codex/config.toml.tmp && \
+		sed '/^# Reattach push notification hook$$/d; /^notify = \["reattachd", "notify"\]$$/d' $(HOME)/.codex/config.toml > $(HOME)/.codex/config.toml.tmp && \
 		mv $(HOME)/.codex/config.toml.tmp $(HOME)/.codex/config.toml; \
 		echo "Removed Reattach hook from ~/.codex/config.toml (if present)"; \
 	else \

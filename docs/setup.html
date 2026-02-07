@@ -386,6 +386,20 @@ URL: https://your-domain.com:8787</code></pre>
                 </div>
             </div>
 
+            <div class="step">
+                <span class="step-number">5</span>
+                <span class="step-title">Set up coding agent notifications (Optional)</span>
+                <div class="step-content">
+                    <p>Install hooks for Claude Code and Codex:</p>
+                    <pre><code>make install-hooks</code></pre>
+
+                    <p>For Codex, make sure this setting exists at the top level of <code>~/.codex/config.toml</code> (not inside another table such as <code>[sandbox_workspace_write]</code>):</p>
+                    <pre><code>notify = ["reattachd", "notify"]</code></pre>
+
+                    <p>Restart Codex after editing config, then trigger one turn to verify push notifications arrive on iOS.</p>
+                </div>
+            </div>
+
             <div class="note">
                 <p><strong>Need help?</strong> Check out the <a href="https://github.com/kumabook/Reattach">GitHub repository</a> for more details and troubleshooting.</p>
             </div>
