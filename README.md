@@ -50,6 +50,21 @@ With optional coding agent integration, get push notifications when Claude Code 
 
 ### 1. Install reattachd
 
+#### Option A: Homebrew (macOS)
+
+```bash
+brew tap kumabook/reattach
+brew install reattachd
+```
+
+To run it as a background service:
+
+```bash
+brew services start reattachd
+```
+
+#### Option B: Install script (macOS / Linux)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
 ```
