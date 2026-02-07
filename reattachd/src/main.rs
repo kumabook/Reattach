@@ -67,6 +67,11 @@ enum Commands {
         #[arg(short, long, default_value = "8787")]
         port: u16,
     },
+    /// Manage coding agent notification hooks
+    Hooks {
+        #[command(subcommand)]
+        action: Option<HookAction>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -78,6 +83,14 @@ enum DeviceAction {
         /// Device ID to revoke
         id: String,
     },
+}
+
+#[derive(Subcommand)]
+enum HookAction {
+    /// Install Claude Code + Codex hooks
+    Install,
+    /// Uninstall Claude Code + Codex hooks
+    Uninstall,
 }
 
 fn get_data_dir() -> std::path::PathBuf {
@@ -119,6 +132,9 @@ async fn main() {
             port,
         }) => {
             run_notify_command(from_agent_json, body, title, target, port).await;
+        }
+        Some(Commands::Hooks { action }) => {
+            run_hooks_command(action);
         }
         None => {
             run_daemon(data_dir).await;
@@ -399,6 +415,254 @@ fn read_stdin_if_available() -> Option<String> {
         }
     }
     None
+}
+
+fn run_hooks_command(action: Option<HookAction>) {
+    match action.unwrap_or(HookAction::Install) {
+        HookAction::Install => {
+            install_claude_hooks();
+            install_codex_hooks();
+        }
+        HookAction::Uninstall => {
+            uninstall_claude_hooks();
+            uninstall_codex_hooks();
+        }
+    }
+}
+
+fn home_file(path: &str) -> Option<std::path::PathBuf> {
+    let mut home = dirs::home_dir()?;
+    home.push(path);
+    Some(home)
+}
+
+fn ensure_claude_event_hook(
+    hooks_obj: &mut serde_json::Map<String, serde_json::Value>,
+    event_name: &str,
+    matcher: &str,
+) {
+    let event = hooks_obj
+        .entry(event_name.to_string())
+        .or_insert_with(|| serde_json::json!([]));
+    if !event.is_array() {
+        *event = serde_json::json!([]);
+    }
+    let event_arr = event.as_array_mut().expect("array expected");
+
+    let has_entry = event_arr.iter().any(|entry| {
+        entry.get("matcher").and_then(|v| v.as_str()) == Some(matcher)
+            && entry
+                .get("hooks")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter().any(|h| {
+                        h.get("type").and_then(|v| v.as_str()) == Some("command")
+                            && h.get("command").and_then(|v| v.as_str()) == Some("reattachd notify")
+                    })
+                })
+                .unwrap_or(false)
+    });
+
+    if !has_entry {
+        event_arr.push(serde_json::json!({
+            "matcher": matcher,
+            "hooks": [{
+                "type": "command",
+                "command": "reattachd notify",
+                "timeout": 10
+            }]
+        }));
+    }
+}
+
+fn prune_claude_event_hook(
+    hooks_obj: &mut serde_json::Map<String, serde_json::Value>,
+    event_name: &str,
+) {
+    let Some(event) = hooks_obj.get_mut(event_name) else {
+        return;
+    };
+    let Some(event_arr) = event.as_array_mut() else {
+        return;
+    };
+
+    event_arr.retain(|entry| {
+        let has_reattach = entry
+            .get("hooks")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter().any(|h| {
+                    h.get("type").and_then(|v| v.as_str()) == Some("command")
+                        && h.get("command").and_then(|v| v.as_str()) == Some("reattachd notify")
+                })
+            })
+            .unwrap_or(false);
+        !has_reattach
+    });
+}
+
+fn install_claude_hooks() {
+    let claude_file = match home_file(".claude/settings.json") {
+        Some(p) => p,
+        None => {
+            eprintln!("Failed to resolve home directory for Claude settings");
+            return;
+        }
+    };
+    if let Some(dir) = claude_file.parent() {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("Failed to create {}: {}", dir.display(), e);
+            return;
+        }
+    }
+
+    let mut root: serde_json::Value = if claude_file.exists() {
+        match std::fs::read_to_string(&claude_file)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+        {
+            Some(v) => v,
+            None => serde_json::json!({}),
+        }
+    } else {
+        serde_json::json!({})
+    };
+
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+    let root_obj = root.as_object_mut().expect("object expected");
+    let hooks = root_obj
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}));
+    if !hooks.is_object() {
+        *hooks = serde_json::json!({});
+    }
+    let hooks_obj = hooks.as_object_mut().expect("object expected");
+    ensure_claude_event_hook(hooks_obj, "Stop", "");
+    ensure_claude_event_hook(hooks_obj, "Notification", "permission_prompt");
+
+    match serde_json::to_string_pretty(&root)
+        .ok()
+        .and_then(|s| std::fs::write(&claude_file, format!("{}\n", s)).ok())
+    {
+        Some(_) => println!("Updated {}", claude_file.display()),
+        None => eprintln!("Failed to write {}", claude_file.display()),
+    }
+}
+
+fn uninstall_claude_hooks() {
+    let claude_file = match home_file(".claude/settings.json") {
+        Some(p) => p,
+        None => {
+            eprintln!("Failed to resolve home directory for Claude settings");
+            return;
+        }
+    };
+    if !claude_file.exists() {
+        println!("No Claude settings file found");
+        return;
+    }
+
+    let mut root: serde_json::Value = match std::fs::read_to_string(&claude_file)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+    {
+        Some(v) => v,
+        None => {
+            eprintln!("Failed to parse {}", claude_file.display());
+            return;
+        }
+    };
+    if let Some(hooks) = root.get_mut("hooks").and_then(|v| v.as_object_mut()) {
+        prune_claude_event_hook(hooks, "Stop");
+        prune_claude_event_hook(hooks, "Notification");
+    }
+
+    match serde_json::to_string_pretty(&root)
+        .ok()
+        .and_then(|s| std::fs::write(&claude_file, format!("{}\n", s)).ok())
+    {
+        Some(_) => println!("Updated {}", claude_file.display()),
+        None => eprintln!("Failed to write {}", claude_file.display()),
+    }
+}
+
+fn install_codex_hooks() {
+    let codex_file = match home_file(".codex/config.toml") {
+        Some(p) => p,
+        None => {
+            eprintln!("Failed to resolve home directory for Codex config");
+            return;
+        }
+    };
+    if let Some(dir) = codex_file.parent() {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("Failed to create {}: {}", dir.display(), e);
+            return;
+        }
+    }
+    let existing = std::fs::read_to_string(&codex_file).unwrap_or_default();
+    let has_other_notify = existing.lines().any(|line| {
+        let t = line.trim();
+        t.starts_with("notify =") && t != "notify = [\"reattachd\", \"notify\"]"
+    });
+    if has_other_notify {
+        println!(
+            "Skipped Codex update: notify is already configured in {}",
+            codex_file.display()
+        );
+        println!("Add Reattach manually if needed: notify = [\"reattachd\", \"notify\"]");
+        return;
+    }
+
+    let filtered: Vec<&str> = existing
+        .lines()
+        .filter(|line| {
+            let t = line.trim();
+            t != "# Reattach push notification hook" && t != "notify = [\"reattachd\", \"notify\"]"
+        })
+        .collect();
+    let mut out = String::from("# Reattach push notification hook\nnotify = [\"reattachd\", \"notify\"]\n");
+    if !filtered.is_empty() {
+        out.push('\n');
+        out.push_str(&filtered.join("\n"));
+        out.push('\n');
+    }
+    match std::fs::write(&codex_file, out) {
+        Ok(_) => println!("Updated {}", codex_file.display()),
+        Err(e) => eprintln!("Failed to write {}: {}", codex_file.display(), e),
+    }
+}
+
+fn uninstall_codex_hooks() {
+    let codex_file = match home_file(".codex/config.toml") {
+        Some(p) => p,
+        None => {
+            eprintln!("Failed to resolve home directory for Codex config");
+            return;
+        }
+    };
+    if !codex_file.exists() {
+        println!("No Codex config file found");
+        return;
+    }
+    let existing = std::fs::read_to_string(&codex_file).unwrap_or_default();
+    let filtered: Vec<&str> = existing
+        .lines()
+        .filter(|line| {
+            let t = line.trim();
+            t != "# Reattach push notification hook" && t != "notify = [\"reattachd\", \"notify\"]"
+        })
+        .collect();
+    let mut out = filtered.join("\n");
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    match std::fs::write(&codex_file, out) {
+        Ok(_) => println!("Updated {}", codex_file.display()),
+        Err(e) => eprintln!("Failed to write {}: {}", codex_file.display(), e),
+    }
 }
 
 async fn run_notify_command(

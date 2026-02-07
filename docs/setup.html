@@ -390,10 +390,12 @@ URL: https://your-domain.com:8787</code></pre>
                 <span class="step-number">5</span>
                 <span class="step-title">Set up coding agent notifications (Optional)</span>
                 <div class="step-content">
-                    <p>Install hooks for Claude Code and Codex:</p>
-                    <pre><code>make install-hooks</code></pre>
+                    <p><strong>Recommended:</strong> install hooks for Claude Code and Codex automatically:</p>
+                    <pre><code>reattachd hooks install</code></pre>
 
-                    <p>For Codex, make sure this setting exists at the top level of <code>~/.codex/config.toml</code> (not inside another table such as <code>[sandbox_workspace_write]</code>):</p>
+                    <p><strong>Manual setup:</strong></p>
+                    <p>Claude Code (<code>~/.claude/settings.json</code>) should include both <code>hooks.Stop</code> (matcher: <code>""</code>) and <code>hooks.Notification</code> (matcher: <code>"permission_prompt"</code>) with command <code>reattachd notify</code>.</p>
+                    <p>Codex (<code>~/.codex/config.toml</code>) should include this top-level setting (not inside another table such as <code>[sandbox_workspace_write]</code>):</p>
                     <pre><code>notify = ["reattachd", "notify"]</code></pre>
 
                     <p>Restart Codex after editing config, then trigger one turn to verify push notifications arrive on iOS.</p>

@@ -265,7 +265,15 @@ make restart        # Restart services
 make reinstall      # Rebuild, reinstall, and restart
 make logs           # View logs
 make status         # Check service status
-make install-hooks  # Install Claude Code + Codex notification hooks
+# Recommended: auto-install Claude Code + Codex notification hooks
+reattachd hooks install
+
+# Manual setup (if you prefer direct config edits):
+# ~/.claude/settings.json -> add both:
+#   hooks.Stop (matcher: "")
+#   hooks.Notification (matcher: "permission_prompt")
+#   each command: "reattachd notify"
+# ~/.codex/config.toml (top-level) -> notify = ["reattachd", "notify"]
 ```
 
 ### Build iOS app
