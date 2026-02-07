@@ -90,18 +90,25 @@ status:
 	@echo "=== Process Check ==="
 	@ps aux | grep -E "(reattachd|cloudflared.*reattach)" | grep -v grep || echo "No processes found"
 
-# Install Claude Code hooks
+# Install coding agent hooks (Claude Code + Codex)
 install-hooks:
 	@./hooks/install-hooks.sh
 
-# Uninstall Claude Code hooks (removes Notification hooks from settings)
+# Uninstall coding agent hooks (Claude Code + Codex)
 uninstall-hooks:
 	@if [ -f $(HOME)/.claude/settings.json ]; then \
-		jq 'del(.hooks.Notification)' $(HOME)/.claude/settings.json > $(HOME)/.claude/settings.json.tmp && \
+		jq 'del(.hooks.Stop)' $(HOME)/.claude/settings.json > $(HOME)/.claude/settings.json.tmp && \
 		mv $(HOME)/.claude/settings.json.tmp $(HOME)/.claude/settings.json; \
 		echo "Removed Reattach hooks from ~/.claude/settings.json"; \
 	else \
 		echo "No Claude settings file found"; \
+	fi
+	@if [ -f $(HOME)/.codex/config.toml ]; then \
+		sed '/^# Reattach push notification hook$$/d; /^notify = \["$(PROJECT_ROOT)\/hooks\/notify.sh"\]$$/d' $(HOME)/.codex/config.toml > $(HOME)/.codex/config.toml.tmp && \
+		mv $(HOME)/.codex/config.toml.tmp $(HOME)/.codex/config.toml; \
+		echo "Removed Reattach hook from ~/.codex/config.toml (if present)"; \
+	else \
+		echo "No Codex config file found"; \
 	fi
 
 # Clean build artifacts

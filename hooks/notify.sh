@@ -1,16 +1,44 @@
 #!/bin/bash
-# Claude Code Stop hook - sends notification with pane info and last message
+# Coding agent hook - sends notification with pane info and last message
 
-# Read JSON from stdin
-INPUT=$(cat)
+# Read JSON from first argument (Codex notify) or stdin (Claude hook)
+if [ -n "${1:-}" ]; then
+    INPUT="$1"
+else
+    INPUT=$(cat)
+fi
+
+if [ -z "$INPUT" ]; then
+    exit 0
+fi
+
+# If this is a Codex notify payload, ignore unsupported event types.
+EVENT_TYPE=$(echo "$INPUT" | jq -r '.type // empty' 2>/dev/null)
+if [ -n "$EVENT_TYPE" ] && [ "$EVENT_TYPE" != "agent-turn-complete" ]; then
+    exit 0
+fi
 
 # Extract fields from JSON
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 
 # Default values
-TITLE="Claude Code"
+TITLE="Coding Agent"
 BODY="Waiting for input"
+
+# Codex payload fields
+AGENT_LABEL=$(echo "$INPUT" | jq -r '.agent // empty' 2>/dev/null)
+LAST_ASSISTANT_MESSAGE=$(echo "$INPUT" | jq -r '."last-assistant-message" // empty' 2>/dev/null)
+
+if [ -n "$AGENT_LABEL" ]; then
+    TITLE="$AGENT_LABEL"
+elif [ -n "$EVENT_TYPE" ]; then
+    TITLE="Codex"
+fi
+
+if [ -n "$LAST_ASSISTANT_MESSAGE" ]; then
+    BODY="$LAST_ASSISTANT_MESSAGE"
+fi
 
 # Try to get the last Claude message from transcript
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
@@ -28,7 +56,7 @@ if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
             fi
         done)
 
-    if [ -n "$LAST_MESSAGE" ]; then
+    if [ -n "$LAST_MESSAGE" ] && [ "$BODY" = "Waiting for input" ]; then
         BODY="$LAST_MESSAGE"
     fi
 fi

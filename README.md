@@ -28,7 +28,7 @@ With optional coding agent integration, get push notifications when Claude Code 
 
 - **Remote tmux access**: View and control tmux sessions from your iPhone/iPad
 - **Secure access**: Cloudflare Tunnel provides HTTPS without exposing ports
-- **Coding agent friendly**: Optional hooks for Claude Code push notifications
+- **Coding agent friendly**: Optional hooks for Claude Code / Codex push notifications
 - **Simple architecture**: reattachd is just a thin wrapper around tmux
 
 ## Components
@@ -265,7 +265,7 @@ make restart        # Restart services
 make reinstall      # Rebuild, reinstall, and restart
 make logs           # View logs
 make status         # Check service status
-make install-hooks  # Install Claude Code notification hooks
+make install-hooks  # Install Claude Code + Codex notification hooks
 ```
 
 ### Build iOS app
