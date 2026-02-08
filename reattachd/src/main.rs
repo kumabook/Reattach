@@ -54,6 +54,8 @@ enum Commands {
         /// Agent event JSON payload. If omitted, JSON is read from stdin.
         #[arg(long)]
         from_agent_json: Option<String>,
+        /// Agent event JSON payload (positional compatibility)
+        agent_json: Option<String>,
         /// Manual notification body (debug override)
         #[arg(long)]
         body: Option<String>,
@@ -126,12 +128,20 @@ async fn main() {
         }
         Some(Commands::Notify {
             from_agent_json,
+            agent_json,
             body,
             title,
             target,
             port,
         }) => {
-            run_notify_command(from_agent_json, body, title, target, port).await;
+            run_notify_command(
+                from_agent_json.or(agent_json),
+                body,
+                title,
+                target,
+                port,
+            )
+            .await;
         }
         Some(Commands::Hooks { action }) => {
             run_hooks_command(action);
