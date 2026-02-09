@@ -20,6 +20,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_PORT: u16 = 8787;
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1";
+const HOOK_NOTIFY_COMMAND: &str = "reattachd notify";
+const CODEX_NOTIFY_LINE: &str = "notify = [\"reattachd\", \"notify\"]";
 
 #[derive(Parser)]
 #[command(name = "reattachd")]
@@ -68,6 +70,9 @@ enum Commands {
         /// Server port (default: 8787)
         #[arg(short, long, default_value = "8787")]
         port: u16,
+        /// Print success output (default is silent)
+        #[arg(short, long)]
+        verbose: bool,
     },
     /// Manage coding agent notification hooks
     Hooks {
@@ -133,6 +138,7 @@ async fn main() {
             title,
             target,
             port,
+            verbose,
         }) => {
             run_notify_command(
                 from_agent_json.or(agent_json),
@@ -140,6 +146,7 @@ async fn main() {
                 title,
                 target,
                 port,
+                verbose,
             )
             .await;
         }
@@ -467,7 +474,7 @@ fn ensure_claude_event_hook(
                 .map(|arr| {
                     arr.iter().any(|h| {
                         h.get("type").and_then(|v| v.as_str()) == Some("command")
-                            && h.get("command").and_then(|v| v.as_str()) == Some("reattachd notify")
+                            && h.get("command").and_then(|v| v.as_str()) == Some(HOOK_NOTIFY_COMMAND)
                     })
                 })
                 .unwrap_or(false)
@@ -478,7 +485,7 @@ fn ensure_claude_event_hook(
             "matcher": matcher,
             "hooks": [{
                 "type": "command",
-                "command": "reattachd notify",
+                "command": HOOK_NOTIFY_COMMAND,
                 "timeout": 10
             }]
         }));
@@ -503,7 +510,7 @@ fn prune_claude_event_hook(
             .map(|arr| {
                 arr.iter().any(|h| {
                     h.get("type").and_then(|v| v.as_str()) == Some("command")
-                        && h.get("command").and_then(|v| v.as_str()) == Some("reattachd notify")
+                        && h.get("command").and_then(|v| v.as_str()) == Some(HOOK_NOTIFY_COMMAND)
                 })
             })
             .unwrap_or(false);
@@ -615,14 +622,14 @@ fn install_codex_hooks() {
     let existing = std::fs::read_to_string(&codex_file).unwrap_or_default();
     let has_other_notify = existing.lines().any(|line| {
         let t = line.trim();
-        t.starts_with("notify =") && t != "notify = [\"reattachd\", \"notify\"]"
+        t.starts_with("notify =") && t != CODEX_NOTIFY_LINE
     });
     if has_other_notify {
         println!(
             "Skipped Codex update: notify is already configured in {}",
             codex_file.display()
         );
-        println!("Add Reattach manually if needed: notify = [\"reattachd\", \"notify\"]");
+        println!("Add Reattach manually if needed: {}", CODEX_NOTIFY_LINE);
         return;
     }
 
@@ -630,10 +637,10 @@ fn install_codex_hooks() {
         .lines()
         .filter(|line| {
             let t = line.trim();
-            t != "# Reattach push notification hook" && t != "notify = [\"reattachd\", \"notify\"]"
+            t != "# Reattach push notification hook" && t != CODEX_NOTIFY_LINE
         })
         .collect();
-    let mut out = String::from("# Reattach push notification hook\nnotify = [\"reattachd\", \"notify\"]\n");
+    let mut out = format!("# Reattach push notification hook\n{}\n", CODEX_NOTIFY_LINE);
     if !filtered.is_empty() {
         out.push('\n');
         out.push_str(&filtered.join("\n"));
@@ -662,7 +669,7 @@ fn uninstall_codex_hooks() {
         .lines()
         .filter(|line| {
             let t = line.trim();
-            t != "# Reattach push notification hook" && t != "notify = [\"reattachd\", \"notify\"]"
+            t != "# Reattach push notification hook" && t != CODEX_NOTIFY_LINE
         })
         .collect();
     let mut out = filtered.join("\n");
@@ -681,6 +688,7 @@ async fn run_notify_command(
     title: Option<String>,
     target: Option<String>,
     port: u16,
+    verbose: bool,
 ) {
     use serde_json::json;
 
@@ -739,10 +747,12 @@ async fn run_notify_command(
     {
         Ok(response) => {
             if response.status().is_success() {
-                if let Some(ref t) = pane_target {
-                    println!("Notification sent successfully (target: {})", t);
-                } else {
-                    println!("Notification sent successfully");
+                if verbose {
+                    if let Some(ref t) = pane_target {
+                        println!("Notification sent successfully (target: {})", t);
+                    } else {
+                        println!("Notification sent successfully");
+                    }
                 }
             } else {
                 eprintln!("Failed to send notification: HTTP {}", response.status());
