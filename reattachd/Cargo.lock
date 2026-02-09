@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "reattachd"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "a2",
  "axum",

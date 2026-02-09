@@ -94,3 +94,88 @@ jobs:
         with:
           files: artifacts/**/*.tar.gz
           generate_release_notes: true
+
+  update-homebrew-tap:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
+          ARM_ARCHIVE="artifacts/reattachd-darwin-aarch64/reattachd-darwin-aarch64.tar.gz"
+          INTEL_ARCHIVE="artifacts/reattachd-darwin-x86_64/reattachd-darwin-x86_64.tar.gz"
+          ARM_SHA="$(sha256sum "$ARM_ARCHIVE" | awk '{print $1}')"
+          INTEL_SHA="$(sha256sum "$INTEL_ARCHIVE" | awk '{print $1}')"
+
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "arm_sha=$ARM_SHA"
+            echo "intel_sha=$INTEL_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: kumabook/homebrew-reattach
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update Formula
+        run: |
+          cat > tap/Formula/reattachd.rb <<EOF
+          class Reattachd < Formula
+            desc "Remote control daemon for tmux sessions"
+            homepage "https://github.com/kumabook/Reattach"
+            version "${{ steps.meta.outputs.version }}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/kumabook/Reattach/releases/download/${{ steps.meta.outputs.tag }}/reattachd-darwin-aarch64.tar.gz"
+                sha256 "${{ steps.meta.outputs.arm_sha }}"
+              else
+                url "https://github.com/kumabook/Reattach/releases/download/${{ steps.meta.outputs.tag }}/reattachd-darwin-x86_64.tar.gz"
+                sha256 "${{ steps.meta.outputs.intel_sha }}"
+              end
+            end
+
+            def install
+              bin.install "reattachd"
+            end
+
+            service do
+              run [opt_bin/"reattachd"]
+              keep_alive true
+              log_path var/"log/reattachd.log"
+              error_log_path var/"log/reattachd.error.log"
+            end
+
+            test do
+              assert_match "reattachd", shell_output("#{bin}/reattachd --help")
+            end
+          end
+          EOF
+
+      - name: Commit and push Formula update
+        run: |
+          cd tap
+          if git diff --quiet -- Formula/reattachd.rb; then
+            echo "No Homebrew formula changes detected."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/reattachd.rb
+          git commit -m "Update reattachd formula to ${{ steps.meta.outputs.tag }}"
+          git push
