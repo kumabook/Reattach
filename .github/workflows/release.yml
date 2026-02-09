@@ -98,15 +98,22 @@ jobs:
   update-homebrew-tap:
     needs: [build, release]
     runs-on: ubuntu-latest
-    if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
     steps:
+      - name: Skip when token is missing
+        if: ${{ env.HOMEBREW_TAP_TOKEN == '' }}
+        run: echo "HOMEBREW_TAP_TOKEN is not set. Skipping Homebrew tap update."
+
       - name: Download all artifacts
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: Prepare release metadata
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         id: meta
         run: |
           set -euo pipefail
@@ -125,13 +132,15 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout Homebrew tap
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         uses: actions/checkout@v4
         with:
           repository: kumabook/homebrew-reattach
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ env.HOMEBREW_TAP_TOKEN }}
           path: tap
 
       - name: Update Formula
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         run: |
           cat > tap/Formula/reattachd.rb <<EOF
           class Reattachd < Formula
@@ -168,6 +177,7 @@ jobs:
           EOF
 
       - name: Commit and push Formula update
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         run: |
           cd tap
           if git diff --quiet -- Formula/reattachd.rb; then
