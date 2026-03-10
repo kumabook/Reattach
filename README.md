@@ -14,20 +14,14 @@ With optional coding agent integration, get push notifications when Claude Code 
          │ HTTPS
          ▼
 ┌─────────────────┐
-│ Cloudflare      │
-│ Tunnel          │
-└────────┬────────┘
-         │ localhost:8787
-         ▼
-┌─────────────────┐
 │ reattachd       │──────► tmux
 │ (Rust daemon)   │
 └─────────────────┘
-      Your Mac
+    Your machine
 ```
 
 - **Remote tmux access**: View and control tmux sessions from your iPhone/iPad
-- **Secure access**: Cloudflare Tunnel provides HTTPS without exposing ports
+- **Secure access**: Built-in TLS support with Tailscale auto-configuration, or use Cloudflare Tunnel
 - **Coding agent friendly**: Optional hooks for Claude Code / Codex push notifications
 - **Simple architecture**: reattachd is just a thin wrapper around tmux
 
@@ -44,7 +38,7 @@ With optional coding agent integration, get push notifications when Claude Code 
 
 - macOS or Linux
 - [tmux](https://github.com/tmux/tmux)
-- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (optional, for remote access)
+- [Tailscale](https://tailscale.com/) (recommended for remote access) or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 
 ## Installation
 
@@ -146,20 +140,44 @@ sudo systemctl start reattachd
 
 Choose how your iOS device will connect to reattachd:
 
+#### Tailscale (recommended)
+
+The simplest setup — a single command handles TLS certificates, QR code generation, and server startup:
+
+```bash
+sudo reattachd --tailscale
+```
+
+This auto-detects your Tailscale hostname, generates TLS certs via `tailscale cert`, binds to `0.0.0.0:8787`, and shows a QR code if no devices are registered. Just scan and go.
+
+> **Note**: `sudo` is required on Linux because `tailscale cert` needs root access to generate certificates.
+
+To register additional devices later:
+
+```bash
+sudo reattachd --tailscale setup
+```
+
+#### Manual TLS
+
+If you have your own TLS certificates (e.g., from Let's Encrypt):
+
+```bash
+reattachd --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
+```
+
+Or via environment variables:
+
+```bash
+REATTACHD_TLS_CERT=/path/to/cert.pem REATTACHD_TLS_KEY=/path/to/key.pem reattachd
+```
+
 #### Local network
 
 Use your machine's local IP address directly. No additional setup required.
 
 ```
 URL: http://192.168.x.x:8787
-```
-
-#### VPN
-
-If you have a VPN setup, use the machine's IP address on the VPN network.
-
-```
-URL: http://<vpn-ip>:8787
 ```
 
 #### Cloudflare Tunnel
@@ -209,13 +227,19 @@ tmux new-session -s myproject -c ~/projects/myproject
 
 ### Register your device
 
-Generate a QR code to register your iOS device. Use the URL from your network configuration above:
+Generate a QR code to register your iOS device:
 
 ```bash
+# With Tailscale (auto-detects URL)
+sudo reattachd --tailscale setup
+
+# Manual URL
 reattachd setup --url <your-url>
 ```
 
 Scan the QR code with the Reattach iOS app to complete registration.
+
+> **Tip**: When using `reattachd --tailscale` with no devices registered, the QR code is shown automatically at startup.
 
 ### Control from iOS
 
@@ -303,6 +327,8 @@ Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
 
 reattachd binds to `127.0.0.1:8787` by default (localhost only). This is secure by default - only local processes and tunnels can access the API.
 
+When using `--tailscale`, the bind address defaults to `0.0.0.0` (all interfaces) since Tailscale provides network-level authentication and TLS.
+
 To change the port or bind address:
 
 ```bash
@@ -310,7 +336,9 @@ REATTACHD_PORT=9000 reattachd
 REATTACHD_BIND_ADDR=0.0.0.0 reattachd  # Listen on all interfaces (use with caution)
 ```
 
-For remote access, use Cloudflare Tunnel (connects to localhost) or explicitly set `REATTACHD_BIND_ADDR=0.0.0.0` with appropriate firewall rules.
+### TLS
+
+reattachd supports built-in TLS via `--tailscale` (auto-generates certs) or `--tls-cert`/`--tls-key` (manual PEM files). When TLS is not configured, the server runs plain HTTP — use a reverse proxy like Cloudflare Tunnel for HTTPS in that case.
 
 ### Authentication
 
@@ -331,7 +359,7 @@ This provides defense-in-depth: even if someone obtains a device token, they sti
 
 ### Recommendations
 
-- Use HTTPS (via Cloudflare Tunnel or your own certificates)
+- Use HTTPS (via `--tailscale`, `--tls-cert`/`--tls-key`, or Cloudflare Tunnel)
 - Regularly review registered devices (`reattachd devices list`)
 - Revoke unused devices (`reattachd devices revoke <id>`)
 - Monitor reattachd logs for suspicious activity
