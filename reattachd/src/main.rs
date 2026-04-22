@@ -362,6 +362,34 @@ fn parse_duration(s: &str) -> Option<chrono::Duration> {
     }
 }
 
+fn print_setup_qr(setup_url: &str, token_note: &str) {
+    use qrcode::QrCode;
+    let code = QrCode::new(setup_url).expect("Failed to generate QR code");
+    let qr_string = code
+        .render::<char>()
+        .quiet_zone(false)
+        .module_dimensions(2, 1)
+        .build();
+
+    println!("\n  Scan this QR code with the Reattach iOS app:\n");
+    println!("{}", qr_string);
+    println!("\n  URL: {}", setup_url);
+    println!("\n  Token: {}", token_note);
+}
+
+fn token_note_from_expires(expires: &str, reusable: bool) -> String {
+    let mut notes = vec![];
+    if reusable {
+        notes.push("reusable".to_string());
+    }
+    if expires == "never" {
+        notes.push("no expiration".to_string());
+    } else {
+        notes.push(format!("expires in {}", expires));
+    }
+    notes.join(", ")
+}
+
 async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool, expires: String) {
     let duration = parse_duration(&expires).unwrap_or_else(|| {
         eprintln!("Invalid expiration format: {}. Using default 10m.", expires);
@@ -373,33 +401,9 @@ async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: boo
         .expect("Failed to initialize auth service");
 
     let setup_token = auth_service.generate_setup_token(reusable, duration).await;
-
-    // Create setup URL with token
     let setup_url = format!("{}?setup_token={}", url, setup_token);
 
-    // Generate QR code
-    use qrcode::QrCode;
-    let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
-    let qr_string = code
-        .render::<char>()
-        .quiet_zone(false)
-        .module_dimensions(2, 1)
-        .build();
-
-    println!("\n  Scan this QR code with the Reattach iOS app:\n");
-    println!("{}", qr_string);
-    println!("\n  URL: {}", setup_url);
-
-    let mut notes = vec![];
-    if reusable {
-        notes.push("reusable".to_string());
-    }
-    if expires == "never" {
-        notes.push("no expiration".to_string());
-    } else {
-        notes.push(format!("expires in {}", expires));
-    }
-    println!("\n  Token: {}", notes.join(", "));
+    print_setup_qr(&setup_url, &token_note_from_expires(&expires, reusable));
     println!("  Make sure reattachd daemon is running.\n");
 }
 
@@ -963,22 +967,16 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
                 .and_then(|p| p.parse::<u16>().ok())
                 .unwrap_or(DEFAULT_PORT);
             let url = format!("https://{}:{}", info.hostname, port);
-            let duration = chrono::Duration::minutes(10);
+            let expires = std::env::var("REATTACHD_SETUP_EXPIRES")
+                .unwrap_or_else(|_| "10m".to_string());
+            let duration = parse_duration(&expires).unwrap_or_else(|| {
+                tracing::warn!("Invalid REATTACHD_SETUP_EXPIRES '{}', using 10m", expires);
+                chrono::Duration::minutes(10)
+            });
             let setup_token = auth_service.generate_setup_token(false, duration).await;
             let setup_url = format!("{}?setup_token={}", url, setup_token);
-
-            use qrcode::QrCode;
-            let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
-            let qr_string = code
-                .render::<char>()
-                .quiet_zone(false)
-                .module_dimensions(2, 1)
-                .build();
-
-            println!("\n  Scan this QR code with the Reattach iOS app:\n");
-            println!("{}", qr_string);
-            println!("\n  URL: {}", setup_url);
-            println!("\n  Token: expires in 10m\n");
+            print_setup_qr(&setup_url, &token_note_from_expires(&expires, false));
+            println!();
         } else {
             tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
         }

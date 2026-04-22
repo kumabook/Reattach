@@ -180,6 +180,8 @@ Use your machine's local IP address directly. No additional setup required.
 URL: http://192.168.x.x:8787
 ```
 
+> The iOS app sets `NSAllowsLocalNetworking` so plain HTTP is permitted to RFC1918 addresses (`10.x.x.x`, `192.168.x.x`, `172.16–31.x.x`) for local development. This exception does **not** cover Tailscale's `100.64.0.0/10` range — connect over Tailscale via `--tailscale` (HTTPS) instead.
+
 #### Cloudflare Tunnel
 
 For secure remote access without exposing ports, set up [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
