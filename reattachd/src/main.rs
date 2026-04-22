@@ -113,7 +113,41 @@ enum HookAction {
     Uninstall,
 }
 
-fn get_tailscale_hostname() -> Result<String, String> {
+struct TailscaleInfo {
+    hostname: String,
+    ipv4: String,
+}
+
+fn parse_tailscale_info(json: &[u8]) -> Result<TailscaleInfo, String> {
+    let value: serde_json::Value = serde_json::from_slice(json)
+        .map_err(|e| format!("Failed to parse tailscale status JSON: {}", e))?;
+
+    let hostname = value
+        .pointer("/Self/DNSName")
+        .and_then(|v| v.as_str())
+        .ok_or("Could not find DNSName in tailscale status")?
+        .trim_end_matches('.')
+        .to_string();
+
+    if hostname.is_empty() {
+        return Err("Tailscale DNSName is empty".to_string());
+    }
+
+    let ipv4 = value
+        .pointer("/Self/TailscaleIPs")
+        .and_then(|v| v.as_array())
+        .and_then(|ips| {
+            ips.iter()
+                .filter_map(|v| v.as_str())
+                .find(|s| !s.contains(':'))
+                .map(|s| s.to_string())
+        })
+        .ok_or("Could not find a Tailscale IPv4 address in tailscale status")?;
+
+    Ok(TailscaleInfo { hostname, ipv4 })
+}
+
+fn get_tailscale_info() -> Result<TailscaleInfo, String> {
     let output = std::process::Command::new("tailscale")
         .args(["status", "--json"])
         .output()
@@ -123,21 +157,7 @@ fn get_tailscale_hostname() -> Result<String, String> {
         return Err("'tailscale status' failed. Is Tailscale running?".to_string());
     }
 
-    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Failed to parse tailscale status JSON: {}", e))?;
-
-    let dns_name = value
-        .pointer("/Self/DNSName")
-        .and_then(|v| v.as_str())
-        .ok_or("Could not find DNSName in tailscale status")?
-        .trim_end_matches('.')
-        .to_string();
-
-    if dns_name.is_empty() {
-        return Err("Tailscale DNSName is empty".to_string());
-    }
-
-    Ok(dns_name)
+    parse_tailscale_info(&output.stdout)
 }
 
 fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Result<(String, String), String> {
@@ -181,6 +201,10 @@ fn get_data_dir() -> std::path::PathBuf {
 async fn main() {
     let cli = Cli::parse();
 
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls ring crypto provider");
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -191,9 +215,13 @@ async fn main() {
 
     let data_dir = get_data_dir();
 
-    let tailscale_hostname = if cli.tailscale {
-        match get_tailscale_hostname() {
-            Ok(h) => Some(h),
+    let tailscale_info = if cli.tailscale {
+        if cli.tls_cert.is_some() || cli.tls_key.is_some() {
+            eprintln!("--tailscale cannot be combined with --tls-cert/--tls-key");
+            std::process::exit(1);
+        }
+        match get_tailscale_info() {
+            Ok(info) => Some(info),
             Err(e) => {
                 eprintln!("{}", e);
                 std::process::exit(1);
@@ -205,15 +233,15 @@ async fn main() {
 
     match cli.command {
         Some(Commands::Setup { url, reusable, expires }) => {
-            let url = match (url, &tailscale_hostname) {
+            let url = match (url, &tailscale_info) {
                 (Some(u), _) => u,
-                (None, Some(h)) => {
+                (None, Some(info)) => {
                     let port = std::env::var("REATTACHD_PORT")
                         .or_else(|_| std::env::var("PORT"))
                         .ok()
                         .and_then(|p| p.parse::<u16>().ok())
                         .unwrap_or(DEFAULT_PORT);
-                    format!("https://{}:{}", h, port)
+                    format!("https://{}:{}", info.hostname, port)
                 }
                 (None, None) => {
                     eprintln!("--url is required (or use --tailscale to auto-detect)");
@@ -248,8 +276,8 @@ async fn main() {
             run_hooks_command(action);
         }
         None => {
-            let tls_config = if let Some(ref hostname) = tailscale_hostname {
-                match generate_tailscale_certs(hostname, &data_dir) {
+            let tls_config = if let Some(ref info) = tailscale_info {
+                match generate_tailscale_certs(&info.hostname, &data_dir) {
                     Ok(paths) => Some(paths),
                     Err(e) => {
                         eprintln!("{}", e);
@@ -268,7 +296,7 @@ async fn main() {
                     (None, None) => None,
                 }
             };
-            run_daemon(data_dir, tls_config, tailscale_hostname).await;
+            run_daemon(data_dir, tls_config, tailscale_info).await;
         }
     }
 }
@@ -881,20 +909,20 @@ async fn run_notify_command(
     }
 }
 
-async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_hostname: Option<String>) {
+async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_info: Option<TailscaleInfo>) {
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
     let auth_service = Arc::new(auth_service);
 
     if !auth_service.has_devices().await {
-        if let Some(ref hostname) = tailscale_hostname {
+        if let Some(ref info) = tailscale_info {
             let port = std::env::var("REATTACHD_PORT")
                 .or_else(|_| std::env::var("PORT"))
                 .ok()
                 .and_then(|p| p.parse::<u16>().ok())
                 .unwrap_or(DEFAULT_PORT);
-            let url = format!("https://{}:{}", hostname, port);
+            let url = format!("https://{}:{}", info.hostname, port);
             let duration = chrono::Duration::minutes(10);
             let setup_token = auth_service.generate_setup_token(false, duration).await;
             let setup_url = format!("{}?setup_token={}", url, setup_token);
@@ -964,7 +992,10 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
 
-    let default_bind = if tailscale_hostname.is_some() { "0.0.0.0" } else { DEFAULT_BIND_ADDR };
+    let default_bind: &str = match &tailscale_info {
+        Some(info) => &info.ipv4,
+        None => DEFAULT_BIND_ADDR,
+    };
     let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
         .unwrap_or_else(|_| default_bind.to_string());
     let addr = format!("{}:{}", bind_addr, port);
