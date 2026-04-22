@@ -160,26 +160,66 @@ fn get_tailscale_info() -> Result<TailscaleInfo, String> {
     parse_tailscale_info(&output.stdout)
 }
 
+const CERT_MIN_REMAINING_DAYS: i32 = 14;
+
+fn cert_remaining_days(cert_path: &std::path::Path) -> Option<i32> {
+    use openssl::asn1::Asn1Time;
+    use openssl::x509::X509;
+
+    let pem = std::fs::read(cert_path).ok()?;
+    let cert = X509::from_pem(&pem).ok()?;
+    let now = Asn1Time::days_from_now(0).ok()?;
+    let diff = now.diff(cert.not_after()).ok()?;
+    Some(diff.days)
+}
+
+#[cfg(unix)]
+fn restrict_permissions(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)) {
+        tracing::warn!("Failed to set permissions on {}: {}", path.display(), e);
+    }
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &std::path::Path, _mode: u32) {}
+
 fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Result<(String, String), String> {
     std::fs::create_dir_all(data_dir)
         .map_err(|e| format!("Failed to create data dir: {}", e))?;
+    restrict_permissions(data_dir, 0o700);
 
     let cert_path = data_dir.join(format!("{}.crt", hostname));
     let key_path = data_dir.join(format!("{}.key", hostname));
 
+    let remaining = cert_remaining_days(&cert_path).filter(|_| key_path.exists());
+    if let Some(days) = remaining {
+        if days >= CERT_MIN_REMAINING_DAYS {
+            tracing::info!("Reusing existing TLS certificate (valid for {} more days)", days);
+            restrict_permissions(&key_path, 0o600);
+            return Ok((
+                cert_path.to_string_lossy().to_string(),
+                key_path.to_string_lossy().to_string(),
+            ));
+        }
+        tracing::info!("Existing TLS certificate expires in {} days; regenerating", days);
+    }
+
     let status = std::process::Command::new("tailscale")
-        .args([
-            "cert",
-            "--cert-file", cert_path.to_str().unwrap(),
-            "--key-file", key_path.to_str().unwrap(),
-            hostname,
-        ])
+        .arg("cert")
+        .arg("--cert-file")
+        .arg(&cert_path)
+        .arg("--key-file")
+        .arg(&key_path)
+        .arg(hostname)
         .status()
         .map_err(|e| format!("Failed to run 'tailscale cert': {}", e))?;
 
     if !status.success() {
         return Err("'tailscale cert' failed. Make sure HTTPS is enabled in your Tailscale admin console.".to_string());
     }
+
+    restrict_permissions(&key_path, 0o600);
 
     Ok((
         cert_path.to_string_lossy().to_string(),
@@ -1008,8 +1048,11 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
                 eprintln!("Failed to load TLS cert/key: {}", e);
                 std::process::exit(1);
             });
-        let addr: std::net::SocketAddr = addr.parse().unwrap();
-        axum_server::bind_rustls(addr, rustls_config)
+        let socket_addr: std::net::SocketAddr = addr.parse().unwrap_or_else(|e| {
+            eprintln!("Invalid bind address {}: {}", addr, e);
+            std::process::exit(1);
+        });
+        axum_server::bind_rustls(socket_addr, rustls_config)
             .serve(app.into_make_service())
             .await
             .unwrap();
@@ -1128,5 +1171,69 @@ async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsServi
             tracing::warn!("Failed to initialize APNs service: {:?}", e);
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_tailscale_info_strips_trailing_dot_and_picks_ipv4() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net.",
+                "TailscaleIPs": ["100.64.1.2", "fd7a:115c:a1e0::1"]
+            }
+        }"#;
+        let info = parse_tailscale_info(json).expect("parse succeeds");
+        assert_eq!(info.hostname, "host.tailnet.ts.net");
+        assert_eq!(info.ipv4, "100.64.1.2");
+    }
+
+    #[test]
+    fn parse_tailscale_info_picks_ipv4_when_ipv6_listed_first() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net",
+                "TailscaleIPs": ["fd7a:115c:a1e0::1", "100.64.1.2"]
+            }
+        }"#;
+        let info = parse_tailscale_info(json).expect("parse succeeds");
+        assert_eq!(info.ipv4, "100.64.1.2");
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_missing_dns_name() {
+        let json = br#"{ "Self": { "TailscaleIPs": ["100.64.1.2"] } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_empty_dns_name() {
+        let json = br#"{ "Self": { "DNSName": "", "TailscaleIPs": ["100.64.1.2"] } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_when_only_ipv6_present() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net",
+                "TailscaleIPs": ["fd7a:115c:a1e0::1"]
+            }
+        }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_missing_tailscale_ips() {
+        let json = br#"{ "Self": { "DNSName": "host.tailnet.ts.net" } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_invalid_json() {
+        assert!(parse_tailscale_info(b"not json").is_err());
     }
 }
