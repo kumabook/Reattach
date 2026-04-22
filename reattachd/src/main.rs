@@ -30,15 +30,28 @@ const CODEX_NOTIFY_LINE: &str = "notify = [\"reattachd\", \"notify\"]";
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Path to TLS certificate file (PEM format)
+    #[arg(long, global = true)]
+    tls_cert: Option<String>,
+
+    /// Path to TLS private key file (PEM format)
+    #[arg(long, global = true)]
+    tls_key: Option<String>,
+
+    /// Auto-detect Tailscale hostname and generate TLS certs
+    #[arg(long, global = true)]
+    tailscale: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Start setup mode to register a new device
     Setup {
-        /// External URL for the server (e.g., https://your-server.example.com)
+        /// External URL for the server (e.g., https://your-server.example.com).
+        /// Auto-detected when --tailscale is used.
         #[arg(long)]
-        url: String,
+        url: Option<String>,
         /// Create a reusable token that can be used multiple times
         #[arg(long)]
         reusable: bool,
@@ -100,6 +113,60 @@ enum HookAction {
     Uninstall,
 }
 
+fn get_tailscale_hostname() -> Result<String, String> {
+    let output = std::process::Command::new("tailscale")
+        .args(["status", "--json"])
+        .output()
+        .map_err(|e| format!("Failed to run 'tailscale status': {}", e))?;
+
+    if !output.status.success() {
+        return Err("'tailscale status' failed. Is Tailscale running?".to_string());
+    }
+
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse tailscale status JSON: {}", e))?;
+
+    let dns_name = value
+        .pointer("/Self/DNSName")
+        .and_then(|v| v.as_str())
+        .ok_or("Could not find DNSName in tailscale status")?
+        .trim_end_matches('.')
+        .to_string();
+
+    if dns_name.is_empty() {
+        return Err("Tailscale DNSName is empty".to_string());
+    }
+
+    Ok(dns_name)
+}
+
+fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Result<(String, String), String> {
+    std::fs::create_dir_all(data_dir)
+        .map_err(|e| format!("Failed to create data dir: {}", e))?;
+
+    let cert_path = data_dir.join(format!("{}.crt", hostname));
+    let key_path = data_dir.join(format!("{}.key", hostname));
+
+    let status = std::process::Command::new("tailscale")
+        .args([
+            "cert",
+            "--cert-file", cert_path.to_str().unwrap(),
+            "--key-file", key_path.to_str().unwrap(),
+            hostname,
+        ])
+        .status()
+        .map_err(|e| format!("Failed to run 'tailscale cert': {}", e))?;
+
+    if !status.success() {
+        return Err("'tailscale cert' failed. Make sure HTTPS is enabled in your Tailscale admin console.".to_string());
+    }
+
+    Ok((
+        cert_path.to_string_lossy().to_string(),
+        key_path.to_string_lossy().to_string(),
+    ))
+}
+
 fn get_data_dir() -> std::path::PathBuf {
     std::env::var("REATTACHD_DATA_DIR")
         .map(std::path::PathBuf::from)
@@ -124,8 +191,35 @@ async fn main() {
 
     let data_dir = get_data_dir();
 
+    let tailscale_hostname = if cli.tailscale {
+        match get_tailscale_hostname() {
+            Ok(h) => Some(h),
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+
     match cli.command {
         Some(Commands::Setup { url, reusable, expires }) => {
+            let url = match (url, &tailscale_hostname) {
+                (Some(u), _) => u,
+                (None, Some(h)) => {
+                    let port = std::env::var("REATTACHD_PORT")
+                        .or_else(|_| std::env::var("PORT"))
+                        .ok()
+                        .and_then(|p| p.parse::<u16>().ok())
+                        .unwrap_or(DEFAULT_PORT);
+                    format!("https://{}:{}", h, port)
+                }
+                (None, None) => {
+                    eprintln!("--url is required (or use --tailscale to auto-detect)");
+                    std::process::exit(1);
+                }
+            };
             run_setup_mode(data_dir, url, reusable, expires).await;
         }
         Some(Commands::Devices { action }) => {
@@ -154,7 +248,27 @@ async fn main() {
             run_hooks_command(action);
         }
         None => {
-            run_daemon(data_dir).await;
+            let tls_config = if let Some(ref hostname) = tailscale_hostname {
+                match generate_tailscale_certs(hostname, &data_dir) {
+                    Ok(paths) => Some(paths),
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let tls_cert = cli.tls_cert.or_else(|| std::env::var("REATTACHD_TLS_CERT").ok());
+                let tls_key = cli.tls_key.or_else(|| std::env::var("REATTACHD_TLS_KEY").ok());
+                match (tls_cert, tls_key) {
+                    (Some(cert), Some(key)) => Some((cert, key)),
+                    (Some(_), None) | (None, Some(_)) => {
+                        eprintln!("Both --tls-cert and --tls-key must be provided together");
+                        std::process::exit(1);
+                    }
+                    (None, None) => None,
+                }
+            };
+            run_daemon(data_dir, tls_config, tailscale_hostname).await;
         }
     }
 }
@@ -767,15 +881,39 @@ async fn run_notify_command(
     }
 }
 
-async fn run_daemon(data_dir: std::path::PathBuf) {
+async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_hostname: Option<String>) {
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
     let auth_service = Arc::new(auth_service);
 
-    // Check if any devices are registered
     if !auth_service.has_devices().await {
-        tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
+        if let Some(ref hostname) = tailscale_hostname {
+            let port = std::env::var("REATTACHD_PORT")
+                .or_else(|_| std::env::var("PORT"))
+                .ok()
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(DEFAULT_PORT);
+            let url = format!("https://{}:{}", hostname, port);
+            let duration = chrono::Duration::minutes(10);
+            let setup_token = auth_service.generate_setup_token(false, duration).await;
+            let setup_url = format!("{}?setup_token={}", url, setup_token);
+
+            use qrcode::QrCode;
+            let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
+            let qr_string = code
+                .render::<char>()
+                .quiet_zone(false)
+                .module_dimensions(2, 1)
+                .build();
+
+            println!("\n  Scan this QR code with the Reattach iOS app:\n");
+            println!("{}", qr_string);
+            println!("\n  URL: {}", setup_url);
+            println!("\n  Token: expires in 10m\n");
+        } else {
+            tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
+        }
         tracing::info!("Starting in open mode (no authentication required)");
     }
 
@@ -826,13 +964,29 @@ async fn run_daemon(data_dir: std::path::PathBuf) {
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
 
+    let default_bind = if tailscale_hostname.is_some() { "0.0.0.0" } else { DEFAULT_BIND_ADDR };
     let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
-        .unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_string());
+        .unwrap_or_else(|_| default_bind.to_string());
     let addr = format!("{}:{}", bind_addr, port);
-    tracing::info!("Starting reattachd on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    if let Some((cert_path, key_path)) = tls_config {
+        tracing::info!("Starting reattachd with TLS on {}", addr);
+        let rustls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to load TLS cert/key: {}", e);
+                std::process::exit(1);
+            });
+        let addr: std::net::SocketAddr = addr.parse().unwrap();
+        axum_server::bind_rustls(addr, rustls_config)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    } else {
+        tracing::info!("Starting reattachd on {}", addr);
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    }
 }
 
 async fn auth_middleware(
