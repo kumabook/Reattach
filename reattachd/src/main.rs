@@ -113,7 +113,41 @@ enum HookAction {
     Uninstall,
 }
 
-fn get_tailscale_hostname() -> Result<String, String> {
+struct TailscaleInfo {
+    hostname: String,
+    ipv4: String,
+}
+
+fn parse_tailscale_info(json: &[u8]) -> Result<TailscaleInfo, String> {
+    let value: serde_json::Value = serde_json::from_slice(json)
+        .map_err(|e| format!("Failed to parse tailscale status JSON: {}", e))?;
+
+    let hostname = value
+        .pointer("/Self/DNSName")
+        .and_then(|v| v.as_str())
+        .ok_or("Could not find DNSName in tailscale status")?
+        .trim_end_matches('.')
+        .to_string();
+
+    if hostname.is_empty() {
+        return Err("Tailscale DNSName is empty".to_string());
+    }
+
+    let ipv4 = value
+        .pointer("/Self/TailscaleIPs")
+        .and_then(|v| v.as_array())
+        .and_then(|ips| {
+            ips.iter()
+                .filter_map(|v| v.as_str())
+                .find(|s| !s.contains(':'))
+                .map(|s| s.to_string())
+        })
+        .ok_or("Could not find a Tailscale IPv4 address in tailscale status")?;
+
+    Ok(TailscaleInfo { hostname, ipv4 })
+}
+
+fn get_tailscale_info() -> Result<TailscaleInfo, String> {
     let output = std::process::Command::new("tailscale")
         .args(["status", "--json"])
         .output()
@@ -123,43 +157,69 @@ fn get_tailscale_hostname() -> Result<String, String> {
         return Err("'tailscale status' failed. Is Tailscale running?".to_string());
     }
 
-    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Failed to parse tailscale status JSON: {}", e))?;
-
-    let dns_name = value
-        .pointer("/Self/DNSName")
-        .and_then(|v| v.as_str())
-        .ok_or("Could not find DNSName in tailscale status")?
-        .trim_end_matches('.')
-        .to_string();
-
-    if dns_name.is_empty() {
-        return Err("Tailscale DNSName is empty".to_string());
-    }
-
-    Ok(dns_name)
+    parse_tailscale_info(&output.stdout)
 }
+
+const CERT_MIN_REMAINING_DAYS: i32 = 14;
+
+fn cert_remaining_days(cert_path: &std::path::Path) -> Option<i32> {
+    use openssl::asn1::Asn1Time;
+    use openssl::x509::X509;
+
+    let pem = std::fs::read(cert_path).ok()?;
+    let cert = X509::from_pem(&pem).ok()?;
+    let now = Asn1Time::days_from_now(0).ok()?;
+    let diff = now.diff(cert.not_after()).ok()?;
+    Some(diff.days)
+}
+
+#[cfg(unix)]
+fn restrict_permissions(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)) {
+        tracing::warn!("Failed to set permissions on {}: {}", path.display(), e);
+    }
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &std::path::Path, _mode: u32) {}
 
 fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Result<(String, String), String> {
     std::fs::create_dir_all(data_dir)
         .map_err(|e| format!("Failed to create data dir: {}", e))?;
+    restrict_permissions(data_dir, 0o700);
 
     let cert_path = data_dir.join(format!("{}.crt", hostname));
     let key_path = data_dir.join(format!("{}.key", hostname));
 
+    let remaining = cert_remaining_days(&cert_path).filter(|_| key_path.exists());
+    if let Some(days) = remaining {
+        if days >= CERT_MIN_REMAINING_DAYS {
+            tracing::info!("Reusing existing TLS certificate (valid for {} more days)", days);
+            restrict_permissions(&key_path, 0o600);
+            return Ok((
+                cert_path.to_string_lossy().to_string(),
+                key_path.to_string_lossy().to_string(),
+            ));
+        }
+        tracing::info!("Existing TLS certificate expires in {} days; regenerating", days);
+    }
+
     let status = std::process::Command::new("tailscale")
-        .args([
-            "cert",
-            "--cert-file", cert_path.to_str().unwrap(),
-            "--key-file", key_path.to_str().unwrap(),
-            hostname,
-        ])
+        .arg("cert")
+        .arg("--cert-file")
+        .arg(&cert_path)
+        .arg("--key-file")
+        .arg(&key_path)
+        .arg(hostname)
         .status()
         .map_err(|e| format!("Failed to run 'tailscale cert': {}", e))?;
 
     if !status.success() {
         return Err("'tailscale cert' failed. Make sure HTTPS is enabled in your Tailscale admin console.".to_string());
     }
+
+    restrict_permissions(&key_path, 0o600);
 
     Ok((
         cert_path.to_string_lossy().to_string(),
@@ -181,6 +241,10 @@ fn get_data_dir() -> std::path::PathBuf {
 async fn main() {
     let cli = Cli::parse();
 
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls ring crypto provider");
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -191,9 +255,13 @@ async fn main() {
 
     let data_dir = get_data_dir();
 
-    let tailscale_hostname = if cli.tailscale {
-        match get_tailscale_hostname() {
-            Ok(h) => Some(h),
+    let tailscale_info = if cli.tailscale {
+        if cli.tls_cert.is_some() || cli.tls_key.is_some() {
+            eprintln!("--tailscale cannot be combined with --tls-cert/--tls-key");
+            std::process::exit(1);
+        }
+        match get_tailscale_info() {
+            Ok(info) => Some(info),
             Err(e) => {
                 eprintln!("{}", e);
                 std::process::exit(1);
@@ -205,15 +273,15 @@ async fn main() {
 
     match cli.command {
         Some(Commands::Setup { url, reusable, expires }) => {
-            let url = match (url, &tailscale_hostname) {
+            let url = match (url, &tailscale_info) {
                 (Some(u), _) => u,
-                (None, Some(h)) => {
+                (None, Some(info)) => {
                     let port = std::env::var("REATTACHD_PORT")
                         .or_else(|_| std::env::var("PORT"))
                         .ok()
                         .and_then(|p| p.parse::<u16>().ok())
                         .unwrap_or(DEFAULT_PORT);
-                    format!("https://{}:{}", h, port)
+                    format!("https://{}:{}", info.hostname, port)
                 }
                 (None, None) => {
                     eprintln!("--url is required (or use --tailscale to auto-detect)");
@@ -248,8 +316,8 @@ async fn main() {
             run_hooks_command(action);
         }
         None => {
-            let tls_config = if let Some(ref hostname) = tailscale_hostname {
-                match generate_tailscale_certs(hostname, &data_dir) {
+            let tls_config = if let Some(ref info) = tailscale_info {
+                match generate_tailscale_certs(&info.hostname, &data_dir) {
                     Ok(paths) => Some(paths),
                     Err(e) => {
                         eprintln!("{}", e);
@@ -268,7 +336,7 @@ async fn main() {
                     (None, None) => None,
                 }
             };
-            run_daemon(data_dir, tls_config, tailscale_hostname).await;
+            run_daemon(data_dir, tls_config, tailscale_info).await;
         }
     }
 }
@@ -294,6 +362,34 @@ fn parse_duration(s: &str) -> Option<chrono::Duration> {
     }
 }
 
+fn print_setup_qr(setup_url: &str, token_note: &str) {
+    use qrcode::QrCode;
+    let code = QrCode::new(setup_url).expect("Failed to generate QR code");
+    let qr_string = code
+        .render::<char>()
+        .quiet_zone(false)
+        .module_dimensions(2, 1)
+        .build();
+
+    println!("\n  Scan this QR code with the Reattach iOS app:\n");
+    println!("{}", qr_string);
+    println!("\n  URL: {}", setup_url);
+    println!("\n  Token: {}", token_note);
+}
+
+fn token_note_from_expires(expires: &str, reusable: bool) -> String {
+    let mut notes = vec![];
+    if reusable {
+        notes.push("reusable".to_string());
+    }
+    if expires == "never" {
+        notes.push("no expiration".to_string());
+    } else {
+        notes.push(format!("expires in {}", expires));
+    }
+    notes.join(", ")
+}
+
 async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool, expires: String) {
     let duration = parse_duration(&expires).unwrap_or_else(|| {
         eprintln!("Invalid expiration format: {}. Using default 10m.", expires);
@@ -305,33 +401,9 @@ async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: boo
         .expect("Failed to initialize auth service");
 
     let setup_token = auth_service.generate_setup_token(reusable, duration).await;
-
-    // Create setup URL with token
     let setup_url = format!("{}?setup_token={}", url, setup_token);
 
-    // Generate QR code
-    use qrcode::QrCode;
-    let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
-    let qr_string = code
-        .render::<char>()
-        .quiet_zone(false)
-        .module_dimensions(2, 1)
-        .build();
-
-    println!("\n  Scan this QR code with the Reattach iOS app:\n");
-    println!("{}", qr_string);
-    println!("\n  URL: {}", setup_url);
-
-    let mut notes = vec![];
-    if reusable {
-        notes.push("reusable".to_string());
-    }
-    if expires == "never" {
-        notes.push("no expiration".to_string());
-    } else {
-        notes.push(format!("expires in {}", expires));
-    }
-    println!("\n  Token: {}", notes.join(", "));
+    print_setup_qr(&setup_url, &token_note_from_expires(&expires, reusable));
     println!("  Make sure reattachd daemon is running.\n");
 }
 
@@ -881,36 +953,30 @@ async fn run_notify_command(
     }
 }
 
-async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_hostname: Option<String>) {
+async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_info: Option<TailscaleInfo>) {
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
     let auth_service = Arc::new(auth_service);
 
     if !auth_service.has_devices().await {
-        if let Some(ref hostname) = tailscale_hostname {
+        if let Some(ref info) = tailscale_info {
             let port = std::env::var("REATTACHD_PORT")
                 .or_else(|_| std::env::var("PORT"))
                 .ok()
                 .and_then(|p| p.parse::<u16>().ok())
                 .unwrap_or(DEFAULT_PORT);
-            let url = format!("https://{}:{}", hostname, port);
-            let duration = chrono::Duration::minutes(10);
+            let url = format!("https://{}:{}", info.hostname, port);
+            let expires = std::env::var("REATTACHD_SETUP_EXPIRES")
+                .unwrap_or_else(|_| "10m".to_string());
+            let duration = parse_duration(&expires).unwrap_or_else(|| {
+                tracing::warn!("Invalid REATTACHD_SETUP_EXPIRES '{}', using 10m", expires);
+                chrono::Duration::minutes(10)
+            });
             let setup_token = auth_service.generate_setup_token(false, duration).await;
             let setup_url = format!("{}?setup_token={}", url, setup_token);
-
-            use qrcode::QrCode;
-            let code = QrCode::new(&setup_url).expect("Failed to generate QR code");
-            let qr_string = code
-                .render::<char>()
-                .quiet_zone(false)
-                .module_dimensions(2, 1)
-                .build();
-
-            println!("\n  Scan this QR code with the Reattach iOS app:\n");
-            println!("{}", qr_string);
-            println!("\n  URL: {}", setup_url);
-            println!("\n  Token: expires in 10m\n");
+            print_setup_qr(&setup_url, &token_note_from_expires(&expires, false));
+            println!();
         } else {
             tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
         }
@@ -964,7 +1030,10 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
 
-    let default_bind = if tailscale_hostname.is_some() { "0.0.0.0" } else { DEFAULT_BIND_ADDR };
+    let default_bind: &str = match &tailscale_info {
+        Some(info) => &info.ipv4,
+        None => DEFAULT_BIND_ADDR,
+    };
     let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
         .unwrap_or_else(|_| default_bind.to_string());
     let addr = format!("{}:{}", bind_addr, port);
@@ -977,8 +1046,11 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
                 eprintln!("Failed to load TLS cert/key: {}", e);
                 std::process::exit(1);
             });
-        let addr: std::net::SocketAddr = addr.parse().unwrap();
-        axum_server::bind_rustls(addr, rustls_config)
+        let socket_addr: std::net::SocketAddr = addr.parse().unwrap_or_else(|e| {
+            eprintln!("Invalid bind address {}: {}", addr, e);
+            std::process::exit(1);
+        });
+        axum_server::bind_rustls(socket_addr, rustls_config)
             .serve(app.into_make_service())
             .await
             .unwrap();
@@ -1097,5 +1169,69 @@ async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsServi
             tracing::warn!("Failed to initialize APNs service: {:?}", e);
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_tailscale_info_strips_trailing_dot_and_picks_ipv4() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net.",
+                "TailscaleIPs": ["100.64.1.2", "fd7a:115c:a1e0::1"]
+            }
+        }"#;
+        let info = parse_tailscale_info(json).expect("parse succeeds");
+        assert_eq!(info.hostname, "host.tailnet.ts.net");
+        assert_eq!(info.ipv4, "100.64.1.2");
+    }
+
+    #[test]
+    fn parse_tailscale_info_picks_ipv4_when_ipv6_listed_first() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net",
+                "TailscaleIPs": ["fd7a:115c:a1e0::1", "100.64.1.2"]
+            }
+        }"#;
+        let info = parse_tailscale_info(json).expect("parse succeeds");
+        assert_eq!(info.ipv4, "100.64.1.2");
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_missing_dns_name() {
+        let json = br#"{ "Self": { "TailscaleIPs": ["100.64.1.2"] } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_empty_dns_name() {
+        let json = br#"{ "Self": { "DNSName": "", "TailscaleIPs": ["100.64.1.2"] } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_when_only_ipv6_present() {
+        let json = br#"{
+            "Self": {
+                "DNSName": "host.tailnet.ts.net",
+                "TailscaleIPs": ["fd7a:115c:a1e0::1"]
+            }
+        }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_missing_tailscale_ips() {
+        let json = br#"{ "Self": { "DNSName": "host.tailnet.ts.net" } }"#;
+        assert!(parse_tailscale_info(json).is_err());
+    }
+
+    #[test]
+    fn parse_tailscale_info_rejects_invalid_json() {
+        assert!(parse_tailscale_info(b"not json").is_err());
     }
 }

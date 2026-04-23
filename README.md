@@ -148,7 +148,7 @@ The simplest setup — a single command handles TLS certificates, QR code genera
 sudo reattachd --tailscale
 ```
 
-This auto-detects your Tailscale hostname, generates TLS certs via `tailscale cert`, binds to `0.0.0.0:8787`, and shows a QR code if no devices are registered. Just scan and go.
+This auto-detects your Tailscale hostname and IP, generates TLS certs via `tailscale cert`, binds to the Tailscale IPv4 address on port `8787`, and shows a QR code if no devices are registered. Just scan and go.
 
 > **Note**: `sudo` is required on Linux because `tailscale cert` needs root access to generate certificates.
 
@@ -179,6 +179,8 @@ Use your machine's local IP address directly. No additional setup required.
 ```
 URL: http://192.168.x.x:8787
 ```
+
+> The iOS app sets `NSAllowsLocalNetworking` so plain HTTP is permitted to RFC1918 addresses (`10.x.x.x`, `192.168.x.x`, `172.16–31.x.x`) for local development. This exception does **not** cover Tailscale's `100.64.0.0/10` range — connect over Tailscale via `--tailscale` (HTTPS) instead.
 
 #### Cloudflare Tunnel
 
@@ -327,7 +329,7 @@ Open `ios/Reattach.xcodeproj` in Xcode and build to your device.
 
 reattachd binds to `127.0.0.1:8787` by default (localhost only). This is secure by default - only local processes and tunnels can access the API.
 
-When using `--tailscale`, the bind address defaults to `0.0.0.0` (all interfaces) since Tailscale provides network-level authentication and TLS.
+When using `--tailscale`, the bind address defaults to the host's Tailscale IPv4 address (e.g. `100.x.y.z`) so the daemon is only reachable over the tailnet interface. Override with `REATTACHD_BIND_ADDR` if you want a different interface — use `0.0.0.0` only if you understand the exposure, since Tailscale certs are publicly valid Let's Encrypt certs.
 
 To change the port or bind address:
 
