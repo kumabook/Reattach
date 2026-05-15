@@ -273,7 +273,11 @@
                 <span class="step-number">1</span>
                 <span class="step-title">reattachdをインストール</span>
                 <div class="step-content">
-                    <p>お使いのコンピュータで以下のコマンドを実行します：</p>
+                    <h3>オプションA: Homebrew (macOS)</h3>
+                    <pre><code>brew tap kumabook/reattach
+brew install reattachd</code></pre>
+
+                    <h3>オプションB: インストールスクリプト (macOS / Linux)</h3>
                     <pre><code>curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh</code></pre>
                 </div>
             </div>
@@ -282,6 +286,13 @@
                 <span class="step-number">2</span>
                 <span class="step-title">デーモンを設定</span>
                 <div class="step-content">
+                    <h3>Homebrew services (macOS、最も簡単)</h3>
+                    <p>Homebrewでインストールした場合、以下のコマンド一つでバックグラウンドサービスとして起動できます：</p>
+                    <pre><code>brew services start reattachd</code></pre>
+                    <div class="note">
+                        <p><strong>デフォルトの動作:</strong> <code>127.0.0.1:8787</code> に plain HTTP で bind します。<code>brew services</code> 経由で Tailscale 自動構成を有効にする方法は、下記の <a href="#tailscale-brew-services">Tailscale + brew services</a> を参照してください。</p>
+                    </div>
+
                     <h3>macOS (launchd)</h3>
                     <pre><code># ログディレクトリを作成
 mkdir -p ~/Library/Logs/Reattach
@@ -366,6 +377,31 @@ sudo systemctl start reattachd</code></pre>
                     <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
 
                     <h2 style="font-size: 1.2rem; margin-top: 32px; border: none; padding: 0;">リモートアクセス</h2>
+
+                    <h3>Tailscale（推奨）</h3>
+                    <p>セキュアなリモートアクセスを最も簡単にセットアップする方法です。コマンド一つで TLS 証明書の取得、QRコード生成、サーバー起動までを処理します：</p>
+                    <pre><code>sudo reattachd --tailscale</code></pre>
+                    <p>Tailscale のホスト名と IP を自動検出し、<code>tailscale cert</code> で TLS 証明書を発行、Tailscale IPv4 アドレスのポート <code>8787</code> に bind します。デバイスが未登録の場合は QR コードも自動表示されます。</p>
+                    <div class="note">
+                        <p>Linux では <code>tailscale cert</code> が証明書発行に root 権限を必要とするため <code>sudo</code> が必要です。</p>
+                    </div>
+
+                    <h4 id="tailscale-brew-services">Tailscale + brew services</h4>
+                    <p><code>brew services</code> は CLI 引数を pass-through できないため、Homebrew のデフォルト service は <code>--tailscale</code> なしで起動します。<code>brew services</code> 経由で Tailscale 自動構成を有効にするには、brew が管理する plist を直接編集してフラグを追加します：</p>
+                    <pre><code>brew services stop reattachd
+
+# ~/Library/LaunchAgents/homebrew.mxcl.reattachd.plist を編集
+# ProgramArguments に "--tailscale" を追加：
+#   &lt;key&gt;ProgramArguments&lt;/key&gt;
+#   &lt;array&gt;
+#       &lt;string&gt;/opt/homebrew/bin/reattachd&lt;/string&gt;
+#       &lt;string&gt;--tailscale&lt;/string&gt;
+#   &lt;/array&gt;
+
+brew services start reattachd</code></pre>
+                    <div class="note">
+                        <p><strong>注意:</strong> <code>brew services restart</code> や <code>brew upgrade reattachd</code> を実行すると plist が Formula から再生成され、手動で加えた変更は失われます。アップグレードのたびに変更を入れ直す必要があります。頻繁にアップグレードする場合は、reattachd を <code>sudo reattachd --tailscale</code> で直接起動し、独自の launchd plist で管理することを検討してください。</p>
+                    </div>
 
                     <h3>Cloudflare Tunnel + Zero Trust Access（推奨）</h3>
                     <p>ポートを公開せずにリモートアクセスを実現します。<a href="https://developers.cloudflare.com/cloudflare-one/">Cloudflare Zero Trust</a>のAccess機能を使用することで、認証レイヤーを追加できます。</p>

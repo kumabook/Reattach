@@ -264,7 +264,11 @@
                 <span class="step-number">1</span>
                 <span class="step-title">Install reattachd</span>
                 <div class="step-content">
-                    <p>Run this command on your computer:</p>
+                    <h3>Option A: Homebrew (macOS)</h3>
+                    <pre><code>brew tap kumabook/reattach
+brew install reattachd</code></pre>
+
+                    <h3>Option B: Install script (macOS / Linux)</h3>
                     <pre><code>curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh</code></pre>
                 </div>
             </div>
@@ -273,6 +277,13 @@
                 <span class="step-number">2</span>
                 <span class="step-title">Set up the daemon</span>
                 <div class="step-content">
+                    <h3>Homebrew services (macOS, easiest)</h3>
+                    <p>If you installed via Homebrew, you can start reattachd as a background service with one command:</p>
+                    <pre><code>brew services start reattachd</code></pre>
+                    <div class="note">
+                        <p><strong>Default mode:</strong> binds to <code>127.0.0.1:8787</code> over plain HTTP. To enable Tailscale auto-configuration via <code>brew services</code>, see <a href="#tailscale-brew-services">Tailscale + brew services</a> below.</p>
+                    </div>
+
                     <h3>macOS (launchd)</h3>
                     <pre><code># Create log directory
 mkdir -p ~/Library/Logs/Reattach
@@ -357,6 +368,31 @@ sudo systemctl start reattachd</code></pre>
                     <pre><code>URL: http://&lt;vpn-ip&gt;:8787</code></pre>
 
                     <h2 style="font-size: 1.2rem; margin-top: 32px; border: none; padding: 0;">Remote Access</h2>
+
+                    <h3>Tailscale (Recommended)</h3>
+                    <p>The simplest setup for secure remote access — a single command handles TLS certificates, QR code generation, and server startup:</p>
+                    <pre><code>sudo reattachd --tailscale</code></pre>
+                    <p>This auto-detects your Tailscale hostname and IP, generates TLS certs via <code>tailscale cert</code>, binds to the Tailscale IPv4 address on port <code>8787</code>, and shows a QR code if no devices are registered.</p>
+                    <div class="note">
+                        <p><code>sudo</code> is required on Linux because <code>tailscale cert</code> needs root access to generate certificates.</p>
+                    </div>
+
+                    <h4 id="tailscale-brew-services">Tailscale + brew services</h4>
+                    <p><code>brew services</code> does not pass through CLI arguments, so the default Homebrew service runs without <code>--tailscale</code>. To enable Tailscale auto-configuration via <code>brew services</code>, edit the brew-managed plist to inject the flag:</p>
+                    <pre><code>brew services stop reattachd
+
+# Edit ~/Library/LaunchAgents/homebrew.mxcl.reattachd.plist
+# Add "--tailscale" to ProgramArguments:
+#   &lt;key&gt;ProgramArguments&lt;/key&gt;
+#   &lt;array&gt;
+#       &lt;string&gt;/opt/homebrew/bin/reattachd&lt;/string&gt;
+#       &lt;string&gt;--tailscale&lt;/string&gt;
+#   &lt;/array&gt;
+
+brew services start reattachd</code></pre>
+                    <div class="note">
+                        <p><strong>Caveat:</strong> <code>brew services restart</code> and <code>brew upgrade reattachd</code> regenerate the plist from the Formula, wiping out manual edits. You'll need to re-apply the change after any upgrade. If you upgrade frequently, consider running reattachd directly via <code>sudo reattachd --tailscale</code> and managing the daemon with your own launchd plist.</p>
+                    </div>
 
                     <h3>Cloudflare Tunnel + Zero Trust Access (Recommended)</h3>
                     <p>Remote access without exposing ports. Use <a href="https://developers.cloudflare.com/cloudflare-one/">Cloudflare Zero Trust</a> Access to add an authentication layer.</p>
