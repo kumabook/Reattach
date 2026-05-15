@@ -57,6 +57,10 @@ To run it as a background service:
 brew services start reattachd
 ```
 
+> **Default mode**: This binds to `127.0.0.1:8787` over plain HTTP. To enable
+> Tailscale auto-configuration (HTTPS + tailnet bind) via `brew services`,
+> see [Tailscale + brew services](#tailscale--brew-services) below.
+
 #### Option B: Install script (macOS / Linux)
 
 ```bash
@@ -157,6 +161,32 @@ To register additional devices later:
 ```bash
 sudo reattachd --tailscale setup
 ```
+
+#### Tailscale + brew services
+
+`brew services` does not pass through CLI arguments, so the default Homebrew
+service runs without `--tailscale`. To enable Tailscale auto-configuration via
+`brew services`, edit the brew-managed plist to inject the flag:
+
+```bash
+brew services stop reattachd
+
+# Edit ~/Library/LaunchAgents/homebrew.mxcl.reattachd.plist
+# Add "--tailscale" to ProgramArguments:
+#   <key>ProgramArguments</key>
+#   <array>
+#       <string>/opt/homebrew/bin/reattachd</string>
+#       <string>--tailscale</string>
+#   </array>
+
+brew services start reattachd
+```
+
+> **Caveat**: `brew services restart` and `brew upgrade reattachd` regenerate
+> the plist from the Formula, wiping out manual edits. You'll need to re-apply
+> the change after any upgrade. If you upgrade frequently, consider running
+> reattachd directly via `sudo reattachd --tailscale` and managing the daemon
+> with your own launchd plist (see the manual setup section above).
 
 #### Manual TLS
 
