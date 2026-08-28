@@ -995,6 +995,7 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         .route("/panes/{target}/input", post(api::send_input))
         .route("/panes/{target}/escape", post(api::send_escape))
         .route("/panes/{target}/output", get(api::get_output))
+        .route("/panes/{target}/stream", get(api::stream_pane))
         .layer(middleware::from_fn_with_state(
             auth_for_middleware,
             auth_middleware,

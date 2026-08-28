@@ -325,7 +325,7 @@ struct PaneDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
-                        await viewModel.refresh()
+                        await viewModel.refreshLive()
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -367,10 +367,17 @@ struct PaneDetailView: View {
             .modifier(iPadPagePresentationModifier())
         }
         .task {
-            await viewModel.startPolling()
+            await viewModel.startStreaming()
         }
         .onDisappear {
-            viewModel.stopPolling()
+            viewModel.stopStreaming()
+        }
+        .onChange(of: viewModel.autoRefresh) { _, enabled in
+            if enabled {
+                Task {
+                    await viewModel.resumeAutoRefresh()
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
@@ -410,6 +417,10 @@ enum QuickAction {
     case none
 }
 
+private struct SendableAttributedString: @unchecked Sendable {
+    let value: NSAttributedString
+}
+
 // MARK: - PaneDetailViewModel
 
 @MainActor
@@ -426,7 +437,8 @@ class PaneDetailViewModel {
 
     private let target: String
     private let api = ReattachAPI.shared
-    @ObservationIgnored private var pollingTask: Task<Void, Never>?
+    @ObservationIgnored private var streamingTask: Task<Void, Never>?
+    @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
     @ObservationIgnored private var rawOutput: String = ""
 
     init(target: String) {
@@ -628,44 +640,108 @@ class PaneDetailViewModel {
         return result
     }
 
-    func stopPolling() {
-        pollingTask?.cancel()
-        pollingTask = nil
+    func stopStreaming() {
+        streamingTask?.cancel()
+        streamingTask = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
     }
 
-    func startPolling() async {
-        stopPolling()
-        await refresh()
+    func startStreaming() async {
+        stopStreaming()
 
-        pollingTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                if autoRefresh {
-                    await refreshSilently()
+        if api.isDemoMode {
+            await refresh()
+            return
+        }
+
+        streamingTask = Task { [weak self] in
+            await self?.runStreamLoop()
+        }
+    }
+
+    private func runStreamLoop() async {
+        while !Task.isCancelled {
+            do {
+                let socket = try api.makePaneWebSocket(target: target, lines: 500)
+                webSocketTask = socket
+                socket.resume()
+
+                while !Task.isCancelled {
+                    let message = try await socket.receive()
+                    guard case .string(let text) = message,
+                          let data = text.data(using: .utf8) else {
+                        continue
+                    }
+
+                    let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
+                    switch response.type {
+                    case "output":
+                        if autoRefresh, let output = response.output {
+                            await applyOutput(output)
+                        }
+                    case "patch":
+                        if autoRefresh {
+                            await applyPatch(response)
+                        }
+                    case "error":
+                        throw APIError.serverError(response.error ?? "Pane stream failed")
+                    default:
+                        continue
+                    }
+                }
+            } catch {
+                webSocketTask?.cancel(with: .goingAway, reason: nil)
+                webSocketTask = nil
+
+                guard !Task.isCancelled else { return }
+                await refreshSilently()
+
+                do {
+                    try await Task.sleep(for: .seconds(2))
+                } catch {
+                    return
                 }
             }
+        }
+    }
+
+    func resumeAutoRefresh() async {
+        guard let socket = webSocketTask else {
+            await refresh()
+            return
+        }
+
+        do {
+            try await sendStreamMessage(.refresh, over: socket)
+        } catch {
+            socket.cancel(with: .goingAway, reason: nil)
+            webSocketTask = nil
+            await refresh()
+        }
+    }
+
+    func refreshLive() async {
+        guard let socket = webSocketTask else {
+            await refresh()
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await sendStreamMessage(.refresh, over: socket)
+        } catch {
+            socket.cancel(with: .goingAway, reason: nil)
+            webSocketTask = nil
+            await refresh()
         }
     }
 
     private func refreshSilently() async {
         do {
             let newRawOutput = try await api.getOutput(target: target, lines: 500)
-            guard newRawOutput != rawOutput else { return }
-            rawOutput = newRawOutput
-
-            let text = rawOutput
-            async let parsedOutput = Task.detached(priority: .userInitiated) {
-                Self.parseAnsiToAttributedString(text)
-            }.value
-
-            async let detectedAction = Task.detached(priority: .utility) {
-                Self.detectQuickAction(from: text)
-            }.value
-
-            let (newOutput, newAction) = await (parsedOutput, detectedAction)
-            output = newOutput
-            quickAction = newAction
-            contentVersion = UUID()
+            await applyOutput(newRawOutput)
         } catch {
             // Silently ignore errors during polling
         }
@@ -677,22 +753,7 @@ class PaneDetailViewModel {
 
         do {
             let newRawOutput = try await api.getOutput(target: target, lines: 500)
-            guard newRawOutput != rawOutput else { return }
-            rawOutput = newRawOutput
-
-            let text = rawOutput
-            async let parsedOutput = Task.detached(priority: .userInitiated) {
-                Self.parseAnsiToAttributedString(text)
-            }.value
-
-            async let detectedAction = Task.detached(priority: .utility) {
-                Self.detectQuickAction(from: text)
-            }.value
-
-            let (newOutput, newAction) = await (parsedOutput, detectedAction)
-            output = newOutput
-            quickAction = newAction
-            contentVersion = UUID()
+            await applyOutput(newRawOutput)
         } catch let error as APIError {
             if case .unauthorized = error {
                 return
@@ -710,10 +771,21 @@ class PaneDetailViewModel {
         defer { isSending = false }
 
         do {
-            try await api.sendInput(target: target, text: text)
+            if let socket = webSocketTask {
+                do {
+                    try await sendStreamMessage(.input(text), over: socket)
+                } catch {
+                    socket.cancel(with: .goingAway, reason: nil)
+                    webSocketTask = nil
+                    throw error
+                }
+            } else {
+                try await api.sendInput(target: target, text: text)
+            }
             CommandHistoryManager.shared.add(text)
-            try? await Task.sleep(for: .milliseconds(300))
-            await refreshSilently()
+            if webSocketTask == nil {
+                await refreshSilently()
+            }
         } catch let error as APIError {
             if case .unauthorized = error {
                 return
@@ -731,9 +803,20 @@ class PaneDetailViewModel {
         defer { isSending = false }
 
         do {
-            try await api.sendEscape(target: target)
-            try? await Task.sleep(for: .milliseconds(300))
-            await refreshSilently()
+            if let socket = webSocketTask {
+                do {
+                    try await sendStreamMessage(.escape, over: socket)
+                } catch {
+                    socket.cancel(with: .goingAway, reason: nil)
+                    webSocketTask = nil
+                    throw error
+                }
+            } else {
+                try await api.sendEscape(target: target)
+            }
+            if webSocketTask == nil {
+                await refreshSilently()
+            }
         } catch let error as APIError {
             if case .unauthorized = error {
                 return
@@ -744,6 +827,64 @@ class PaneDetailViewModel {
             errorMessage = error.localizedDescription
             showError = true
         }
+    }
+
+    private func sendStreamMessage(
+        _ request: PaneStreamRequest,
+        over socket: URLSessionWebSocketTask
+    ) async throws {
+        let data = try JSONEncoder().encode(request)
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw APIError.decodingError(
+                NSError(domain: "PaneStream", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to encode pane stream message"
+                ])
+            )
+        }
+        try await socket.send(.string(text))
+    }
+
+    private func applyOutput(_ newRawOutput: String) async {
+        guard newRawOutput != rawOutput else { return }
+        rawOutput = newRawOutput
+
+        async let parsedOutput = Task.detached(priority: .userInitiated) {
+            SendableAttributedString(
+                value: Self.parseAnsiToAttributedString(newRawOutput)
+            )
+        }.value
+
+        async let detectedAction = Task.detached(priority: .utility) {
+            Self.detectQuickAction(from: newRawOutput)
+        }.value
+
+        let (newOutput, newAction) = await (parsedOutput, detectedAction)
+        output = newOutput.value
+        quickAction = newAction
+        contentVersion = UUID()
+    }
+
+    private func applyPatch(_ response: PaneStreamResponse) async {
+        guard let startLine = response.startLine,
+              let deleteCount = response.deleteCount,
+              let replacementLines = response.lines else {
+            return
+        }
+
+        var lines = rawOutput.components(separatedBy: "\n")
+        guard startLine >= 0,
+              deleteCount >= 0,
+              startLine <= lines.count,
+              startLine + deleteCount <= lines.count else {
+            await resumeAutoRefresh()
+            return
+        }
+
+        lines.replaceSubrange(
+            startLine..<(startLine + deleteCount),
+            with: replacementLines
+        )
+        await applyOutput(lines.joined(separator: "\n"))
     }
 }
 
