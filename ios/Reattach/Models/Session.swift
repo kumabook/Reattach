@@ -66,6 +66,33 @@ struct OutputResponse: Codable {
     let output: String
 }
 
+struct PaneStreamRequest: Codable {
+    let type: String
+    let text: String?
+
+    static func input(_ text: String) -> PaneStreamRequest {
+        PaneStreamRequest(type: "input", text: text)
+    }
+
+    static let escape = PaneStreamRequest(type: "escape", text: nil)
+    static let refresh = PaneStreamRequest(type: "refresh", text: nil)
+}
+
+struct PaneStreamResponse: Codable {
+    let type: String
+    let output: String?
+    let error: String?
+    let startLine: Int?
+    let deleteCount: Int?
+    let lines: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case type, output, error, lines
+        case startLine = "start_line"
+        case deleteCount = "delete_count"
+    }
+}
+
 struct ErrorResponse: Codable {
     let error: String
 }

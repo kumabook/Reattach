@@ -17,7 +17,7 @@ fn default_lines() -> u32 {
     200
 }
 
-const MAX_LINES: u32 = 1000;
+pub(crate) const MAX_LINES: u32 = 1000;
 
 #[derive(Serialize)]
 pub struct OutputResponse {

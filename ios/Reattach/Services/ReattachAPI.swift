@@ -136,6 +136,27 @@ class ReattachAPI {
         return response.output
     }
 
+    func makePaneWebSocket(target: String, lines: Int = 500) throws -> URLSessionWebSocketTask {
+        let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
+        guard var components = URLComponents(string: baseURL + "/panes/\(encodedTarget)/stream?lines=\(lines)") else {
+            throw APIError.invalidURL
+        }
+
+        switch components.scheme?.lowercased() {
+        case "https": components.scheme = "wss"
+        case "http": components.scheme = "ws"
+        default: throw APIError.invalidURL
+        }
+
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        applyAuthenticationHeaders(to: &request)
+        return session.webSocketTask(with: request)
+    }
+
     func deletePane(target: String) async throws {
         if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
@@ -168,15 +189,7 @@ class ReattachAPI {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if let token = deviceToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        if let clientId = cfAccessClientId, let clientSecret = cfAccessClientSecret,
-           !clientId.isEmpty, !clientSecret.isEmpty {
-            request.setValue(clientId, forHTTPHeaderField: "CF-Access-Client-Id")
-            request.setValue(clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
-        }
+        applyAuthenticationHeaders(to: &request)
 
         if let body = body {
             request.httpBody = try JSONEncoder().encode(body)
@@ -246,6 +259,18 @@ class ReattachAPI {
     private func request(path: String, method: String) async throws -> Data {
         let empty: String? = nil
         return try await request(path: path, method: method, body: empty)
+    }
+
+    private func applyAuthenticationHeaders(to request: inout URLRequest) {
+        if let token = deviceToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        if let clientId = cfAccessClientId, let clientSecret = cfAccessClientSecret,
+           !clientId.isEmpty, !clientSecret.isEmpty {
+            request.setValue(clientId, forHTTPHeaderField: "CF-Access-Client-Id")
+            request.setValue(clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
+        }
     }
 }
 
