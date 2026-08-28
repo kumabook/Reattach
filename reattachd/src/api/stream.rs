@@ -20,7 +20,17 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
-    Input { text: String },
+    Input {
+        text: String,
+    },
+    Text {
+        text: String,
+    },
+    Key {
+        key: String,
+        #[serde(default)]
+        modifiers: Vec<tmux::KeyModifier>,
+    },
     Escape,
     Refresh,
 }
@@ -102,6 +112,14 @@ async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
                             Ok(ClientMessage::Input { text }) => {
                                 let input_target = target.clone();
                                 run_tmux(move || tmux::send_keys(&input_target, &text)).await
+                            }
+                            Ok(ClientMessage::Text { text }) => {
+                                let text_target = target.clone();
+                                run_tmux(move || tmux::send_text(&text_target, &text)).await
+                            }
+                            Ok(ClientMessage::Key { key, modifiers }) => {
+                                let key_target = target.clone();
+                                run_tmux(move || tmux::send_key(&key_target, &key, &modifiers)).await
                             }
                             Ok(ClientMessage::Escape) => {
                                 let escape_target = target.clone();
@@ -202,6 +220,28 @@ mod tests {
                 .expect("input message should parse");
 
         assert!(matches!(message, ClientMessage::Input { text } if text == "cargo test"));
+    }
+
+    #[test]
+    fn parses_direct_text_message() {
+        let message = serde_json::from_str::<ClientMessage>(r#"{"type":"text","text":"hello"}"#)
+            .expect("direct text message should parse");
+
+        assert!(matches!(message, ClientMessage::Text { text } if text == "hello"));
+    }
+
+    #[test]
+    fn parses_direct_key_message() {
+        let message = serde_json::from_str::<ClientMessage>(
+            r#"{"type":"key","key":"left","modifiers":["control"]}"#,
+        )
+        .expect("key message should parse");
+
+        assert!(matches!(
+            message,
+            ClientMessage::Key { key, modifiers }
+                if key == "left" && modifiers == vec![tmux::KeyModifier::Control]
+        ));
     }
 
     #[test]
