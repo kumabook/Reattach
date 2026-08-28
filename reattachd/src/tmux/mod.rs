@@ -8,7 +8,7 @@ pub use capture::capture_pane;
 pub use create::create_session;
 pub use kill::kill_pane;
 pub use list::list_sessions;
-pub use send::{send_escape, send_keys};
+pub use send::{send_escape, send_key, send_keys, send_text, KeyModifier};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TmuxError {
