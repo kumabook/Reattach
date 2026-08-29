@@ -5,6 +5,7 @@
 
 import Foundation
 import Testing
+import UIKit
 @testable import Reattach
 
 @MainActor
@@ -27,6 +28,28 @@ struct ReattachTests {
         #expect(object["type"] as? String == "key")
         #expect(object["key"] as? String == "left")
         #expect(object["modifiers"] as? [String] == ["control", "shift"])
+    }
+
+    @Test func controlCharacterMapsToTerminalKey() throws {
+        let mapped = try #require(DirectInputKeyMapper.modifiedCharacter(
+            keyCode: .keyboardC,
+            charactersIgnoringModifiers: "\u{3}",
+            modifiers: .control
+        ))
+
+        #expect(mapped.key == "c")
+        #expect(mapped.modifiers == ["control"])
+    }
+
+    @Test func controlLetterFallsBackToHIDUsage() throws {
+        let mapped = try #require(DirectInputKeyMapper.modifiedCharacter(
+            keyCode: .keyboardD,
+            charactersIgnoringModifiers: "",
+            modifiers: .control
+        ))
+
+        #expect(mapped.key == "d")
+        #expect(mapped.modifiers == ["control"])
     }
 
 }

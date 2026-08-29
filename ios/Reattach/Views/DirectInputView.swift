@@ -118,6 +118,90 @@ private struct DirectInputTextViewRepresentable: UIViewRepresentable {
     }
 }
 
+enum DirectInputKeyMapper {
+    static func modifiedCharacter(
+        keyCode: UIKeyboardHIDUsage,
+        charactersIgnoringModifiers: String,
+        modifiers flags: UIKeyModifierFlags
+    ) -> (key: String, modifiers: [String])? {
+        guard flags.contains(.control) || flags.contains(.alternate) else {
+            return nil
+        }
+
+        let normalized = normalizedCharacter(
+            keyCode: keyCode,
+            charactersIgnoringModifiers: charactersIgnoringModifiers,
+            controlPressed: flags.contains(.control)
+        )
+        guard var character = normalized else { return nil }
+
+        if character == " " {
+            character = "space"
+        } else if flags.contains(.shift) {
+            character = character.uppercased()
+        } else {
+            character = character.lowercased()
+        }
+
+        return (character, modifierNames(from: flags, includingShift: false))
+    }
+
+    private static func normalizedCharacter(
+        keyCode: UIKeyboardHIDUsage,
+        charactersIgnoringModifiers: String,
+        controlPressed: Bool
+    ) -> String? {
+        if charactersIgnoringModifiers.unicodeScalars.count == 1,
+           let scalar = charactersIgnoringModifiers.unicodeScalars.first {
+            if controlPressed, let character = character(forControlCode: scalar.value) {
+                return character
+            }
+            if scalar.isASCII, scalar.value >= 0x20, scalar.value <= 0x7e {
+                return String(scalar)
+            }
+        }
+
+        // Some hardware keyboard layouts report an empty/control character for
+        // Ctrl-letter. The HID usage remains stable, so use it as a fallback.
+        let firstLetter = UIKeyboardHIDUsage.keyboardA.rawValue
+        let offset = keyCode.rawValue - firstLetter
+        guard (0..<26).contains(offset) else { return nil }
+        return String(Array("abcdefghijklmnopqrstuvwxyz")[offset])
+    }
+
+    private static func character(forControlCode value: UInt32) -> String? {
+        switch value {
+        case 0:
+            return " "
+        case 1...26:
+            return String(UnicodeScalar(value + 0x60)!)
+        case 27:
+            return "["
+        case 28:
+            return "\\"
+        case 29:
+            return "]"
+        case 30:
+            return "^"
+        case 31:
+            return "_"
+        default:
+            return nil
+        }
+    }
+
+    private static func modifierNames(
+        from flags: UIKeyModifierFlags,
+        includingShift: Bool
+    ) -> [String] {
+        var modifiers: [String] = []
+        if flags.contains(.control) { modifiers.append("control") }
+        if flags.contains(.alternate) { modifiers.append("alt") }
+        if includingShift && flags.contains(.shift) { modifiers.append("shift") }
+        return modifiers
+    }
+}
+
 private final class TerminalInputTextView: UITextView {
     var onKey: ((_ key: String, _ modifiers: [String]) -> Void)?
 
@@ -178,25 +262,11 @@ private final class TerminalInputTextView: UITextView {
     }
 
     private func modifiedCharacter(for key: UIKey) -> (key: String, modifiers: [String])? {
-        let flags = key.modifierFlags
-        guard flags.contains(.control) || flags.contains(.alternate) else {
-            return nil
-        }
-
-        var character = key.charactersIgnoringModifiers
-        guard character.count == 1, character.unicodeScalars.allSatisfy(\.isASCII) else {
-            return nil
-        }
-
-        if character == " " {
-            character = "space"
-        } else if flags.contains(.shift) {
-            character = character.uppercased()
-        } else {
-            character = character.lowercased()
-        }
-
-        return (character, modifierNames(from: flags, includingShift: false))
+        DirectInputKeyMapper.modifiedCharacter(
+            keyCode: key.keyCode,
+            charactersIgnoringModifiers: key.charactersIgnoringModifiers,
+            modifiers: key.modifierFlags
+        )
     }
 
     private func modifierNames(
