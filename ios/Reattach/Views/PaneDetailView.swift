@@ -130,6 +130,7 @@ struct PaneDetailView: View {
     @FocusState private var isInputFocused: Bool
     @State private var showCommandEditor = false
     @State private var showCommandPicker = false
+    @State private var directInput = false
 
     init(pane: Pane, windowName: String) {
         self.pane = pane
@@ -279,25 +280,41 @@ struct PaneDetailView: View {
             }
 
             ZStack(alignment: .topTrailing) {
-                InputComposerView(text: $inputText, isFocused: $isInputFocused)
-                    .disabled(viewModel.isSending)
-                    .onSubmit {
-                        sendMessage()
-                    }
+                if directInput {
+                    DirectInputView(
+                        onText: { viewModel.queueDirectText($0) },
+                        onKey: { key, modifiers in
+                            viewModel.queueDirectKey(key, modifiers: modifiers)
+                        }
+                    )
+                    .padding(.trailing, 60)
+                } else {
+                    InputComposerView(text: $inputText, isFocused: $isInputFocused)
+                        .disabled(viewModel.isSending)
+                        .onSubmit {
+                            sendMessage()
+                        }
+                }
 
                 HStack(spacing: 8) {
-                    GlassButton {
-                        showCommandPicker = true
-                    } label: {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.purple)
+                    if !directInput {
+                        GlassButton {
+                            showCommandPicker = true
+                        } label: {
+                            Image(systemName: "bookmark.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.purple)
+                        }
+                        .disabled(viewModel.isSending)
                     }
-                    .disabled(viewModel.isSending)
 
                     GlassButton {
-                        Task {
-                            await viewModel.sendEscape()
+                        if directInput {
+                            viewModel.queueDirectKey("escape")
+                        } else {
+                            Task {
+                                await viewModel.sendEscape()
+                            }
                         }
                     } label: {
                         Image(systemName: "stop.fill")
@@ -306,14 +323,16 @@ struct PaneDetailView: View {
                     }
                     .disabled(viewModel.isSending)
 
-                    GlassButton {
-                        sendMessage()
-                    } label: {
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(canSend ? .blue : .gray)
+                    if !directInput {
+                        GlassButton {
+                            sendMessage()
+                        } label: {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(canSend ? .blue : .gray)
+                        }
+                        .disabled(!canSend)
                     }
-                    .disabled(!canSend)
                 }
                 .offset(x: -12, y: hasQuickAction ? -96 : -52)
                 .animation(.easeInOut(duration: 0.2), value: hasQuickAction)
@@ -335,6 +354,13 @@ struct PaneDetailView: View {
 
             ToolbarItem(placement: .secondaryAction) {
                 Toggle("Auto Refresh", isOn: $viewModel.autoRefresh)
+            }
+
+            ToolbarItem(placement: .secondaryAction) {
+                Toggle(isOn: $directInput) {
+                    Label("Direct Input", systemImage: "keyboard")
+                }
+                .disabled(!viewModel.isStreamConnected && !directInput)
             }
         }
         .alert("Error", isPresented: $viewModel.showError) {
@@ -377,6 +403,12 @@ struct PaneDetailView: View {
                 Task {
                     await viewModel.resumeAutoRefresh()
                 }
+            }
+        }
+        .onChange(of: directInput) { _, enabled in
+            isInputFocused = false
+            if !enabled {
+                viewModel.flushDirectInput()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
@@ -434,12 +466,16 @@ class PaneDetailViewModel {
     var errorMessage = ""
     var autoRefresh = true
     var quickAction: QuickAction = .none
+    var isStreamConnected = false
 
     private let target: String
     private let api = ReattachAPI.shared
     @ObservationIgnored private var streamingTask: Task<Void, Never>?
     @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
     @ObservationIgnored private var rawOutput: String = ""
+    @ObservationIgnored private var directTextBuffer = ""
+    @ObservationIgnored private var directTextFlushTask: Task<Void, Never>?
+    @ObservationIgnored private var directSendTail: Task<Void, Never>?
 
     init(target: String) {
         self.target = target
@@ -645,6 +681,12 @@ class PaneDetailViewModel {
         streamingTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        isStreamConnected = false
+        directTextFlushTask?.cancel()
+        directTextFlushTask = nil
+        directSendTail?.cancel()
+        directSendTail = nil
+        directTextBuffer = ""
     }
 
     func startStreaming() async {
@@ -675,6 +717,7 @@ class PaneDetailViewModel {
                     }
 
                     let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
+                    isStreamConnected = true
                     switch response.type {
                     case "output":
                         if autoRefresh, let output = response.output {
@@ -693,6 +736,7 @@ class PaneDetailViewModel {
             } catch {
                 webSocketTask?.cancel(with: .goingAway, reason: nil)
                 webSocketTask = nil
+                isStreamConnected = false
 
                 guard !Task.isCancelled else { return }
                 await refreshSilently()
@@ -827,6 +871,66 @@ class PaneDetailViewModel {
             errorMessage = error.localizedDescription
             showError = true
         }
+    }
+
+    func queueDirectText(_ text: String) {
+        guard !text.isEmpty else { return }
+        directTextBuffer.append(text)
+        guard directTextFlushTask == nil else { return }
+
+        directTextFlushTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(20))
+            } catch {
+                return
+            }
+            self?.flushDirectInput()
+        }
+    }
+
+    func queueDirectKey(_ key: String, modifiers: [String] = []) {
+        flushDirectInput()
+        enqueueDirectRequest(.key(key, modifiers: modifiers))
+    }
+
+    func flushDirectInput() {
+        directTextFlushTask?.cancel()
+        directTextFlushTask = nil
+        guard !directTextBuffer.isEmpty else { return }
+
+        let text = directTextBuffer
+        directTextBuffer = ""
+        enqueueDirectRequest(.directText(text))
+    }
+
+    private func enqueueDirectRequest(_ request: PaneStreamRequest) {
+        let previous = directSendTail
+        directSendTail = Task { [weak self] in
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await self?.sendDirectRequest(request)
+        }
+    }
+
+    private func sendDirectRequest(_ request: PaneStreamRequest) async {
+        guard let socket = webSocketTask, isStreamConnected else {
+            showDirectInputError("Direct Input requires an active WebSocket connection")
+            return
+        }
+
+        do {
+            try await sendStreamMessage(request, over: socket)
+        } catch {
+            socket.cancel(with: .goingAway, reason: nil)
+            webSocketTask = nil
+            isStreamConnected = false
+            showDirectInputError(error.localizedDescription)
+        }
+    }
+
+    private func showDirectInputError(_ message: String) {
+        errorMessage = message
+        showError = true
     }
 
     private func sendStreamMessage(

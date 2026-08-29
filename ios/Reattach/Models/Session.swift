@@ -69,13 +69,23 @@ struct OutputResponse: Codable {
 struct PaneStreamRequest: Codable {
     let type: String
     let text: String?
+    let key: String?
+    let modifiers: [String]?
 
     static func input(_ text: String) -> PaneStreamRequest {
-        PaneStreamRequest(type: "input", text: text)
+        PaneStreamRequest(type: "input", text: text, key: nil, modifiers: nil)
     }
 
-    static let escape = PaneStreamRequest(type: "escape", text: nil)
-    static let refresh = PaneStreamRequest(type: "refresh", text: nil)
+    static func directText(_ text: String) -> PaneStreamRequest {
+        PaneStreamRequest(type: "text", text: text, key: nil, modifiers: nil)
+    }
+
+    static func key(_ key: String, modifiers: [String] = []) -> PaneStreamRequest {
+        PaneStreamRequest(type: "key", text: nil, key: key, modifiers: modifiers)
+    }
+
+    static let escape = PaneStreamRequest(type: "escape", text: nil, key: nil, modifiers: nil)
+    static let refresh = PaneStreamRequest(type: "refresh", text: nil, key: nil, modifiers: nil)
 }
 
 struct PaneStreamResponse: Codable {
