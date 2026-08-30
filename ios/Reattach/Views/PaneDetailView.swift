@@ -11,6 +11,7 @@ import Observation
 struct ZoomableTextView: UIViewRepresentable {
     let attributedText: NSAttributedString
     let contentVersion: UUID
+    let cursor: PaneCursorState?
     @Binding var scrollToBottom: Bool
 
     func makeUIView(context: Context) -> UIScrollView {
@@ -28,8 +29,16 @@ struct ZoomableTextView: UIViewRepresentable {
         textView.isScrollEnabled = false
         textView.backgroundColor = .clear
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        textView.textContainer.lineBreakMode = .byClipping
         textView.tag = 100
         scrollView.addSubview(textView)
+
+        let cursorView = UIView()
+        cursorView.backgroundColor = UIColor.tintColor.withAlphaComponent(0.8)
+        cursorView.isUserInteractionEnabled = false
+        cursorView.isHidden = true
+        textView.addSubview(cursorView)
+        context.coordinator.cursorView = cursorView
 
         let doubleTapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
         doubleTapGesture.numberOfTapsRequired = 2
@@ -43,21 +52,29 @@ struct ZoomableTextView: UIViewRepresentable {
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
         guard let textView = scrollView.viewWithTag(100) as? UITextView else { return }
 
-        if context.coordinator.lastContentVersion != contentVersion {
+        let contentChanged = context.coordinator.lastContentVersion != contentVersion
+        let cellWidth = context.coordinator.terminalCellWidth
+        let terminalWidth = CGFloat(cursor?.paneWidth ?? 0) * cellWidth + 26
+        let maxWidth = max(scrollView.bounds.width, terminalWidth, 300)
+        let layoutChanged = contentChanged || abs(textView.bounds.width - maxWidth) > 0.5
+        if layoutChanged {
             context.coordinator.lastContentVersion = contentVersion
 
             CATransaction.begin()
             CATransaction.setDisableActions(true)
 
-            textView.attributedText = attributedText
+            if contentChanged {
+                textView.attributedText = attributedText
+            }
 
-            let maxWidth = max(scrollView.bounds.width, 300)
             let size = textView.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
             textView.frame = CGRect(origin: .zero, size: size)
             scrollView.contentSize = size
 
             CATransaction.commit()
         }
+
+        context.coordinator.updateCursor(cursor, in: textView, force: layoutChanged)
 
         if scrollToBottom {
             DispatchQueue.main.async {
@@ -77,7 +94,81 @@ struct ZoomableTextView: UIViewRepresentable {
 
     class Coordinator: NSObject, UIScrollViewDelegate {
         var lastContentVersion: UUID?
+        var lastCursor: PaneCursorState?
         weak var scrollView: UIScrollView?
+        weak var cursorView: UIView?
+        let terminalCellWidth = ceil(
+            ("M" as NSString).size(withAttributes: [
+                .font: UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
+            ]).width
+        )
+
+        func updateCursor(
+            _ cursor: PaneCursorState?,
+            in textView: UITextView,
+            force: Bool
+        ) {
+            guard force || cursor != lastCursor else { return }
+            lastCursor = cursor
+            cursorView?.layer.removeAllAnimations()
+
+            guard let cursor,
+                  cursor.visible,
+                  let frame = cursorFrame(cursor, in: textView) else {
+                cursorView?.isHidden = true
+                return
+            }
+
+            cursorView?.frame = frame
+            cursorView?.alpha = 0.9
+            cursorView?.isHidden = false
+            UIView.animate(
+                withDuration: 0.55,
+                delay: 0,
+                options: [.autoreverse, .repeat, .allowUserInteraction]
+            ) {
+                self.cursorView?.alpha = 0.15
+            }
+        }
+
+        private func cursorFrame(
+            _ cursor: PaneCursorState,
+            in textView: UITextView
+        ) -> CGRect? {
+            let text = textView.attributedText.string
+            let lines = text.components(separatedBy: "\n")
+            let lineCount = max(0, lines.count - (text.hasSuffix("\n") ? 1 : 0))
+            let lineIndex = lineCount - 1 - cursor.rowFromBottom
+            guard lineIndex >= 0, lineIndex < lineCount else { return nil }
+
+            let lineStart = lines[..<lineIndex].reduce(0) {
+                $0 + $1.utf16.count + 1
+            }
+            let textLength = (text as NSString).length
+            textView.layoutManager.ensureLayout(for: textView.textContainer)
+
+            let lineRect: CGRect
+            if lineStart < textLength {
+                let glyphIndex = textView.layoutManager.glyphIndexForCharacter(at: lineStart)
+                lineRect = textView.layoutManager.lineFragmentRect(
+                    forGlyphAt: glyphIndex,
+                    effectiveRange: nil
+                )
+            } else if !textView.layoutManager.extraLineFragmentRect.isEmpty {
+                lineRect = textView.layoutManager.extraLineFragmentRect
+            } else {
+                return nil
+            }
+
+            return CGRect(
+                x: textView.textContainerInset.left
+                    + lineRect.minX
+                    + CGFloat(min(cursor.x, cursor.paneWidth)) * terminalCellWidth,
+                y: textView.textContainerInset.top + lineRect.minY,
+                width: terminalCellWidth,
+                height: max(lineRect.height, 10)
+            )
+        }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             scrollView.subviews.first { $0 is UITextView }
@@ -166,6 +257,7 @@ struct PaneDetailView: View {
             ZoomableTextView(
                 attributedText: viewModel.output,
                 contentVersion: viewModel.contentVersion,
+                cursor: viewModel.cursor,
                 scrollToBottom: $scrollToBottom
             )
             .onChange(of: viewModel.contentVersion) {
@@ -467,6 +559,7 @@ class PaneDetailViewModel {
     var autoRefresh = true
     var quickAction: QuickAction = .none
     var isStreamConnected = false
+    var cursor: PaneCursorState?
 
     private let target: String
     private let api = ReattachAPI.shared
@@ -687,6 +780,7 @@ class PaneDetailViewModel {
         directSendTail?.cancel()
         directSendTail = nil
         directTextBuffer = ""
+        cursor = nil
     }
 
     func startStreaming() async {
@@ -720,12 +814,20 @@ class PaneDetailViewModel {
                     isStreamConnected = true
                     switch response.type {
                     case "output":
-                        if autoRefresh, let output = response.output {
-                            await applyOutput(output)
+                        if autoRefresh {
+                            cursor = response.cursor
+                            if let output = response.output {
+                                await applyOutput(output)
+                            }
                         }
                     case "patch":
                         if autoRefresh {
+                            cursor = response.cursor
                             await applyPatch(response)
+                        }
+                    case "cursor":
+                        if autoRefresh {
+                            cursor = response.cursor
                         }
                     case "error":
                         throw APIError.serverError(response.error ?? "Pane stream failed")

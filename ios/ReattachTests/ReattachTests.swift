@@ -52,4 +52,31 @@ struct ReattachTests {
         #expect(mapped.modifiers == ["control"])
     }
 
+    @Test func cursorMessageDecoding() throws {
+        let data = Data(
+            #"{"type":"cursor","cursor":{"x":12,"row_from_bottom":2,"pane_width":80,"visible":true}}"#
+                .utf8
+        )
+        let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
+
+        #expect(response.type == "cursor")
+        #expect(response.cursor == PaneCursorState(
+            x: 12,
+            rowFromBottom: 2,
+            paneWidth: 80,
+            visible: true
+        ))
+    }
+
+    @Test func directInputActivityLabelsTerminalKeys() {
+        #expect(
+            DirectInputView.activityLabel(for: "c", modifiers: ["control"])
+                == "Ctrl-C"
+        )
+        #expect(
+            DirectInputView.activityLabel(for: "left", modifiers: [])
+                == "←"
+        )
+    }
+
 }

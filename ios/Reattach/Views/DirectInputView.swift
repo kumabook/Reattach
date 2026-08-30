@@ -10,24 +10,91 @@ struct DirectInputView: View {
     let onText: (String) -> Void
     let onKey: (_ key: String, _ modifiers: [String]) -> Void
     @State private var isComposingText = false
+    @State private var activityLabel: String?
+    @State private var activityCount = 0
+    @State private var clearActivityTask: Task<Void, Never>?
 
     var body: some View {
         DirectInputTextViewRepresentable(
-            onText: onText,
-            onKey: onKey,
+            onText: { text in
+                showActivity("Input sent")
+                onText(text)
+            },
+            onKey: { key, modifiers in
+                showActivity(Self.activityLabel(for: key, modifiers: modifiers))
+                onKey(key, modifiers)
+            },
             onCompositionChanged: { isComposingText = $0 }
         )
             .overlay(alignment: .leading) {
                 if !isComposingText {
-                    Label("Direct Input — type to terminal", systemImage: "keyboard")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
-                        .allowsHitTesting(false)
+                    HStack(spacing: 8) {
+                        Image(systemName: activityLabel == nil ? "keyboard" : "checkmark.circle.fill")
+                            .foregroundStyle(activityLabel == nil ? Color.secondary : Color.green)
+                            .symbolEffect(.bounce, value: activityCount)
+                        Text(activityLabel ?? "Direct Input active")
+                            .contentTransition(.opacity)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .allowsHitTesting(false)
                 }
             }
             .frame(minHeight: 48, maxHeight: 48)
             .background(.bar)
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        activityLabel == nil ? Color.clear : Color.accentColor.opacity(0.55),
+                        lineWidth: 1
+                    )
+                    .allowsHitTesting(false)
+            }
+            .onDisappear {
+                clearActivityTask?.cancel()
+            }
+    }
+
+    private func showActivity(_ label: String) {
+        activityCount += 1
+        activityLabel = label
+        clearActivityTask?.cancel()
+        clearActivityTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(700))
+            } catch {
+                return
+            }
+            activityLabel = nil
+        }
+    }
+
+    static func activityLabel(for key: String, modifiers: [String]) -> String {
+        let modifierLabel = modifiers.map {
+            switch $0 {
+            case "control": "Ctrl"
+            case "alt": "Alt"
+            case "shift": "Shift"
+            default: $0.capitalized
+            }
+        }
+        let keyLabel: String = switch key {
+        case "enter": "Return"
+        case "escape": "Esc"
+        case "tab": "Tab"
+        case "back_tab": "Shift-Tab"
+        case "backspace": "Backspace"
+        case "delete": "Delete"
+        case "up": "↑"
+        case "down": "↓"
+        case "left": "←"
+        case "right": "→"
+        case "page_up": "Page Up"
+        case "page_down": "Page Down"
+        default: key.uppercased()
+        }
+        return (modifierLabel + [keyLabel]).joined(separator: "-")
     }
 }
 

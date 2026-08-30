@@ -4,7 +4,7 @@ mod kill;
 mod list;
 mod send;
 
-pub use capture::capture_pane;
+pub use capture::{capture_pane, capture_pane_snapshot, PaneCursor, PaneSnapshot};
 pub use create::create_session;
 pub use kill::kill_pane;
 pub use list::list_sessions;

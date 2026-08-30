@@ -40,11 +40,16 @@ enum ClientMessage {
 enum ServerMessage {
     Output {
         output: String,
+        cursor: tmux::PaneCursor,
     },
     Patch {
         start_line: usize,
         delete_count: usize,
         lines: Vec<String>,
+        cursor: tmux::PaneCursor,
+    },
+    Cursor {
+        cursor: tmux::PaneCursor,
     },
     Error {
         error: String,
@@ -71,19 +76,31 @@ async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
     let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
     heartbeat.tick().await;
     let mut last_output: Option<String> = None;
+    let mut last_cursor: Option<tmux::PaneCursor> = None;
 
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                match capture_pane(target.clone(), lines).await {
-                    Ok(output) if last_output.as_ref() != Some(&output) => {
+                match capture_snapshot(target.clone(), lines).await {
+                    Ok(snapshot) if last_output.as_ref() != Some(&snapshot.output) => {
                         let message = match &last_output {
-                            Some(previous) => make_patch(previous, &output),
+                            Some(previous) => make_patch(previous, &snapshot.output, snapshot.cursor.clone()),
                             None => ServerMessage::Output {
-                                output: output.clone(),
+                                output: snapshot.output.clone(),
+                                cursor: snapshot.cursor.clone(),
                             },
                         };
-                        last_output = Some(output);
+                        last_output = Some(snapshot.output);
+                        last_cursor = Some(snapshot.cursor);
+                        if send_message(&mut socket, &message).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(snapshot) if last_cursor.as_ref() != Some(&snapshot.cursor) => {
+                        let message = ServerMessage::Cursor {
+                            cursor: snapshot.cursor.clone(),
+                        };
+                        last_cursor = Some(snapshot.cursor);
                         if send_message(&mut socket, &message).await.is_err() {
                             break;
                         }
@@ -156,7 +173,7 @@ async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
     }
 }
 
-fn make_patch(previous: &str, current: &str) -> ServerMessage {
+fn make_patch(previous: &str, current: &str, cursor: tmux::PaneCursor) -> ServerMessage {
     let previous_lines: Vec<&str> = previous.split('\n').collect();
     let current_lines: Vec<&str> = current.split('\n').collect();
 
@@ -184,11 +201,15 @@ fn make_patch(previous: &str, current: &str) -> ServerMessage {
             .iter()
             .map(|line| (*line).to_string())
             .collect(),
+        cursor,
     }
 }
 
-async fn capture_pane(target: String, lines: u32) -> Result<String, tmux::TmuxError> {
-    run_tmux(move || tmux::capture_pane(&target, lines)).await
+async fn capture_snapshot(
+    target: String,
+    lines: u32,
+) -> Result<tmux::PaneSnapshot, tmux::TmuxError> {
+    run_tmux(move || tmux::capture_pane_snapshot(&target, lines)).await
 }
 
 async fn run_tmux<T, F>(operation: F) -> Result<T, tmux::TmuxError>
@@ -248,15 +269,24 @@ mod tests {
     fn serializes_output_message() {
         let json = serde_json::to_string(&ServerMessage::Output {
             output: "ready".to_string(),
+            cursor: tmux::PaneCursor {
+                x: 3,
+                row_from_bottom: 0,
+                pane_width: 80,
+                visible: true,
+            },
         })
         .expect("output message should serialize");
 
-        assert_eq!(json, r#"{"type":"output","output":"ready"}"#);
+        assert_eq!(
+            json,
+            r#"{"type":"output","output":"ready","cursor":{"x":3,"row_from_bottom":0,"pane_width":80,"visible":true}}"#
+        );
     }
 
     #[test]
     fn creates_minimal_line_patch() {
-        let patch = make_patch("one\ntwo\nthree\n", "one\nchanged\nthree\n");
+        let patch = make_patch("one\ntwo\nthree\n", "one\nchanged\nthree\n", test_cursor());
 
         assert!(matches!(
             patch,
@@ -264,6 +294,7 @@ mod tests {
                 start_line: 1,
                 delete_count: 1,
                 lines,
+                ..
             } if lines == vec!["changed"]
         ));
     }
@@ -282,7 +313,8 @@ mod tests {
                 start_line,
                 delete_count,
                 lines,
-            } = make_patch(previous, current)
+                ..
+            } = make_patch(previous, current, test_cursor())
             else {
                 panic!("expected a patch");
             };
@@ -290,6 +322,15 @@ mod tests {
             let mut reconstructed: Vec<String> = previous.split('\n').map(str::to_string).collect();
             reconstructed.splice(start_line..start_line + delete_count, lines);
             assert_eq!(reconstructed.join("\n"), current);
+        }
+    }
+
+    fn test_cursor() -> tmux::PaneCursor {
+        tmux::PaneCursor {
+            x: 0,
+            row_from_bottom: 0,
+            pane_width: 80,
+            visible: true,
         }
     }
 }
