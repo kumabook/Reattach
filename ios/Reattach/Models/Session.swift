@@ -95,11 +95,25 @@ struct PaneStreamResponse: Codable {
     let startLine: Int?
     let deleteCount: Int?
     let lines: [String]?
+    let cursor: PaneCursorState?
 
     enum CodingKeys: String, CodingKey {
-        case type, output, error, lines
+        case type, output, error, lines, cursor
         case startLine = "start_line"
         case deleteCount = "delete_count"
+    }
+}
+
+struct PaneCursorState: Codable, Equatable {
+    let x: Int
+    let rowFromBottom: Int
+    let paneWidth: Int
+    let visible: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case x, visible
+        case rowFromBottom = "row_from_bottom"
+        case paneWidth = "pane_width"
     }
 }
 
