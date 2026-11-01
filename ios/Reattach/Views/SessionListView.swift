@@ -95,7 +95,7 @@ struct SessionListView: View {
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSheet = false
     @State private var selectedPane: PaneNavigationItem?
-    @State private var navigationPath = NavigationPath()
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var unreadPaneKeys: Set<String> = []
 
     private var unreadPanes: Set<String> {
@@ -111,14 +111,23 @@ struct SessionListView: View {
     @State private var showServerSettings = false
     @State private var configManager = ServerConfigManager.shared
     @State private var paneToDelete: Pane?
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
-        Group {
-            if horizontalSizeClass == .compact {
-                compactLayout
-            } else {
-                regularLayout
+        adaptiveLayout
+        .toolbar {
+            ToolbarItemGroup(placement: .secondaryAction) {
+                Button("次のペイン", systemImage: "arrow.right") {
+                    cyclePane(backward: false)
+                }
+                .keyboardShortcut(KeyEquivalent("\t"), modifiers: .control)
+                Button("前のペイン", systemImage: "arrow.left") {
+                    cyclePane(backward: true)
+                }
+                .keyboardShortcut(KeyEquivalent("\t"), modifiers: [.control, .shift])
+                Button("一覧の表示・非表示", systemImage: "sidebar.left") {
+                    columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
             }
         }
         .sheet(isPresented: $showingCreateSheet) {
@@ -171,33 +180,9 @@ struct SessionListView: View {
         }
     }
 
-    // MARK: - iPhone Layout (NavigationStack)
-    private var compactLayout: some View {
-        NavigationStack(path: $navigationPath) {
-            listContent
-                .navigationTitle(currentServerName)
-                .navigationDestination(for: PaneNavigationItem.self) { item in
-                    PaneDetailView(pane: item.pane, windowName: item.windowName)
-                        .onAppear {
-                            if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
-                                AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: item.pane.target)
-                            }
-                        }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        serverListButton
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        settingsButton
-                    }
-                }
-        }
-    }
-
-    // MARK: - iPad Layout (NavigationSplitView)
-    private var regularLayout: some View {
-        NavigationSplitView {
+    // Keep one navigation hierarchy as the display opens, closes, or resizes.
+    private var adaptiveLayout: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             listContent
                 .navigationTitle(currentServerName)
                 .toolbar {
@@ -227,12 +212,20 @@ struct SessionListView: View {
         }
     }
 
+    private func cyclePane(backward: Bool) {
+        selectedPane = PaneNavigationItem.adjacent(
+            to: selectedPane,
+            in: viewModel.sessions,
+            backward: backward
+        )
+    }
+
     @ViewBuilder
     private var listContent: some View {
         if viewModel.isLoading && viewModel.sessions.isEmpty {
             ProgressView("Loading sessions...")
         } else {
-            List {
+            List(selection: $selectedPane) {
                 if viewModel.sessions.isEmpty {
                     ContentUnavailableView(
                         "No Sessions",
@@ -262,9 +255,6 @@ struct SessionListView: View {
                     SessionSection(
                         session: session,
                         unreadPanes: unreadPanes,
-                        isCompact: horizontalSizeClass == .compact,
-                        selectedPane: $selectedPane,
-                        navigationPath: $navigationPath,
                         onRequestDelete: { pane in
                             paneToDelete = pane
                         },
@@ -334,12 +324,7 @@ struct SessionListView: View {
                 for pane in window.panes {
                     if pane.target == paneTarget {
                         let item = PaneNavigationItem(pane: pane, windowName: window.name)
-                        if horizontalSizeClass == .compact {
-                            navigationPath = NavigationPath()
-                            navigationPath.append(item)
-                        } else {
-                            selectedPane = item
-                        }
+                        selectedPane = item
                         return
                     }
                 }
@@ -381,6 +366,19 @@ struct SessionListView: View {
 struct PaneNavigationItem: Hashable {
     let pane: Pane
     let windowName: String
+
+    static func adjacent(to selected: Self?, in sessions: [Session], backward: Bool) -> Self? {
+        let items = sessions.flatMap { session in
+            session.windows.flatMap { window in
+                window.panes.map { Self(pane: $0, windowName: window.name) }
+            }
+        }
+        guard !items.isEmpty else { return nil }
+        guard let index = items.firstIndex(where: { $0.pane.target == selected?.pane.target }) else {
+            return backward ? items.last : items.first
+        }
+        return items[(index + (backward ? -1 : 1) + items.count) % items.count]
+    }
 }
 
 // MARK: - SessionSection
@@ -388,9 +386,6 @@ struct PaneNavigationItem: Hashable {
 struct SessionSection: View {
     let session: Session
     let unreadPanes: Set<String>
-    let isCompact: Bool
-    @Binding var selectedPane: PaneNavigationItem?
-    @Binding var navigationPath: NavigationPath
     var onRequestDelete: (Pane) -> Void
     var onDeletePane: (String) async -> Void
 
@@ -401,9 +396,6 @@ struct SessionSection: View {
                     window: window,
                     sessionName: session.name,
                     unreadPanes: unreadPanes,
-                    isCompact: isCompact,
-                    selectedPane: $selectedPane,
-                    navigationPath: $navigationPath,
                     onRequestDelete: onRequestDelete
                 )
                 .listRowSeparator(.visible)
@@ -435,95 +427,44 @@ struct WindowRow: View {
     let window: Window
     let sessionName: String
     let unreadPanes: Set<String>
-    let isCompact: Bool
-    @Binding var selectedPane: PaneNavigationItem?
-    @Binding var navigationPath: NavigationPath
     var onRequestDelete: (Pane) -> Void
 
     private var hasUnreadPane: Bool {
         window.panes.contains { unreadPanes.contains($0.target) }
     }
 
-    private func isSelected(_ pane: Pane) -> Bool {
-        selectedPane?.pane.target == pane.target
-    }
-
-    private func selectPane(_ pane: Pane) {
-        let item = PaneNavigationItem(pane: pane, windowName: window.name)
-        if isCompact {
-            navigationPath.append(item)
-        } else {
-            selectedPane = item
-        }
-    }
-
     var body: some View {
         Group {
             if window.panes.count == 1, let pane = window.panes.first {
-                if isCompact {
-                    NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            onRequestDelete(pane)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                } else {
-                    Button {
-                        selectPane(pane)
-                    } label: {
-                        WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(isSelected(pane) ? Color.accentColor.opacity(0.2) : nil)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            onRequestDelete(pane)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+                NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
+                    WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    deleteButton(for: pane)
                 }
             } else {
                 DisclosureGroup {
                     ForEach(window.panes) { pane in
-                        if isCompact {
-                            NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    onRequestDelete(pane)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .listRowSeparator(.visible)
-                        } else {
-                            Button {
-                                selectPane(pane)
-                            } label: {
-                                PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
-                            }
-                            .buttonStyle(.plain)
-                            .listRowBackground(isSelected(pane) ? Color.accentColor.opacity(0.2) : nil)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    onRequestDelete(pane)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .listRowSeparator(.visible)
+                        NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
+                            PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            deleteButton(for: pane)
+                        }
+                        .listRowSeparator(.visible)
                     }
                 } label: {
                     WindowLabel(window: window, isUnread: hasUnreadPane)
                 }
             }
+        }
+    }
+
+    private func deleteButton(for pane: Pane) -> some View {
+        Button(role: .destructive) {
+            onRequestDelete(pane)
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 }

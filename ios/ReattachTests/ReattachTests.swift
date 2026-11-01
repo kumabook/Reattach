@@ -12,6 +12,20 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func paneShortcutsFollowListOrderAndWrap() throws {
+        let sessions = MockData.sessions
+        let first = try #require(PaneNavigationItem.adjacent(to: nil, in: sessions, backward: false))
+        let last = try #require(PaneNavigationItem.adjacent(to: nil, in: sessions, backward: true))
+        #expect(first.pane.target == "dev:0.0")
+        #expect(last.pane.target == "tools:1.0")
+        #expect(PaneNavigationItem.adjacent(to: first, in: sessions, backward: true) == last)
+        #expect(PaneNavigationItem.adjacent(to: last, in: sessions, backward: false) == first)
+        let next = PaneNavigationItem.adjacent(to: first, in: sessions, backward: false)
+        #expect(next?.pane.target == "dev:1.0")
+        #expect(PaneNavigationItem.adjacent(to: next, in: sessions, backward: true) == first)
+        #expect(PaneNavigationItem.adjacent(to: first, in: [], backward: false) == nil)
+    }
+
     @Test func commandReturnSubmitsOnlyCommittedDraft() {
         var sent: [String] = []
         let view = DirectInputDraftTextView()
