@@ -40,13 +40,15 @@ pub fn capture_pane_snapshot(target: &str, lines: u32) -> Result<PaneSnapshot, T
 }
 
 fn capture_cursor(target: &str) -> Result<PaneCursor, TmuxError> {
+    // Use a printable delimiter: tmux can sanitize tabs to underscores when
+    // the client runs without a terminal (as it does under launchd).
     let output = Command::new("tmux")
         .args([
             "display-message",
             "-p",
             "-t",
             target,
-            "#{cursor_x}\t#{cursor_y}\t#{pane_width}\t#{pane_height}\t#{cursor_flag}",
+            "#{cursor_x}|#{cursor_y}|#{pane_width}|#{pane_height}|#{cursor_flag}",
         ])
         .output()
         .map_err(TmuxError::Io)?;
@@ -56,11 +58,13 @@ fn capture_cursor(target: &str) -> Result<PaneCursor, TmuxError> {
         return Err(TmuxError::Command(stderr.to_string()));
     }
 
-    parse_cursor(&String::from_utf8_lossy(&output.stdout))
+    let metadata = String::from_utf8_lossy(&output.stdout);
+    parse_cursor(&metadata)
+        .map_err(|error| TmuxError::Command(format!("{error}; cursor metadata: {metadata:?}")))
 }
 
 fn parse_cursor(value: &str) -> Result<PaneCursor, TmuxError> {
-    let mut fields = value.trim().split('\t');
+    let mut fields = value.trim().split('|');
     let x = parse_cursor_field(fields.next(), "x")?;
     let y = parse_cursor_field(fields.next(), "y")?;
     let pane_width = parse_cursor_field(fields.next(), "pane width")?;
@@ -94,7 +98,7 @@ mod tests {
     #[test]
     fn parses_cursor_position_relative_to_pane_bottom() {
         assert_eq!(
-            parse_cursor("12\t3\t80\t24\t1\n").unwrap(),
+            parse_cursor("12|3|80|24|1\n").unwrap(),
             PaneCursor {
                 x: 12,
                 row_from_bottom: 20,
@@ -106,7 +110,21 @@ mod tests {
 
     #[test]
     fn rejects_invalid_cursor_metadata() {
-        assert!(parse_cursor("12\t3\t80\t0\t1").is_err());
+        assert!(parse_cursor("12|3|80|0|1").is_err());
         assert!(parse_cursor("missing fields").is_err());
+    }
+
+    #[test]
+    fn parses_printable_delimited_cursor_metadata() {
+        for (metadata, x, row_from_bottom, visible) in [
+            ("2|79|338|83|1\n", 2, 3, true),
+            ("0|0|80|24|0\n", 0, 23, false),
+            ("79|23|80|24|1\n", 79, 0, true),
+        ] {
+            let cursor = parse_cursor(metadata).unwrap();
+            assert_eq!(cursor.x, x);
+            assert_eq!(cursor.row_from_bottom, row_from_bottom);
+            assert_eq!(cursor.visible, visible);
+        }
     }
 }
