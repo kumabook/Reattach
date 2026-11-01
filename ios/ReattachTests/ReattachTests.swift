@@ -12,6 +12,38 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func cursorTracksActualGlyphsForEnglishAndJapanese() throws {
+        for (line, column, offset) in [
+            ("abcdefghijklmnopqrstuvwxyz", 26, 26),
+            ("abc日本語def", 9, 6),
+            ("日本語日本語日本語", 18, 9),
+            ("e\u{301}あ", 3, 3),
+            ("ｱｲｳ", 3, 3),
+        ] {
+            let view = UITextView(frame: CGRect(x: 0, y: 0, width: 600, height: 100))
+            view.isEditable = false
+            view.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+            view.attributedText = NSAttributedString(string: line + "\n", attributes: [
+                .font: UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
+            ])
+            view.layoutManager.ensureLayout(for: view.textContainer)
+            let position = try #require(view.position(from: view.beginningOfDocument, offset: offset))
+            let expected = view.caretRect(for: position)
+            let cursor = PaneCursorState(x: column, rowFromBottom: 0, paneWidth: 80, visible: true)
+            let actual = try #require(ZoomableTextView.Coordinator().cursorFrame(cursor, in: view))
+            #expect(abs(actual.minX - expected.minX) < 0.1)
+            #expect(abs(actual.minY - expected.minY) < 0.1)
+        }
+    }
+
+    @Test func terminalColumnsMapWideCharactersAndTrailingSpaces() {
+        #expect(TerminalColumns.location(in: "a日本b", column: 5).utf16Offset == 3)
+        #expect(TerminalColumns.location(in: "a日", column: 2).extraColumns == 1)
+        #expect(TerminalColumns.location(in: "日本", column: 8).extraColumns == 4)
+        #expect(TerminalColumns.width(of: "か\u{3099}") == 2)
+        #expect(TerminalColumns.width(of: "👩‍💻") == 2)
+    }
+
     @Test func paneShortcutsFollowListOrderAndWrap() throws {
         let sessions = MockData.sessions
         let first = try #require(PaneNavigationItem.adjacent(to: nil, in: sessions, backward: false))

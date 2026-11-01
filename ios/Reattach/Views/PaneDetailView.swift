@@ -97,7 +97,7 @@ struct ZoomableTextView: UIViewRepresentable {
         var lastCursor: PaneCursorState?
         weak var scrollView: UIScrollView?
         weak var cursorView: UIView?
-        let terminalCellWidth = ceil(
+        let terminalCellWidth = (
             ("M" as NSString).size(withAttributes: [
                 .font: UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
             ]).width
@@ -131,7 +131,7 @@ struct ZoomableTextView: UIViewRepresentable {
             }
         }
 
-        private func cursorFrame(
+        func cursorFrame(
             _ cursor: PaneCursorState,
             in textView: UITextView
         ) -> CGRect? {
@@ -144,29 +144,26 @@ struct ZoomableTextView: UIViewRepresentable {
             let lineStart = lines[..<lineIndex].reduce(0) {
                 $0 + $1.utf16.count + 1
             }
-            let textLength = (text as NSString).length
+            let location = TerminalColumns.location(in: lines[lineIndex], column: min(cursor.x, cursor.paneWidth))
             textView.layoutManager.ensureLayout(for: textView.textContainer)
-
-            let lineRect: CGRect
-            if lineStart < textLength {
-                let glyphIndex = textView.layoutManager.glyphIndexForCharacter(at: lineStart)
-                lineRect = textView.layoutManager.lineFragmentRect(
-                    forGlyphAt: glyphIndex,
-                    effectiveRange: nil
-                )
-            } else if !textView.layoutManager.extraLineFragmentRect.isEmpty {
-                lineRect = textView.layoutManager.extraLineFragmentRect
-            } else {
-                return nil
+            guard let position = textView.position(
+                from: textView.beginningOfDocument,
+                offset: lineStart + location.utf16Offset
+            ) else { return nil }
+            let caret = textView.caretRect(for: position)
+            var cellWidth = terminalCellWidth
+            if location.characterLength > 0,
+               let next = textView.position(from: position, offset: location.characterLength) {
+                let nextCaret = textView.caretRect(for: next)
+                if abs(nextCaret.minY - caret.minY) < 1, nextCaret.minX > caret.minX {
+                    cellWidth = (nextCaret.minX - caret.minX) / CGFloat(location.characterColumns)
+                }
             }
-
             return CGRect(
-                x: textView.textContainerInset.left
-                    + lineRect.minX
-                    + CGFloat(min(cursor.x, cursor.paneWidth)) * terminalCellWidth,
-                y: textView.textContainerInset.top + lineRect.minY,
-                width: terminalCellWidth,
-                height: max(lineRect.height, 10)
+                x: caret.minX + CGFloat(location.extraColumns) * cellWidth,
+                y: caret.minY,
+                width: cellWidth,
+                height: max(caret.height, 10)
             )
         }
 
@@ -207,6 +204,47 @@ struct ZoomableTextView: UIViewRepresentable {
             )
             return CGRect(origin: origin, size: size)
         }
+    }
+}
+
+// tmux reports terminal columns, whereas UIKit positions text using UTF-16 offsets.
+// Wide/fullwidth Unicode scalars consume two terminal cells; combining marks consume none.
+enum TerminalColumns {
+    private static let wideScalar = try! NSRegularExpression(pattern: "[\\p{ea=W}\\p{ea=F}]")
+
+    static func width(of character: Character) -> Int {
+        let scalars = character.unicodeScalars
+        if scalars.contains(where: { $0.properties.isEmojiPresentation || $0.value == 0xFE0F }) {
+            return 2
+        }
+        return scalars.map { scalar in
+            switch scalar.properties.generalCategory {
+            case .nonspacingMark, .enclosingMark, .format, .control:
+                return 0
+            default:
+                let text = String(scalar)
+                let range = NSRange(location: 0, length: text.utf16.count)
+                return wideScalar.firstMatch(in: text, range: range) == nil ? 1 : 2
+            }
+        }.max() ?? 0
+    }
+
+    static func location(in line: String, column: Int) -> (
+        utf16Offset: Int, extraColumns: Int, characterLength: Int, characterColumns: Int
+    ) {
+        var offset = 0
+        var columns = 0
+        for character in line {
+            let length = String(character).utf16.count
+            let width = width(of: character)
+            if width > 0, columns + width > column {
+                return (offset, max(0, column - columns), length, width)
+            }
+            columns += width
+            offset += length
+        }
+        // capture-pane trims trailing spaces; extrapolate only that empty area.
+        return (offset, max(0, column - columns), 0, 1)
     }
 }
 
