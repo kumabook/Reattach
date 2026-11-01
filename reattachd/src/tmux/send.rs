@@ -61,7 +61,7 @@ pub fn send_escape(target: &str) -> Result<(), TmuxError> {
     send_key(target, "escape", &[])
 }
 
-fn tmux_key_name(key: &str, modifiers: &[KeyModifier]) -> Result<String, TmuxError> {
+pub(super) fn tmux_key_name(key: &str, modifiers: &[KeyModifier]) -> Result<String, TmuxError> {
     let base = match key {
         "enter" => "Enter".to_string(),
         "escape" => "Escape".to_string(),

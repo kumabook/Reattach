@@ -20,6 +20,9 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
+    DirectMode {
+        enabled: bool,
+    },
     Input {
         text: String,
     },
@@ -38,6 +41,12 @@ enum ClientMessage {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ServerMessage {
+    Ready {
+        tmux_keys: bool,
+    },
+    Navigation {
+        state: tmux::ClientState,
+    },
     Output {
         output: String,
         cursor: tmux::PaneCursor,
@@ -70,7 +79,15 @@ pub async fn stream_pane(
         .into_response())
 }
 
-async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
+async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32) {
+    let mut client: Option<tmux::ControlClient> = None;
+    let mut last_state: Option<tmux::ClientState> = None;
+    if send_message(&mut socket, &ServerMessage::Ready { tmux_keys: true })
+        .await
+        .is_err()
+    {
+        return;
+    }
     let mut interval = tokio::time::interval(CAPTURE_INTERVAL);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
@@ -79,6 +96,43 @@ async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
     let mut last_cursor: Option<tmux::PaneCursor> = None;
 
     loop {
+        // Synchronize after every input as well as every capture tick. This keeps
+        // rapid prefix/navigation/text sequences aimed at the newly selected pane.
+        if let Some(control) = &mut client {
+            match control.state().await {
+                Ok(state) => {
+                    if target != state.pane_id {
+                        target = state.pane_id.clone();
+                        last_output = None;
+                        last_cursor = None;
+                    }
+                    if last_state.as_ref() != Some(&state) {
+                        if send_message(
+                            &mut socket,
+                            &ServerMessage::Navigation {
+                                state: state.clone(),
+                            },
+                        )
+                        .await
+                        .is_err()
+                        {
+                            break;
+                        }
+                        last_state = Some(state);
+                    }
+                }
+                Err(error) => {
+                    let _ = send_message(
+                        &mut socket,
+                        &ServerMessage::Error {
+                            error: error.to_string(),
+                        },
+                    )
+                    .await;
+                    break;
+                }
+            }
+        }
         tokio::select! {
             _ = interval.tick() => {
                 match capture_snapshot(target.clone(), lines).await {
@@ -126,17 +180,36 @@ async fn handle_socket(mut socket: WebSocket, target: String, lines: u32) {
                 match message {
                     Message::Text(text) => {
                         let result = match serde_json::from_str::<ClientMessage>(&text) {
+                            Ok(ClientMessage::DirectMode { enabled }) => {
+                                if enabled && client.is_none() {
+                                    match tmux::ControlClient::attach(&target).await {
+                                        Ok(control) => { client = Some(control); last_state = None; Ok(()) }
+                                        Err(error) => Err(error),
+                                    }
+                                } else {
+                                    if !enabled { client = None; last_state = None; }
+                                    Ok(())
+                                }
+                            }
                             Ok(ClientMessage::Input { text }) => {
                                 let input_target = target.clone();
                                 run_tmux(move || tmux::send_keys(&input_target, &text)).await
                             }
                             Ok(ClientMessage::Text { text }) => {
                                 let text_target = target.clone();
-                                run_tmux(move || tmux::send_text(&text_target, &text)).await
+                                if let Some(control) = &client {
+                                    control.send_text(&text).await
+                                } else {
+                                    run_tmux(move || tmux::send_text(&text_target, &text)).await
+                                }
                             }
                             Ok(ClientMessage::Key { key, modifiers }) => {
                                 let key_target = target.clone();
-                                run_tmux(move || tmux::send_key(&key_target, &key, &modifiers)).await
+                                if let Some(control) = &client {
+                                    control.send_key(&key, &modifiers).await
+                                } else {
+                                    run_tmux(move || tmux::send_key(&key_target, &key, &modifiers)).await
+                                }
                             }
                             Ok(ClientMessage::Escape) => {
                                 let escape_target = target.clone();

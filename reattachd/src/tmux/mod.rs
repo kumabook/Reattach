@@ -1,10 +1,12 @@
 mod capture;
+mod control;
 mod create;
 mod kill;
 mod list;
 mod send;
 
 pub use capture::{capture_pane, capture_pane_snapshot, PaneCursor, PaneSnapshot};
+pub use control::{ClientState, ControlClient};
 pub use create::create_session;
 pub use kill::kill_pane;
 pub use list::list_sessions;
