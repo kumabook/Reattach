@@ -12,6 +12,20 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func compositionOverlayStaysNearCursorAndInsideViewport() {
+        let viewport = CGSize(width: 600, height: 400)
+        let normal = CompositionPlacement.frame(cursor: CGRect(x: 100, y: 100, width: 8, height: 16), viewport: viewport)
+        #expect(normal.minX == 100)
+        #expect(normal.maxY == 84)
+        let top = CompositionPlacement.frame(cursor: CGRect(x: 100, y: 8, width: 8, height: 16), viewport: viewport)
+        #expect(top.minY == 40)
+        let edge = CompositionPlacement.frame(cursor: CGRect(x: 590, y: 380, width: 8, height: 16), viewport: viewport)
+        #expect(edge.maxX <= 592)
+        #expect(edge.maxY < 380)
+        let fallback = CompositionPlacement.frame(cursor: nil, viewport: viewport)
+        #expect(fallback.minY >= 0 && fallback.maxY <= 400)
+    }
+
     @Test func tmuxNavigationDecodingAndModeEncoding() throws {
         let data = Data(#"{"type":"navigation","state":{"pane_id":"%12","key_table":"prefix","prefix":"C-j","target":"work:2.1","window_name":"editor"}}"#.utf8)
         let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)

@@ -17,6 +17,7 @@ struct DirectInputView: View {
     @State private var clearActivityTask: Task<Void, Never>?
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
     @Binding var draft: String
+    var onCompositionState: (Bool) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +28,6 @@ struct DirectInputView: View {
                         onSendAndEnter(text)
                         return true
                     })
-                        .frame(height: 88)
                         .accessibilityIdentifier("directInputDraft")
                     Button {
                         let text = draft
@@ -37,53 +37,21 @@ struct DirectInputView: View {
                     } label: {
                         Image(systemName: "paperplane.fill")
                     }
+                    .frame(width: 44, height: 44)
                     .accessibilityLabel("文章を送信")
+                    .accessibilityHint("⌘＋Enterでも送信できます。Enterは改行です")
                     .accessibilityIdentifier("directInputSendText")
                     .disabled(draft.isEmpty)
 
                 }
-                .padding()
-                HStack {
-                    Text("⌘＋Enterで送信 · Enterで改行")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
-                    inputModeMenu
-                }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
             } else {
-                HStack(spacing: 0) {
-                    immediateInput
-                        .disabled(!isConnected)
-                    inputModeMenu
-                        .padding(.trailing, 12)
-                }
+                immediateInput
+                    .disabled(!isConnected)
             }
         }
         .background(.bar)
-    }
-
-    private var inputModeMenu: some View {
-        Menu {
-            Picker("入力モード", selection: $composeEnabled) {
-                Label("直接入力", systemImage: "keyboard").tag(false)
-                Label("文章入力", systemImage: "text.alignleft").tag(true)
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(composeEnabled ? "文章入力" : "直接入力")
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-            }
-            .font(.caption)
-            .fixedSize()
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .disabled(isComposingText)
-        .accessibilityLabel("入力モード：" + (composeEnabled ? "文章入力" : "直接入力"))
-        .accessibilityHint("タップして入力モードを切り替えます")
-        .accessibilityIdentifier("terminalInputMode")
     }
 
     private var immediateInput: some View {
@@ -96,33 +64,16 @@ struct DirectInputView: View {
                 showActivity(Self.activityLabel(for: key, modifiers: modifiers))
                 onKey(key, modifiers)
             },
-            onCompositionChanged: { isComposingText = $0 }
+            onCompositionChanged: {
+                isComposingText = $0
+                onCompositionState($0)
+            }
         )
-            .overlay(alignment: .leading) {
-                if !isComposingText {
-                    HStack(spacing: 8) {
-                        Image(systemName: activityLabel == nil ? "keyboard" : "checkmark.circle.fill")
-                            .foregroundStyle(activityLabel == nil ? Color.secondary : Color.green)
-                            .symbolEffect(.bounce, value: activityCount)
-                        Text(activityLabel ?? (isConnected ? "直接入力中" : "接続待ち…"))
-                            .contentTransition(.opacity)
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-                    .allowsHitTesting(false)
-                }
-            }
-            .frame(minHeight: 48, maxHeight: 48)
+            // Keep the native responder mounted for hardware keyboards and IME.
+            // Only marked text needs a visible editor; idle direct input takes no space.
+            .frame(height: isComposingText ? 48 : 0)
+            .clipped()
             .background(.bar)
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(
-                        activityLabel == nil ? Color.clear : Color.accentColor.opacity(0.55),
-                        lineWidth: 1
-                    )
-                    .allowsHitTesting(false)
-            }
             .onDisappear {
                 clearActivityTask?.cancel()
             }
@@ -203,6 +154,15 @@ struct DirectInputDraftEditor: UIViewRepresentable {
         }
     }
 
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: DirectInputDraftTextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        let lineHeight = uiView.font?.lineHeight ?? 20
+        let insets = uiView.textContainerInset.top + uiView.textContainerInset.bottom
+        let measured = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        let height = min(lineHeight * 4 + insets, max(lineHeight + insets, measured.height))
+        return CGSize(width: width, height: ceil(height))
+    }
+
     final class Coordinator: NSObject, UITextViewDelegate {
         var text: Binding<String>
 
@@ -257,6 +217,9 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
             guard let textView else { return }
             coordinator?.textViewDidChange(textView)
         }
+        // The hardware-keyboard candidate bar is anchored to the marked text,
+        // not our outer border. Top padding would put that bar over the border.
+        textView.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: 8, right: 0)
         textView.backgroundColor = .clear
         textView.textColor = .label
         textView.tintColor = .tintColor

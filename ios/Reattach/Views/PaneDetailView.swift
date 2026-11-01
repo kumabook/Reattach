@@ -20,6 +20,7 @@ struct ZoomableTextView: UIViewRepresentable {
     let cursor: PaneCursorState?
     @Binding var scrollToBottom: Bool
     var zoomRequest: TerminalZoomRequest? = nil
+    var onCursorRectChanged: ((CGRect?) -> Void)? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         context.coordinator.lastContentVersion = nil
@@ -57,6 +58,7 @@ struct ZoomableTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.onCursorRectChanged = onCursorRectChanged
         guard let textView = scrollView.viewWithTag(100) as? UITextView else { return }
 
         let contentChanged = context.coordinator.lastContentVersion != contentVersion
@@ -97,6 +99,8 @@ struct ZoomableTextView: UIViewRepresentable {
             context.coordinator.applyZoom(zoomRequest, in: scrollView)
         }
 
+        context.coordinator.publishCursorRect()
+
         if scrollToBottom {
             DispatchQueue.main.async {
                 let bottomOffset = CGPoint(
@@ -119,6 +123,28 @@ struct ZoomableTextView: UIViewRepresentable {
         var lastCursor: PaneCursorState?
         weak var scrollView: UIScrollView?
         weak var cursorView: UIView?
+        var onCursorRectChanged: ((CGRect?) -> Void)?
+        private var publishedCursorRect: CGRect?
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) { publishCursorRect() }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) { publishCursorRect() }
+
+        func publishCursorRect() {
+            var rect: CGRect?
+            if let scrollView, let cursorView, !cursorView.isHidden {
+                let converted = cursorView.convert(cursorView.bounds, to: scrollView)
+                    .offsetBy(dx: -scrollView.bounds.minX, dy: -scrollView.bounds.minY)
+                if CGRect(origin: .zero, size: scrollView.bounds.size).intersects(converted) {
+                    rect = converted
+                }
+            }
+            guard rect != publishedCursorRect else { return }
+            publishedCursorRect = rect
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.publishedCursorRect == rect else { return }
+                self.onCursorRectChanged?(rect)
+            }
+        }
         let terminalCellWidth = (
             ("M" as NSString).size(withAttributes: [
                 .font: UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
@@ -302,6 +328,23 @@ enum TerminalColumns {
     }
 }
 
+// Keep native IME text and its candidate anchor close to the terminal cursor.
+enum CompositionPlacement {
+    static func frame(cursor: CGRect?, viewport: CGSize) -> CGRect {
+        let margin: CGFloat = 8
+        let width = max(0, min(360, viewport.width - margin * 2))
+        let height = min(CGFloat(44), max(0, viewport.height - margin * 2))
+        let anchor = cursor ?? CGRect(x: margin, y: viewport.height - height - margin, width: 0, height: 0)
+        let x = max(margin, min(anchor.minX, viewport.width - width - margin))
+        // iOS shows conversion candidates above the editor, so prefer keeping
+        // the whole composition UI above the terminal insertion point.
+        let gap = max(CGFloat(12), anchor.height)
+        let above = anchor.minY - height - gap
+        let y = above >= margin ? above : anchor.maxY + gap
+        return CGRect(x: x, y: max(margin, min(y, viewport.height - height - margin)), width: width, height: height)
+    }
+}
+
 // MARK: - PaneDetailView
 
 struct PaneDetailView: View {
@@ -312,6 +355,8 @@ struct PaneDetailView: View {
     @State private var scrollToBottom = false
     @State private var zoomRequest: TerminalZoomRequest?
     @State private var inputText = ""
+    @State private var isDirectCompositionActive = false
+    @State private var visibleCursorRect: CGRect?
     @State private var showCommandEditor = false
     @State private var showCommandPicker = false
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
@@ -339,8 +384,32 @@ struct PaneDetailView: View {
                 contentVersion: viewModel.contentVersion,
                 cursor: viewModel.cursor,
                 scrollToBottom: $scrollToBottom,
-                zoomRequest: zoomRequest
+                zoomRequest: zoomRequest,
+                onCursorRectChanged: { visibleCursorRect = $0 }
             )
+            .overlay(alignment: .topLeading) {
+                if !composeEnabled {
+                    GeometryReader { geometry in
+                        let frame = CompositionPlacement.frame(cursor: visibleCursorRect, viewport: geometry.size)
+                        DirectInputTextViewRepresentable(
+                            onText: { viewModel.queueDirectText($0) },
+                            onKey: { viewModel.queueDirectKey($0, modifiers: $1) },
+                            onCompositionChanged: { isDirectCompositionActive = $0 }
+                        )
+                        .frame(width: frame.width, height: frame.height)
+                        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
+                                .allowsHitTesting(false)
+                        }
+                        .opacity(isDirectCompositionActive ? 1 : 0)
+                        .allowsHitTesting(isDirectCompositionActive)
+                        .disabled(!viewModel.isStreamConnected)
+                        .offset(x: frame.minX, y: frame.minY)
+                    }
+                }
+            }
             .overlay(alignment: .topLeading) {
                 if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
                     Text("tmux · 次のキーを入力（\(state.prefix)）")
@@ -379,137 +448,162 @@ struct PaneDetailView: View {
                 }
             }
 
-            Divider()
+            if composeEnabled {
+                Divider()
 
-            switch viewModel.quickAction {
-            case .options(let options):
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(options, id: \.number) { option in
-                            Button {
-                                Task {
-                                    await viewModel.sendInput(option.number)
+                switch viewModel.quickAction {
+                case .options(let options):
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(options, id: \.number) { option in
+                                Button {
+                                    Task {
+                                        await viewModel.sendInput(option.number)
+                                    }
+                                } label: {
+                                    Text("\(option.number). \(option.label)")
+                                        .font(.caption)
+                                        .lineLimit(1)
                                 }
-                            } label: {
-                                Text("\(option.number). \(option.label)")
-                                    .font(.caption)
-                                    .lineLimit(1)
+                                .buttonStyle(.bordered)
+                                .tint(.accentColor)
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.accentColor)
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 6)
+                    }
+                    .background(.bar)
+                    Divider()
+
+                case .yesNo:
+                    HStack(spacing: 12) {
+                        Button {
+                            Task {
+                                await viewModel.sendInput("y")
+                            }
+                        } label: {
+                            Label("Yes", systemImage: "checkmark.circle.fill")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+
+                        Button {
+                            Task {
+                                await viewModel.sendInput("n")
+                            }
+                        } label: {
+                            Label("No", systemImage: "xmark.circle.fill")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                     }
                     .padding(.horizontal)
-                    .padding(.vertical, 6)
-                }
-                .background(.bar)
-                Divider()
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.bar)
+                    Divider()
 
-            case .yesNo:
-                HStack(spacing: 12) {
-                    Button {
-                        Task {
-                            await viewModel.sendInput("y")
-                        }
-                    } label: {
-                        Label("Yes", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.green)
-
-                    Button {
-                        Task {
-                            await viewModel.sendInput("n")
-                        }
-                    } label: {
-                        Label("No", systemImage: "xmark.circle.fill")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .background(.bar)
-                Divider()
-
-            case .suggestions(let suggestions):
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(suggestions, id: \.self) { suggestion in
-                            Button {
-                                Task {
-                                    await viewModel.sendInput(suggestion)
+                case .suggestions(let suggestions):
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button {
+                                    Task {
+                                        await viewModel.sendInput(suggestion)
+                                    }
+                                } label: {
+                                    Text(suggestion)
+                                        .font(.caption)
+                                        .lineLimit(1)
                                 }
-                            } label: {
-                                Text(suggestion)
-                                    .font(.caption)
-                                    .lineLimit(1)
+                                .buttonStyle(.bordered)
+                                .tint(.orange)
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.orange)
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 6)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 6)
-                }
-                .background(.bar)
-                Divider()
+                    .background(.bar)
+                    Divider()
 
-            case .none:
-                EmptyView()
+                case .none:
+                    EmptyView()
+                }
+
             }
 
-            ZStack(alignment: .topTrailing) {
-                DirectInputView(
-                    isConnected: viewModel.isStreamConnected,
-                    onText: { viewModel.queueDirectText($0) },
-                    onKey: { key, modifiers in
-                        viewModel.queueDirectKey(key, modifiers: modifiers)
-                    },
-                    onSendAndEnter: { text in
-                        Task { await viewModel.sendInput(text) }
-                    },
-                    draft: $inputText
-                )
-
-                HStack(spacing: 8) {
+            if composeEnabled {
+                ZStack(alignment: .topTrailing) {
                     if composeEnabled {
+                        DirectInputView(
+                            isConnected: viewModel.isStreamConnected,
+                            onText: { viewModel.queueDirectText($0) },
+                            onKey: { key, modifiers in
+                                viewModel.queueDirectKey(key, modifiers: modifiers)
+                            },
+                            onSendAndEnter: { text in
+                                Task { await viewModel.sendInput(text) }
+                            },
+                            draft: $inputText,
+                            onCompositionState: { isDirectCompositionActive = $0 }
+                        )
+                    }
+
+                    HStack(spacing: 8) {
+                        if composeEnabled {
+                            GlassButton {
+                                showCommandPicker = true
+                            } label: {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.purple)
+                            }
+                            .disabled(viewModel.isSending)
+                        }
+
                         GlassButton {
-                            showCommandPicker = true
+                            if !composeEnabled {
+                                viewModel.queueDirectKey("escape")
+                            } else {
+                                Task {
+                                    await viewModel.sendEscape()
+                                }
+                            }
                         } label: {
-                            Image(systemName: "bookmark.fill")
+                            Image(systemName: "stop.fill")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(.red)
                         }
                         .disabled(viewModel.isSending)
-                    }
 
-                    GlassButton {
-                        if !composeEnabled {
-                            viewModel.queueDirectKey("escape")
-                        } else {
-                            Task {
-                                await viewModel.sendEscape()
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.red)
                     }
-                    .disabled(viewModel.isSending)
-
+                    .opacity(composeEnabled ? 1 : 0)
+                    .allowsHitTesting(composeEnabled)
+                    .offset(x: -12, y: hasQuickAction ? -96 : -52)
+                    .animation(.easeInOut(duration: 0.2), value: hasQuickAction)
                 }
-                .offset(x: -12, y: hasQuickAction ? -96 : -52)
-                .animation(.easeInOut(duration: 0.2), value: hasQuickAction)
             }
         }
         .navigationTitle(viewModel.tmuxNavigation?.windowName ?? windowName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("入力モード", selection: $composeEnabled) {
+                        Label("直接入力", systemImage: "keyboard").tag(false)
+                        Label("文章入力", systemImage: "text.alignleft").tag(true)
+                    }
+                    if !composeEnabled {
+                        Button("Escapeを送信") { viewModel.queueDirectKey("escape") }
+                    }
+                } label: {
+                    Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
+                }
+                .disabled(isDirectCompositionActive)
+                .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
