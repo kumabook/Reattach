@@ -99,18 +99,14 @@ struct ZoomableTextView: UIViewRepresentable {
             context.coordinator.applyZoom(zoomRequest, in: scrollView)
         }
 
-        context.coordinator.publishCursorRect()
-
-        if scrollToBottom {
-            DispatchQueue.main.async {
-                let bottomOffset = CGPoint(
-                    x: scrollView.contentOffset.x,
-                    y: max(0, scrollView.contentSize.height - scrollView.bounds.height)
-                )
-                scrollView.setContentOffset(bottomOffset, animated: false)
-                scrollToBottom = false
-            }
+        if contentChanged {
+            context.coordinator.scrollToLatest(in: scrollView)
         }
+        if scrollToBottom {
+            context.coordinator.scrollToLatest(in: scrollView, force: true)
+            DispatchQueue.main.async { scrollToBottom = false }
+        }
+        context.coordinator.publishCursorRect()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -125,6 +121,50 @@ struct ZoomableTextView: UIViewRepresentable {
         weak var cursorView: UIView?
         var onCursorRectChanged: ((CGRect?) -> Void)?
         private var publishedCursorRect: CGRect?
+        private var isUserScrolling = false
+        private var isUserZooming = false
+        private var followsLatestOutput = true
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            isUserScrolling = true
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate { finishUserScroll(scrollView) }
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            finishUserScroll(scrollView)
+        }
+
+        private func finishUserScroll(_ scrollView: UIScrollView) {
+            isUserScrolling = false
+            let bottom = max(-scrollView.adjustedContentInset.top,
+                             scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+            followsLatestOutput = bottom - scrollView.contentOffset.y <= 24
+        }
+
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            isUserZooming = true
+        }
+
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            isUserZooming = false
+        }
+
+        func scrollToLatest(in scrollView: UIScrollView, force: Bool = false) {
+            guard !isUserScrolling, !isUserZooming,
+                  !scrollView.isTracking, !scrollView.isDragging,
+                  !scrollView.isDecelerating, !scrollView.isZooming else { return }
+            guard force || followsLatestOutput else { return }
+            followsLatestOutput = true
+            let bottom = max(-scrollView.adjustedContentInset.top,
+                             scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+            let offset = CGPoint(x: scrollView.contentOffset.x, y: bottom)
+            if abs(scrollView.contentOffset.y - bottom) > 0.5 {
+                scrollView.setContentOffset(offset, animated: false)
+            }
+        }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) { publishCursorRect() }
         func scrollViewDidZoom(_ scrollView: UIScrollView) { publishCursorRect() }
@@ -419,9 +459,6 @@ struct PaneDetailView: View {
                         .padding(8)
                         .allowsHitTesting(false)
                 }
-            }
-            .onChange(of: viewModel.contentVersion) {
-                scrollToBottom = true
             }
             .onChange(of: viewModel.isSending) { _, isSending in
                 if !isSending {

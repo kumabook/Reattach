@@ -12,6 +12,31 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func liveOutputDoesNotInterruptScrollingOrHistoryReading() {
+        let coordinator = ZoomableTextView.Coordinator()
+        let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))
+        scroll.contentSize = CGSize(width: 600, height: 1000)
+        scroll.contentOffset = CGPoint(x: 40, y: 800)
+        coordinator.scrollViewWillBeginDragging(scroll)
+        scroll.contentOffset.y = 400
+        coordinator.scrollToLatest(in: scroll, force: true)
+        #expect(scroll.contentOffset.y == 400)
+        coordinator.scrollViewDidEndDragging(scroll, willDecelerate: true)
+        coordinator.scrollToLatest(in: scroll)
+        #expect(scroll.contentOffset.y == 400)
+        coordinator.scrollViewDidEndDecelerating(scroll)
+        scroll.contentSize.height = 1200
+        coordinator.scrollToLatest(in: scroll)
+        #expect(scroll.contentOffset.y == 400)
+        coordinator.scrollViewWillBeginDragging(scroll)
+        scroll.contentOffset.y = 1000
+        coordinator.scrollViewDidEndDragging(scroll, willDecelerate: false)
+        scroll.contentSize.height = 1300
+        coordinator.scrollToLatest(in: scroll)
+        #expect(scroll.contentOffset.y == 1100)
+        #expect(scroll.contentOffset.x == 40)
+    }
+
     @Test func compositionOverlayStaysNearCursorAndInsideViewport() {
         let viewport = CGSize(width: 600, height: 400)
         let normal = CompositionPlacement.frame(cursor: CGRect(x: 100, y: 100, width: 8, height: 16), viewport: viewport)
