@@ -218,19 +218,14 @@ struct PaneDetailView: View {
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
     @State private var inputText = ""
-    @FocusState private var isInputFocused: Bool
     @State private var showCommandEditor = false
     @State private var showCommandPicker = false
-    @State private var directInput = false
+    @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
 
     init(pane: Pane, windowName: String) {
         self.pane = pane
         self.windowName = windowName
         _viewModel = State(wrappedValue: PaneDetailViewModel(target: pane.target))
-    }
-
-    private var canSend: Bool {
-        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isSending
     }
 
     private var hasQuickAction: Bool {
@@ -239,16 +234,6 @@ struct PaneDetailView: View {
             return true
         case .none:
             return false
-        }
-    }
-
-    private func sendMessage() {
-        let message = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !message.isEmpty, !viewModel.isSending else { return }
-        inputText = ""
-        isInputFocused = false
-        Task {
-            await viewModel.sendInput(message)
         }
     }
 
@@ -372,24 +357,20 @@ struct PaneDetailView: View {
             }
 
             ZStack(alignment: .topTrailing) {
-                if directInput {
-                    DirectInputView(
-                        onText: { viewModel.queueDirectText($0) },
-                        onKey: { key, modifiers in
-                            viewModel.queueDirectKey(key, modifiers: modifiers)
-                        }
-                    )
-                    .padding(.trailing, 60)
-                } else {
-                    InputComposerView(text: $inputText, isFocused: $isInputFocused)
-                        .disabled(viewModel.isSending)
-                        .onSubmit {
-                            sendMessage()
-                        }
-                }
+                DirectInputView(
+                    isConnected: viewModel.isStreamConnected,
+                    onText: { viewModel.queueDirectText($0) },
+                    onKey: { key, modifiers in
+                        viewModel.queueDirectKey(key, modifiers: modifiers)
+                    },
+                    onSendAndEnter: { text in
+                        Task { await viewModel.sendInput(text) }
+                    },
+                    draft: $inputText
+                )
 
                 HStack(spacing: 8) {
-                    if !directInput {
+                    if composeEnabled {
                         GlassButton {
                             showCommandPicker = true
                         } label: {
@@ -401,7 +382,7 @@ struct PaneDetailView: View {
                     }
 
                     GlassButton {
-                        if directInput {
+                        if !composeEnabled {
                             viewModel.queueDirectKey("escape")
                         } else {
                             Task {
@@ -415,16 +396,6 @@ struct PaneDetailView: View {
                     }
                     .disabled(viewModel.isSending)
 
-                    if !directInput {
-                        GlassButton {
-                            sendMessage()
-                        } label: {
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(canSend ? .blue : .gray)
-                        }
-                        .disabled(!canSend)
-                    }
                 }
                 .offset(x: -12, y: hasQuickAction ? -96 : -52)
                 .animation(.easeInOut(duration: 0.2), value: hasQuickAction)
@@ -448,12 +419,7 @@ struct PaneDetailView: View {
                 Toggle("Auto Refresh", isOn: $viewModel.autoRefresh)
             }
 
-            ToolbarItem(placement: .secondaryAction) {
-                Toggle(isOn: $directInput) {
-                    Label("Direct Input", systemImage: "keyboard")
-                }
-                .disabled(!viewModel.isStreamConnected && !directInput)
-            }
+
         }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
@@ -473,7 +439,6 @@ struct PaneDetailView: View {
                 },
                 onCommandInsert: { command in
                     inputText = command
-                    isInputFocused = true
                 },
                 onEditCommands: {
                     showCommandPicker = false
@@ -497,9 +462,8 @@ struct PaneDetailView: View {
                 }
             }
         }
-        .onChange(of: directInput) { _, enabled in
-            isInputFocused = false
-            if !enabled {
+        .onChange(of: composeEnabled) { _, enabled in
+            if enabled {
                 viewModel.flushDirectInput()
             }
         }
