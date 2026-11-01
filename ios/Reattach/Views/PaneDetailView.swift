@@ -8,11 +8,18 @@ import Observation
 
 // MARK: - ZoomableTextView
 
+struct TerminalZoomRequest {
+    let id = UUID()
+    // nil restores the original scale.
+    let multiplier: CGFloat?
+}
+
 struct ZoomableTextView: UIViewRepresentable {
     let attributedText: NSAttributedString
     let contentVersion: UUID
     let cursor: PaneCursorState?
     @Binding var scrollToBottom: Bool
+    var zoomRequest: TerminalZoomRequest? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         context.coordinator.lastContentVersion = nil
@@ -68,18 +75,32 @@ struct ZoomableTextView: UIViewRepresentable {
             }
 
             let size = textView.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
-            textView.frame = CGRect(origin: .zero, size: size)
-            scrollView.contentSize = size
+            // A zoomed view has a transform: assigning frame would alter its
+            // unscaled geometry and make subsequent output updates jump.
+            textView.bounds = CGRect(origin: .zero, size: size)
+            textView.center = CGPoint(
+                x: size.width * scrollView.zoomScale / 2,
+                y: size.height * scrollView.zoomScale / 2
+            )
+            scrollView.contentSize = CGSize(
+                width: size.width * scrollView.zoomScale,
+                height: size.height * scrollView.zoomScale
+            )
 
             CATransaction.commit()
         }
 
         context.coordinator.updateCursor(cursor, in: textView, force: layoutChanged)
 
+        if let zoomRequest, context.coordinator.lastZoomRequestID != zoomRequest.id {
+            context.coordinator.lastZoomRequestID = zoomRequest.id
+            context.coordinator.applyZoom(zoomRequest, in: scrollView)
+        }
+
         if scrollToBottom {
             DispatchQueue.main.async {
                 let bottomOffset = CGPoint(
-                    x: 0,
+                    x: scrollView.contentOffset.x,
                     y: max(0, scrollView.contentSize.height - scrollView.bounds.height)
                 )
                 scrollView.setContentOffset(bottomOffset, animated: false)
@@ -94,6 +115,7 @@ struct ZoomableTextView: UIViewRepresentable {
 
     class Coordinator: NSObject, UIScrollViewDelegate {
         var lastContentVersion: UUID?
+        var lastZoomRequestID: UUID?
         var lastCursor: PaneCursorState?
         weak var scrollView: UIScrollView?
         weak var cursorView: UIView?
@@ -169,6 +191,38 @@ struct ZoomableTextView: UIViewRepresentable {
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             scrollView.subviews.first { $0 is UITextView }
+        }
+
+        func applyZoom(_ request: TerminalZoomRequest, in scrollView: UIScrollView) {
+            let scale = request.multiplier.map { scrollView.zoomScale * $0 } ?? 1
+            let clampedScale = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, scale))
+            guard let textView = viewForZooming(in: scrollView) else { return }
+            // Keep the visible insertion point stationary. When reading history,
+            // preserve the top-left text instead of zooming around the screen center.
+            var anchor = textView.convert(scrollView.bounds.origin, from: scrollView)
+            if let cursorView, !cursorView.isHidden {
+                let cursorCenter = CGPoint(x: cursorView.frame.midX, y: cursorView.frame.midY)
+                if scrollView.bounds.contains(textView.convert(cursorCenter, to: scrollView)) {
+                    anchor = cursorCenter
+                }
+            }
+            let before = textView.convert(anchor, to: scrollView)
+            let viewportPosition = CGPoint(
+                x: before.x - scrollView.contentOffset.x,
+                y: before.y - scrollView.contentOffset.y
+            )
+            scrollView.setZoomScale(clampedScale, animated: false)
+            scrollView.layoutIfNeeded()
+            let after = textView.convert(anchor, to: scrollView)
+            let inset = scrollView.adjustedContentInset
+            let minX = -inset.left
+            let minY = -inset.top
+            let maxX = max(minX, scrollView.contentSize.width - scrollView.bounds.width + inset.right)
+            let maxY = max(minY, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
+            scrollView.setContentOffset(CGPoint(
+                x: min(maxX, max(minX, after.x - viewportPosition.x)),
+                y: min(maxY, max(minY, after.y - viewportPosition.y))
+            ), animated: false)
         }
 
         @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
@@ -255,6 +309,7 @@ struct PaneDetailView: View {
     let windowName: String
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
+    @State private var zoomRequest: TerminalZoomRequest?
     @State private var inputText = ""
     @State private var showCommandEditor = false
     @State private var showCommandPicker = false
@@ -281,7 +336,8 @@ struct PaneDetailView: View {
                 attributedText: viewModel.output,
                 contentVersion: viewModel.contentVersion,
                 cursor: viewModel.cursor,
-                scrollToBottom: $scrollToBottom
+                scrollToBottom: $scrollToBottom,
+                zoomRequest: zoomRequest
             )
             .onChange(of: viewModel.contentVersion) {
                 scrollToBottom = true
@@ -457,7 +513,20 @@ struct PaneDetailView: View {
                 Toggle("Auto Refresh", isOn: $viewModel.autoRefresh)
             }
 
-
+            ToolbarItemGroup(placement: .secondaryAction) {
+                Button("文字を拡大", systemImage: "textformat.size.larger") {
+                    zoomRequest = TerminalZoomRequest(multiplier: 1.25)
+                }
+                .keyboardShortcut("+", modifiers: .command)
+                Button("文字を縮小", systemImage: "textformat.size.smaller") {
+                    zoomRequest = TerminalZoomRequest(multiplier: 1 / 1.25)
+                }
+                .keyboardShortcut("-", modifiers: .command)
+                Button("標準サイズに戻す", systemImage: "arrow.counterclockwise") {
+                    zoomRequest = TerminalZoomRequest(multiplier: nil)
+                }
+                .keyboardShortcut("0", modifiers: .command)
+            }
         }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}

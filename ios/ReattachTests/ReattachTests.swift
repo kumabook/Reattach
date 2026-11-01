@@ -12,6 +12,41 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func keyboardZoomPreservesVisibleCursorAndReadingPosition() {
+        let coordinator = ZoomableTextView.Coordinator()
+        let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))
+        scroll.minimumZoomScale = 1
+        scroll.maximumZoomScale = 4
+        scroll.delegate = coordinator
+        let text = UITextView(frame: CGRect(x: 0, y: 0, width: 1000, height: 1000))
+        scroll.addSubview(text)
+        scroll.contentSize = text.bounds.size
+        let cursor = UIView(frame: CGRect(x: 200, y: 300, width: 5, height: 10))
+        text.addSubview(cursor)
+        coordinator.cursorView = cursor
+        scroll.contentOffset = CGPoint(x: 100, y: 200)
+        let anchor = CGPoint(x: cursor.frame.midX, y: cursor.frame.midY)
+        func screenPosition(_ point: CGPoint) -> CGPoint {
+            let converted = text.convert(point, to: scroll)
+            return CGPoint(x: converted.x - scroll.contentOffset.x, y: converted.y - scroll.contentOffset.y)
+        }
+        let before = screenPosition(anchor)
+        coordinator.applyZoom(TerminalZoomRequest(multiplier: 1.25), in: scroll)
+        #expect(abs(screenPosition(anchor).x - before.x) < 0.1)
+        #expect(abs(screenPosition(anchor).y - before.y) < 0.1)
+        coordinator.applyZoom(TerminalZoomRequest(multiplier: 1 / 1.25), in: scroll)
+        #expect(abs(scroll.contentOffset.x - 100) < 0.1)
+        #expect(abs(scroll.contentOffset.y - 200) < 0.1)
+
+        cursor.isHidden = true
+        let readingAnchor = text.convert(scroll.bounds.origin, from: scroll)
+        coordinator.applyZoom(TerminalZoomRequest(multiplier: 1.25), in: scroll)
+        #expect(abs(screenPosition(readingAnchor).x) < 0.1)
+        #expect(abs(screenPosition(readingAnchor).y) < 0.1)
+        coordinator.applyZoom(TerminalZoomRequest(multiplier: nil), in: scroll)
+        #expect(scroll.zoomScale == 1)
+    }
+
     @Test func cursorTracksActualGlyphsForEnglishAndJapanese() throws {
         for (line, column, offset) in [
             ("abcdefghijklmnopqrstuvwxyz", 26, 26),
