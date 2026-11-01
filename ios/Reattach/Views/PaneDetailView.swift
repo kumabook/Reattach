@@ -307,6 +307,7 @@ enum TerminalColumns {
 struct PaneDetailView: View {
     let pane: Pane
     let windowName: String
+    var onTmuxNavigation: ((TmuxNavigationState) -> Void)?
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
     @State private var zoomRequest: TerminalZoomRequest?
@@ -315,7 +316,8 @@ struct PaneDetailView: View {
     @State private var showCommandPicker = false
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
 
-    init(pane: Pane, windowName: String) {
+    init(pane: Pane, windowName: String, onTmuxNavigation: ((TmuxNavigationState) -> Void)? = nil) {
+        self.onTmuxNavigation = onTmuxNavigation
         self.pane = pane
         self.windowName = windowName
         _viewModel = State(wrappedValue: PaneDetailViewModel(target: pane.target))
@@ -339,6 +341,16 @@ struct PaneDetailView: View {
                 scrollToBottom: $scrollToBottom,
                 zoomRequest: zoomRequest
             )
+            .overlay(alignment: .topLeading) {
+                if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
+                    Text("tmux · 次のキーを入力（\(state.prefix)）")
+                        .font(.caption)
+                        .padding(6)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(8)
+                        .allowsHitTesting(false)
+                }
+            }
             .onChange(of: viewModel.contentVersion) {
                 scrollToBottom = true
             }
@@ -495,7 +507,7 @@ struct PaneDetailView: View {
                 .animation(.easeInOut(duration: 0.2), value: hasQuickAction)
             }
         }
-        .navigationTitle(windowName)
+        .navigationTitle(viewModel.tmuxNavigation?.windowName ?? windowName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -557,6 +569,7 @@ struct PaneDetailView: View {
             .modifier(iPadPagePresentationModifier())
         }
         .task {
+            viewModel.setDirectMode(!composeEnabled)
             await viewModel.startStreaming()
         }
         .onDisappear {
@@ -570,9 +583,10 @@ struct PaneDetailView: View {
             }
         }
         .onChange(of: composeEnabled) { _, enabled in
-            if enabled {
-                viewModel.flushDirectInput()
-            }
+            viewModel.setDirectMode(!enabled)
+        }
+        .onChange(of: viewModel.tmuxNavigation) { _, state in
+            if let state { onTmuxNavigation?(state) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
@@ -632,7 +646,10 @@ class PaneDetailViewModel {
     var isStreamConnected = false
     var cursor: PaneCursorState?
 
-    private let target: String
+    var tmuxNavigation: TmuxNavigationState?
+    private var target: String
+    private var directMode = false
+    private var supportsTmuxKeys = false
     private let api = ReattachAPI.shared
     @ObservationIgnored private var streamingTask: Task<Void, Never>?
     @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
@@ -846,6 +863,7 @@ class PaneDetailViewModel {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isStreamConnected = false
+        supportsTmuxKeys = false
         directTextFlushTask?.cancel()
         directTextFlushTask = nil
         directSendTail?.cancel()
@@ -884,6 +902,18 @@ class PaneDetailViewModel {
                     let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
                     isStreamConnected = true
                     switch response.type {
+                    case "ready":
+                        supportsTmuxKeys = response.tmuxKeys == true
+                        if supportsTmuxKeys { enqueueDirectRequest(.directMode(directMode)) }
+                    case "navigation":
+                        if let state = response.state {
+                            if target != state.paneId {
+                                target = state.paneId
+                                rawOutput = ""
+                                cursor = nil
+                            }
+                            tmuxNavigation = state
+                        }
                     case "output":
                         if autoRefresh {
                             cursor = response.cursor
@@ -1043,6 +1073,14 @@ class PaneDetailViewModel {
         } catch {
             errorMessage = error.localizedDescription
             showError = true
+        }
+    }
+
+    func setDirectMode(_ enabled: Bool) {
+        flushDirectInput()
+        directMode = enabled
+        if supportsTmuxKeys && isStreamConnected {
+            enqueueDirectRequest(.directMode(enabled))
         }
     }
 

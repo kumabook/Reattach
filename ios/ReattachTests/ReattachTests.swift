@@ -12,6 +12,18 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func tmuxNavigationDecodingAndModeEncoding() throws {
+        let data = Data(#"{"type":"navigation","state":{"pane_id":"%12","key_table":"prefix","prefix":"C-j","target":"work:2.1","window_name":"editor"}}"#.utf8)
+        let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
+        #expect(response.state?.paneId == "%12")
+        #expect(response.state?.target == "work:2.1")
+        #expect(response.state?.keyTable == "prefix")
+        let encoded = try JSONEncoder().encode(PaneStreamRequest.directMode(true))
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["type"] as? String == "direct_mode")
+        #expect(object["enabled"] as? Bool == true)
+    }
+
     @Test func keyboardZoomPreservesVisibleCursorAndReadingPosition() {
         let coordinator = ZoomableTextView.Coordinator()
         let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))

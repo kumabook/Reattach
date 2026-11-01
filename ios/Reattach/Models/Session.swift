@@ -71,6 +71,11 @@ struct PaneStreamRequest: Codable {
     let text: String?
     let key: String?
     let modifiers: [String]?
+    var enabled: Bool? = nil
+
+    static func directMode(_ enabled: Bool) -> PaneStreamRequest {
+        PaneStreamRequest(type: "direct_mode", text: nil, key: nil, modifiers: nil, enabled: enabled)
+    }
 
     static func input(_ text: String) -> PaneStreamRequest {
         PaneStreamRequest(type: "input", text: text, key: nil, modifiers: nil)
@@ -96,11 +101,29 @@ struct PaneStreamResponse: Codable {
     let deleteCount: Int?
     let lines: [String]?
     let cursor: PaneCursorState?
+    var tmuxKeys: Bool? = nil
+    var state: TmuxNavigationState? = nil
 
     enum CodingKeys: String, CodingKey {
-        case type, output, error, lines, cursor
+        case type, output, error, lines, cursor, state
+        case tmuxKeys = "tmux_keys"
         case startLine = "start_line"
         case deleteCount = "delete_count"
+    }
+}
+
+struct TmuxNavigationState: Codable, Equatable {
+    let paneId: String
+    let keyTable: String
+    let prefix: String
+    let target: String
+    let windowName: String
+
+    enum CodingKeys: String, CodingKey {
+        case paneId = "pane_id"
+        case keyTable = "key_table"
+        case windowName = "window_name"
+        case prefix, target
     }
 }
 

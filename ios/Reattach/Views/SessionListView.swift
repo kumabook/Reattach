@@ -95,6 +95,8 @@ struct SessionListView: View {
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSheet = false
     @State private var selectedPane: PaneNavigationItem?
+    @State private var detailIdentity = UUID()
+    @State private var followedTarget: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var unreadPaneKeys: Set<String> = []
 
@@ -114,6 +116,13 @@ struct SessionListView: View {
 
     var body: some View {
         adaptiveLayout
+        .onChange(of: selectedPane?.pane.target) { _, target in
+            if target == followedTarget {
+                followedTarget = nil
+            } else {
+                detailIdentity = UUID()
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
                 Button("次のペイン", systemImage: "arrow.right") {
@@ -195,8 +204,24 @@ struct SessionListView: View {
                 }
         } detail: {
             if let selected = selectedPane {
-                PaneDetailView(pane: selected.pane, windowName: selected.windowName)
-                    .id(selected.pane.target)
+                PaneDetailView(pane: selected.pane, windowName: selected.windowName) { state in
+                    guard state.target != selectedPane?.pane.target else { return }
+                    let identity = detailIdentity
+                    Task {
+                        await viewModel.loadSessions()
+                        guard detailIdentity == identity else { return }
+                        for session in viewModel.sessions {
+                            for window in session.windows {
+                                if let pane = window.panes.first(where: { $0.target == state.target }) {
+                                    followedTarget = pane.target
+                                    selectedPane = PaneNavigationItem(pane: pane, windowName: window.name)
+                                    return
+                                }
+                            }
+                        }
+                    }
+                }
+                    .id(detailIdentity)
                     .onAppear {
                         if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
                             AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: selected.pane.target)
