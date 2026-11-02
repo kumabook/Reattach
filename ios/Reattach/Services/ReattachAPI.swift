@@ -97,10 +97,21 @@ class ReattachAPI {
         return try JSONDecoder().decode([Session].self, from: data)
     }
 
-    func createSession(name: String, cwd: String) async throws {
-        if isDemoMode { return }
+    func createSession(name: String, cwd: String) async throws -> String {
         let body = CreateSessionRequest(name: name, cwd: cwd)
-        _ = try await request(path: "/sessions", method: "POST", body: body)
+        let data = try await request(path: "/sessions", method: "POST", body: body)
+        return try JSONDecoder().decode(CreatedTarget.self, from: data).target
+    }
+
+    func createWindow(target: String) async throws -> String {
+        let data = try await request(path: "/windows", method: "POST", body: CreateWindowRequest(target: target))
+        return try JSONDecoder().decode(CreatedTarget.self, from: data).target
+    }
+
+    func selectPane(target: String) async throws {
+        if isDemoMode { return }
+        let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
+        _ = try await request(path: "/panes/\(encodedTarget)/select", method: "POST")
     }
 
     func sendInput(target: String, text: String) async throws {

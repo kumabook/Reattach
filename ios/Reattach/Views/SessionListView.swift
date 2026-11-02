@@ -94,9 +94,9 @@ enum PaneIcon {
 struct SessionListView: View {
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSheet = false
+    @State private var isCreatingWindow = false
     @State private var selectedPane: PaneNavigationItem?
     @State private var detailIdentity = UUID()
-    @State private var followedTarget: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var unreadPaneKeys: Set<String> = []
 
@@ -116,15 +116,12 @@ struct SessionListView: View {
 
     var body: some View {
         adaptiveLayout
-        .onChange(of: selectedPane?.pane.target) { _, target in
-            if target == followedTarget {
-                followedTarget = nil
-            } else {
-                detailIdentity = UUID()
-            }
-        }
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
+                Button("New Session", systemImage: "plus.rectangle.on.folder") {
+                    showingCreateSheet = true
+                }
+                .disabled(ReattachAPI.shared.isDemoMode)
                 Button("次のペイン", systemImage: "arrow.right") {
                     cyclePane(backward: false)
                 }
@@ -141,7 +138,7 @@ struct SessionListView: View {
         }
         .sheet(isPresented: $showingCreateSheet) {
             CreateSessionView { name, cwd in
-                await viewModel.createSession(name: name, cwd: cwd)
+                selectedPane = try await viewModel.createSession(name: name, cwd: cwd)
             }
         }
         .sheet(isPresented: $showServerList) {
@@ -183,6 +180,8 @@ struct SessionListView: View {
             }
         }
         .onChange(of: configManager.activeServerId) { _, _ in
+            selectedPane = nil
+            detailIdentity = UUID()
             Task {
                 await viewModel.loadSessions()
             }
@@ -207,13 +206,14 @@ struct SessionListView: View {
                 PaneDetailView(pane: selected.pane, windowName: selected.windowName) { state in
                     guard state.target != selectedPane?.pane.target else { return }
                     let identity = detailIdentity
+                    let previousSelection = selectedPane?.pane.target
                     Task {
                         await viewModel.loadSessions()
-                        guard detailIdentity == identity else { return }
+                        guard detailIdentity == identity,
+                              selectedPane?.pane.target == previousSelection else { return }
                         for session in viewModel.sessions {
                             for window in session.windows {
                                 if let pane = window.panes.first(where: { $0.target == state.target }) {
-                                    followedTarget = pane.target
                                     selectedPane = PaneNavigationItem(pane: pane, windowName: window.name)
                                     return
                                 }
@@ -289,10 +289,26 @@ struct SessionListView: View {
                     )
                 }
                 Section {
-                    Button {
-                        showingCreateSheet = true
-                    } label: {
-                        Label("New Session", systemImage: "plus.circle")
+                    if viewModel.sessions.isEmpty {
+                        Button("New Session", systemImage: "plus.circle") { showingCreateSheet = true }
+                            .disabled(ReattachAPI.shared.isDemoMode)
+                    } else {
+                        Button {
+                            guard let selected = selectedPane else { return }
+                            isCreatingWindow = true
+                            Task {
+                                defer { isCreatingWindow = false }
+                                do {
+                                    selectedPane = try await viewModel.createWindow(target: selected.pane.target)
+                                } catch {
+                                    viewModel.errorMessage = error.localizedDescription
+                                    viewModel.showError = true
+                                }
+                            }
+                        } label: {
+                            Label("New Window", systemImage: "plus.circle")
+                        }
+                        .disabled(selectedPane == nil || isCreatingWindow || ReattachAPI.shared.isDemoMode)
                     }
                 }
             }
@@ -592,20 +608,26 @@ class SessionListViewModel {
         }
     }
 
-    func createSession(name: String, cwd: String) async {
-        do {
-            try await api.createSession(name: name, cwd: cwd)
-            await loadSessions()
-        } catch let error as APIError {
-            if case .unauthorized = error {
-                return
+    func createSession(name: String, cwd: String) async throws -> PaneNavigationItem {
+        let target = try await api.createSession(name: name, cwd: cwd)
+        return try await createdPane(target: target)
+    }
+
+    func createWindow(target: String) async throws -> PaneNavigationItem {
+        let createdTarget = try await api.createWindow(target: target)
+        return try await createdPane(target: createdTarget)
+    }
+
+    private func createdPane(target: String) async throws -> PaneNavigationItem {
+        sessions = try await api.listSessions()
+        for session in sessions {
+            for window in session.windows {
+                if let pane = window.panes.first(where: { $0.target == target }) {
+                    return PaneNavigationItem(pane: pane, windowName: window.name)
+                }
             }
-            errorMessage = error.localizedDescription
-            showError = true
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
         }
+        throw APIError.serverError("Created pane could not be found. Refresh the session list.")
     }
 
     func deletePane(target: String) async {

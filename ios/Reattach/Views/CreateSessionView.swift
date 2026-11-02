@@ -10,8 +10,9 @@ struct CreateSessionView: View {
     @State private var name = ""
     @State private var cwd = ""
     @State private var isCreating = false
+    @State private var creationError: String?
 
-    let onCreate: (String, String) async -> Void
+    let onCreate: (String, String) async throws -> Void
 
     var body: some View {
         NavigationStack {
@@ -21,13 +22,13 @@ struct CreateSessionView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    TextField("Working Directory", text: $cwd)
+                    TextField("Working Directory (optional)", text: $cwd)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } header: {
                     Text("New Session")
                 } footer: {
-                    Text("The session will be created as 'claude-\(name)' and Claude Code will be started automatically.")
+                    Text("A new tmux session will open with your default shell.")
                 }
             }
             .navigationTitle("Create Session")
@@ -42,15 +43,24 @@ struct CreateSessionView: View {
                     Button("Create") {
                         Task {
                             isCreating = true
-                            await onCreate(name, cwd)
-                            isCreating = false
-                            dismiss()
+                            defer { isCreating = false }
+                            do {
+                                try await onCreate(name.trimmingCharacters(in: .whitespacesAndNewlines), cwd)
+                                dismiss()
+                            } catch {
+                                creationError = error.localizedDescription
+                            }
                         }
                     }
-                    .disabled(name.isEmpty || cwd.isEmpty || isCreating)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
                 }
             }
             .interactiveDismissDisabled(isCreating)
+            .alert("Create Session Failed", isPresented: Binding(get: { creationError != nil }, set: { if !$0 { creationError = nil } })) {
+                Button("OK") { creationError = nil }
+            } message: {
+                Text(creationError ?? "")
+            }
         }
     }
 }

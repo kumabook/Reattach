@@ -699,9 +699,10 @@ struct PaneDetailView: View {
             )
             .modifier(iPadPagePresentationModifier())
         }
-        .task {
+        .task(id: pane.target) {
             viewModel.setDirectMode(!composeEnabled)
-            await viewModel.startStreaming()
+            await viewModel.openPane(pane.target)
+            if !Task.isCancelled { scrollToBottom = true }
         }
         .onDisappear {
             viewModel.stopStreaming()
@@ -782,6 +783,7 @@ class PaneDetailViewModel {
     private var directMode = false
     private var supportsTmuxKeys = false
     private let api = ReattachAPI.shared
+    @ObservationIgnored private var streamGeneration = UUID()
     @ObservationIgnored private var streamingTask: Task<Void, Never>?
     @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
     @ObservationIgnored private var rawOutput: String = ""
@@ -989,6 +991,7 @@ class PaneDetailViewModel {
     }
 
     func stopStreaming() {
+        streamGeneration = UUID()
         streamingTask?.cancel()
         streamingTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
@@ -1003,6 +1006,28 @@ class PaneDetailViewModel {
         cursor = nil
     }
 
+    func openPane(_ selectedTarget: String) async {
+        // A navigation notification already changed the live stream's pane.
+        if isStreamConnected, tmuxNavigation?.target == selectedTarget { return }
+        stopStreaming()
+        target = selectedTarget
+        tmuxNavigation = nil
+        rawOutput = ""
+        output = NSAttributedString()
+        contentVersion = UUID()
+        do {
+            try await api.selectPane(target: selectedTarget)
+            try Task.checkCancellation()
+            await startStreaming()
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+
     func startStreaming() async {
         stopStreaming()
 
@@ -1011,13 +1036,14 @@ class PaneDetailViewModel {
             return
         }
 
+        let generation = streamGeneration
         streamingTask = Task { [weak self] in
-            await self?.runStreamLoop()
+            await self?.runStreamLoop(generation: generation)
         }
     }
 
-    private func runStreamLoop() async {
-        while !Task.isCancelled {
+    private func runStreamLoop(generation: UUID) async {
+        while !Task.isCancelled && generation == streamGeneration {
             do {
                 let socket = try api.makePaneWebSocket(target: target, lines: 500)
                 webSocketTask = socket
@@ -1025,6 +1051,7 @@ class PaneDetailViewModel {
 
                 while !Task.isCancelled {
                     let message = try await socket.receive()
+                    guard generation == streamGeneration, !Task.isCancelled else { return }
                     guard case .string(let text) = message,
                           let data = text.data(using: .utf8) else {
                         continue
@@ -1068,6 +1095,7 @@ class PaneDetailViewModel {
                     }
                 }
             } catch {
+                guard generation == streamGeneration else { return }
                 webSocketTask?.cancel(with: .goingAway, reason: nil)
                 webSocketTask = nil
                 isStreamConnected = false
@@ -1247,9 +1275,10 @@ class PaneDetailViewModel {
 
     private func enqueueDirectRequest(_ request: PaneStreamRequest) {
         let previous = directSendTail
+        let generation = streamGeneration
         directSendTail = Task { [weak self] in
             await previous?.value
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self?.streamGeneration == generation else { return }
             await self?.sendDirectRequest(request)
         }
     }
@@ -1260,9 +1289,11 @@ class PaneDetailViewModel {
             return
         }
 
+        let generation = streamGeneration
         do {
             try await sendStreamMessage(request, over: socket)
         } catch {
+            guard generation == streamGeneration else { return }
             socket.cancel(with: .goingAway, reason: nil)
             webSocketTask = nil
             isStreamConnected = false

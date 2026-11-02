@@ -50,12 +50,14 @@ impl ControlClient {
     }
 
     async fn attach_at(target: &str, socket: Option<String>) -> Result<Self, TmuxError> {
+        // Share tmux's active pane just like a normal terminal client. A private
+        // active-pane would make app-side navigation disagree with the desktop.
         let mut child = tmux_command(socket.as_deref())
             .args([
                 "-C",
                 "attach-session",
                 "-f",
-                "ignore-size,no-output,active-pane",
+                "ignore-size,no-output",
                 "-t",
                 target,
             ])
@@ -285,6 +287,16 @@ mod tests {
         client.send_key("j", &[KeyModifier::Control]).await.unwrap();
         client.send_text("o").await.unwrap();
         assert_eq!(client.state().await.unwrap().pane_id, first.pane_id);
+        assert_eq!(
+            command(
+                sock,
+                &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+            )
+            .await
+            .unwrap()
+            .trim(),
+            first.pane_id
+        );
         command(
             sock,
             &["new-window", "-d", "-t", "probe", "-n", "second", "cat"],
@@ -297,6 +309,73 @@ mod tests {
         assert_eq!(next_window.window_name, "second");
         assert_ne!(next_window.pane_id, first.pane_id);
         drop(client);
+        // Ctrl-Tab / sidebar selection opens a stream for the chosen pane.
+        // Reattaching must update the shared window and pane, not just our view.
+        for selected in [&first, &second, &next_window] {
+            let mut switched = ControlClient::attach_at(&selected.target, Some(socket.clone()))
+                .await
+                .unwrap();
+            assert_eq!(switched.state().await.unwrap().pane_id, selected.pane_id);
+            assert_eq!(
+                command(
+                    sock,
+                    &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+                )
+                .await
+                .unwrap()
+                .trim(),
+                selected.pane_id
+            );
+            // Desktop-side selection must also be reflected by the app client.
+            command(sock, &["select-window", "-t", &first.target])
+                .await
+                .unwrap();
+            command(sock, &["select-pane", "-t", &first.pane_id])
+                .await
+                .unwrap();
+            assert_eq!(switched.state().await.unwrap().pane_id, first.pane_id);
+            drop(switched);
+        }
+        // The explicit selection API works without a control client (compose mode).
+        command(sock, &super::super::select::selection_args(&second.target))
+            .await
+            .unwrap();
+        assert_eq!(
+            command(
+                sock,
+                &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+            )
+            .await
+            .unwrap()
+            .trim(),
+            second.pane_id
+        );
+        let session = command(
+            sock,
+            &["display-message", "-p", "-t", "probe", "#{session_id}"],
+        )
+        .await
+        .unwrap();
+        let created = command(
+            sock,
+            &super::super::create::window_args(&format!("{}:", session.trim()), "/tmp"),
+        )
+        .await
+        .unwrap();
+        let selected = command(
+            sock,
+            &[
+                "display-message",
+                "-p",
+                "-t",
+                "probe",
+                "#{session_name}:#{window_index}.#{pane_index}",
+            ],
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.trim(), selected.trim());
+        assert!(created.starts_with("probe:"));
         for _ in 0..40 {
             if command(sock, &["list-clients"]).await.unwrap().is_empty() {
                 return;

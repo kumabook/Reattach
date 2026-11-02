@@ -45,6 +45,14 @@ struct CreateSessionRequest: Codable {
     let cwd: String
 }
 
+struct CreateWindowRequest: Codable {
+    let target: String
+}
+
+struct CreatedTarget: Codable {
+    let target: String
+}
+
 struct SendInputRequest: Codable {
     let text: String
 }

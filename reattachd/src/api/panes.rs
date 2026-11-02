@@ -21,3 +21,23 @@ pub async fn delete_pane(
         )),
     }
 }
+
+pub async fn select_pane(
+    Path(target): Path<String>,
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    let result = tokio::task::spawn_blocking(move || tmux::select_pane(&target)).await;
+    match result {
+        Ok(Ok(())) => Ok(StatusCode::NO_CONTENT),
+        other => {
+            let error = match other {
+                Ok(Err(error)) => error.to_string(),
+                Err(error) => error.to_string(),
+                _ => unreachable!(),
+            };
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse { error }),
+            ))
+        }
+    }
+}

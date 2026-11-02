@@ -37,7 +37,8 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-pub async fn list_sessions() -> Result<Json<Vec<SessionResponse>>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn list_sessions() -> Result<Json<Vec<SessionResponse>>, (StatusCode, Json<ErrorResponse>)>
+{
     match tmux::list_sessions() {
         Ok(sessions) => {
             let response: Vec<SessionResponse> = sessions
@@ -77,16 +78,46 @@ pub async fn list_sessions() -> Result<Json<Vec<SessionResponse>>, (StatusCode, 
     }
 }
 
+#[derive(Serialize)]
+pub struct CreatedTarget {
+    pub target: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateWindowRequest {
+    pub target: String,
+}
+
 pub async fn create_session(
     Json(payload): Json<CreateSessionRequest>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match tmux::create_session(&payload.name, &payload.cwd) {
-        Ok(()) => Ok(StatusCode::CREATED),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: e.to_string(),
-            }),
-        )),
+) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {
+    creation_result(
+        tokio::task::spawn_blocking(move || tmux::create_session(&payload.name, &payload.cwd))
+            .await,
+    )
+}
+
+pub async fn create_window(
+    Json(payload): Json<CreateWindowRequest>,
+) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {
+    creation_result(tokio::task::spawn_blocking(move || tmux::create_window(&payload.target)).await)
+}
+
+fn creation_result(
+    result: Result<Result<String, tmux::TmuxError>, tokio::task::JoinError>,
+) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {
+    match result {
+        Ok(Ok(target)) => Ok((StatusCode::CREATED, Json(CreatedTarget { target }))),
+        other => {
+            let error = match other {
+                Ok(Err(error)) => error.to_string(),
+                Err(error) => error.to_string(),
+                _ => unreachable!(),
+            };
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse { error }),
+            ))
+        }
     }
 }
