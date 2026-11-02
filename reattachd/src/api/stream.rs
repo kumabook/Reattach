@@ -43,6 +43,7 @@ enum ClientMessage {
 enum ServerMessage {
     Ready {
         tmux_keys: bool,
+        independent_selection: bool,
     },
     Navigation {
         state: tmux::ClientState,
@@ -75,16 +76,38 @@ pub async fn stream_pane(
     }
 
     Ok(ws
-        .on_upgrade(move |socket| handle_socket(socket, target, query.lines))
+        .on_upgrade(move |socket| handle_socket(socket, target, query.lines, query.independent))
         .into_response())
 }
 
-async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32) {
+async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, independent: bool) {
     let mut client: Option<tmux::ControlClient> = None;
+    let mut direct_mode = false;
+    if independent {
+        match tmux::ControlClient::attach_independent(&target).await {
+            Ok(control) => client = Some(control),
+            Err(error) => {
+                let _ = send_message(
+                    &mut socket,
+                    &ServerMessage::Error {
+                        error: error.to_string(),
+                    },
+                )
+                .await;
+                return;
+            }
+        }
+    }
     let mut last_state: Option<tmux::ClientState> = None;
-    if send_message(&mut socket, &ServerMessage::Ready { tmux_keys: true })
-        .await
-        .is_err()
+    if send_message(
+        &mut socket,
+        &ServerMessage::Ready {
+            tmux_keys: true,
+            independent_selection: true,
+        },
+    )
+    .await
+    .is_err()
     {
         return;
     }
@@ -181,14 +204,17 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32) {
                     Message::Text(text) => {
                         let result = match serde_json::from_str::<ClientMessage>(&text) {
                             Ok(ClientMessage::DirectMode { enabled }) => {
+                                direct_mode = enabled;
                                 if enabled && client.is_none() {
                                     match tmux::ControlClient::attach(&target).await {
                                         Ok(control) => { client = Some(control); last_state = None; Ok(()) }
                                         Err(error) => Err(error),
                                     }
                                 } else {
-                                    if !enabled { client = None; last_state = None; }
-                                    Ok(())
+                                    if !enabled && !independent { client = None; last_state = None; }
+                                    if !enabled {
+                                        if let Some(control) = &client { control.reset_key_table().await } else { Ok(()) }
+                                    } else { Ok(()) }
                                 }
                             }
                             Ok(ClientMessage::Input { text }) => {
@@ -197,7 +223,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32) {
                             }
                             Ok(ClientMessage::Text { text }) => {
                                 let text_target = target.clone();
-                                if let Some(control) = &client {
+                                if let Some(control) = client.as_ref().filter(|_| direct_mode) {
                                     control.send_text(&text).await
                                 } else {
                                     run_tmux(move || tmux::send_text(&text_target, &text)).await
@@ -205,7 +231,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32) {
                             }
                             Ok(ClientMessage::Key { key, modifiers }) => {
                                 let key_target = target.clone();
-                                if let Some(control) = &client {
+                                if let Some(control) = client.as_ref().filter(|_| direct_mode) {
                                     control.send_key(&key, &modifiers).await
                                 } else {
                                     run_tmux(move || tmux::send_key(&key_target, &key, &modifiers)).await

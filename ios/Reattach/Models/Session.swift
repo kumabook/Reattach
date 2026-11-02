@@ -47,6 +47,7 @@ struct CreateSessionRequest: Codable {
 
 struct CreateWindowRequest: Codable {
     let target: String
+    var independent: Bool = false
 }
 
 struct CreatedTarget: Codable {
@@ -110,11 +111,13 @@ struct PaneStreamResponse: Codable {
     let lines: [String]?
     let cursor: PaneCursorState?
     var tmuxKeys: Bool? = nil
+    var independentSelection: Bool? = nil
     var state: TmuxNavigationState? = nil
 
     enum CodingKeys: String, CodingKey {
         case type, output, error, lines, cursor, state
         case tmuxKeys = "tmux_keys"
+        case independentSelection = "independent_selection"
         case startLine = "start_line"
         case deleteCount = "delete_count"
     }

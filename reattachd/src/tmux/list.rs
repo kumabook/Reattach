@@ -31,6 +31,7 @@ pub fn list_sessions() -> Result<Vec<Session>, TmuxError> {
         .args([
             "list-panes",
             "-a",
+            "-f", "#{!=:#{@reattach_private},1}",
             "-F",
             "#{session_name}|#{session_attached}|#{window_index}|#{window_name}|#{window_active}|#{pane_index}|#{pane_active}|#{pane_current_path}",
         ])

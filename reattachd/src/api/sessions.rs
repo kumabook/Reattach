@@ -86,6 +86,8 @@ pub struct CreatedTarget {
 #[derive(Deserialize)]
 pub struct CreateWindowRequest {
     pub target: String,
+    #[serde(default)]
+    pub independent: bool,
 }
 
 pub async fn create_session(
@@ -100,7 +102,12 @@ pub async fn create_session(
 pub async fn create_window(
     Json(payload): Json<CreateWindowRequest>,
 ) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {
-    creation_result(tokio::task::spawn_blocking(move || tmux::create_window(&payload.target)).await)
+    creation_result(
+        tokio::task::spawn_blocking(move || {
+            tmux::create_window(&payload.target, payload.independent)
+        })
+        .await,
+    )
 }
 
 fn creation_result(

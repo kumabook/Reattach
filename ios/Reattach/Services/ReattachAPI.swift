@@ -104,7 +104,7 @@ class ReattachAPI {
     }
 
     func createWindow(target: String) async throws -> String {
-        let data = try await request(path: "/windows", method: "POST", body: CreateWindowRequest(target: target))
+        let data = try await request(path: "/windows", method: "POST", body: CreateWindowRequest(target: target, independent: !ServerConfigManager.shared.synchronizesSelection))
         return try JSONDecoder().decode(CreatedTarget.self, from: data).target
     }
 
@@ -147,9 +147,9 @@ class ReattachAPI {
         return response.output
     }
 
-    func makePaneWebSocket(target: String, lines: Int = 500) throws -> URLSessionWebSocketTask {
+    func makePaneWebSocket(target: String, lines: Int = 500, independent: Bool = false) throws -> URLSessionWebSocketTask {
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
-        guard var components = URLComponents(string: baseURL + "/panes/\(encodedTarget)/stream?lines=\(lines)") else {
+        guard var components = URLComponents(string: baseURL + "/panes/\(encodedTarget)/stream?lines=\(lines)&independent=\(independent)") else {
             throw APIError.invalidURL
         }
 

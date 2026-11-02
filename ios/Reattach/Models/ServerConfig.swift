@@ -16,6 +16,7 @@ struct ServerConfig: Codable, Identifiable, Equatable {
     var registeredAt: Date
     var cfAccessClientId: String?
     var cfAccessClientSecret: String?
+    var synchronizeSelection: Bool? = nil
 }
 
 @MainActor
@@ -30,6 +31,17 @@ class ServerConfigManager {
     var activeServer: ServerConfig? {
         guard let id = activeServerId else { return servers.first }
         return servers.first { $0.id == id }
+    }
+
+    // Preserve existing synchronized behavior for configurations saved before
+    // selection modes were introduced.
+    var synchronizesSelection: Bool {
+        get { activeServer?.synchronizeSelection ?? true }
+        set {
+            guard var server = activeServer else { return }
+            server.synchronizeSelection = newValue
+            updateServer(server)
+        }
     }
 
     var isConfigured: Bool {

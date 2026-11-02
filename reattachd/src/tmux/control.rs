@@ -35,6 +35,26 @@ impl ClientState {
     }
 }
 
+// Only this lease owns the temporary grouped session; never destroy its source.
+struct PrivateSession {
+    id: String,
+    source: String,
+    socket: Option<String>,
+}
+
+impl Drop for PrivateSession {
+    fn drop(&mut self) {
+        let id = self.id.clone();
+        let socket = self.socket.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let _ = command(socket.as_deref(), &["detach-client", "-s", &id]).await;
+                let _ = command(socket.as_deref(), &["kill-session", "-t", &id]).await;
+            });
+        }
+    }
+}
+
 // Each WebSocket owns its control client. Never send keys to a desktop client.
 // Closing stdin / killing the child detaches only this client, not the session.
 pub struct ControlClient {
@@ -42,6 +62,7 @@ pub struct ControlClient {
     name: String,
     socket: Option<String>,
     output: BufReader<ChildStdout>,
+    private_session: Option<PrivateSession>,
 }
 
 impl ControlClient {
@@ -50,6 +71,106 @@ impl ControlClient {
     }
 
     async fn attach_at(target: &str, socket: Option<String>) -> Result<Self, TmuxError> {
+        Self::attach_client_at(target, socket, false).await
+    }
+
+    pub async fn attach_independent(target: &str) -> Result<Self, TmuxError> {
+        Self::attach_independent_at(target, None).await
+    }
+
+    async fn attach_independent_at(
+        target: &str,
+        socket: Option<String>,
+    ) -> Result<Self, TmuxError> {
+        let sock = socket.as_deref();
+        let source = command(
+            sock,
+            &["display-message", "-p", "-t", target, "#{session_id}"],
+        )
+        .await?
+        .trim()
+        .to_owned();
+        let position = command(
+            sock,
+            &[
+                "display-message",
+                "-p",
+                "-t",
+                target,
+                "#{window_index}.#{pane_index}",
+            ],
+        )
+        .await?
+        .trim()
+        .to_owned();
+        let name = format!("reattach-private-{}", uuid::Uuid::new_v4());
+        let id = command(
+            sock,
+            &[
+                "new-session",
+                "-d",
+                "-t",
+                &source,
+                "-s",
+                &name,
+                "-P",
+                "-F",
+                "#{session_id}",
+            ],
+        )
+        .await?
+        .trim()
+        .to_owned();
+        let lease = PrivateSession {
+            id: id.clone(),
+            source: source.clone(),
+            socket: socket.clone(),
+        };
+        command(sock, &["set-option", "-t", &id, "@reattach_private", "1"]).await?;
+        // tmux 3.6a can crash while automatically destroying a grouped session.
+        // Explicitly detach clients before removing our session instead.
+        command(
+            sock,
+            &["set-option", "-t", &id, "destroy-unattached", "off"],
+        )
+        .await?;
+        for option in ["prefix", "prefix2", "key-table", "repeat-time"] {
+            let value = command(sock, &["show-options", "-Aqv", "-t", &source, option]).await?;
+            command(
+                sock,
+                &[
+                    "set-option",
+                    "-t",
+                    &id,
+                    option,
+                    value.trim_end_matches('\n'),
+                ],
+            )
+            .await?;
+        }
+        // attach-session -t pane changes the window's shared active pane before
+        // active-pane isolation takes effect. Attach to the session first, then
+        // select from inside our control client instead.
+        let mut client = Self::attach_client_at(&name, socket.clone(), true).await?;
+        let window = position
+            .split('.')
+            .next()
+            .ok_or_else(|| TmuxError::Command("invalid window position".into()))?;
+        client
+            .execute(&format!("select-window -t '{name}:{window}'"))
+            .await?;
+        client
+            .execute(&format!("select-pane -t '{name}:{position}'"))
+            .await?;
+        client.private_session = Some(lease);
+        Ok(client)
+    }
+
+    async fn attach_client_at(
+        target: &str,
+        socket: Option<String>,
+        independent: bool,
+    ) -> Result<Self, TmuxError> {
         // Share tmux's active pane just like a normal terminal client. A private
         // active-pane would make app-side navigation disagree with the desktop.
         let mut child = tmux_command(socket.as_deref())
@@ -57,7 +178,11 @@ impl ControlClient {
                 "-C",
                 "attach-session",
                 "-f",
-                "ignore-size,no-output",
+                if independent {
+                    "ignore-size,no-output,active-pane"
+                } else {
+                    "ignore-size,no-output"
+                },
                 "-t",
                 target,
             ])
@@ -75,6 +200,7 @@ impl ControlClient {
             child,
             name: String::new(),
             socket,
+            private_session: None,
         };
         client.response(false).await?; // initial attach command response
         for _ in 0..40 {
@@ -105,6 +231,37 @@ impl ControlClient {
     // Query on the control connection itself: display-message -c only changes
     // format client variables, not the command's target pane/session.
     pub async fn state(&mut self) -> Result<ClientState, TmuxError> {
+        let mut state = self.raw_state().await?;
+        if self.private_session.is_some() {
+            let session = self.query("#{session_id}").await?;
+            if self
+                .private_session
+                .as_ref()
+                .is_some_and(|lease| lease.id != session)
+            {
+                // A custom binding switched sessions. Move our client into a new
+                // private group before processing another key.
+                let replacement =
+                    Self::attach_independent_at(&state.target, self.socket.clone()).await?;
+                *self = replacement;
+                state = self.raw_state().await?;
+            }
+            let source = &self.private_session.as_ref().unwrap().source;
+            let name = command(
+                self.socket.as_deref(),
+                &["display-message", "-p", "-t", source, "#{session_name}"],
+            )
+            .await?;
+            let (_, position) = state
+                .target
+                .split_once(':')
+                .ok_or_else(|| TmuxError::Command("invalid pane target".into()))?;
+            state.target = format!("{}:{position}", name.trim_end_matches('\n'));
+        }
+        Ok(state)
+    }
+
+    async fn raw_state(&mut self) -> Result<ClientState, TmuxError> {
         let mut fields = Vec::new();
         for format in [
             "#{pane_id}",
@@ -113,16 +270,34 @@ impl ControlClient {
             "#{session_name}:#{window_index}.#{pane_index}",
             "#{window_name}",
         ] {
-            let command = format!("display-message -p '{}'\n", format);
-            self.child
-                .stdin
-                .as_mut()
-                .ok_or_else(|| TmuxError::Command("tmux client closed".into()))?
-                .write_all(command.as_bytes())
-                .await?;
-            fields.push(self.response(true).await?);
+            fields.push(self.query(format).await?);
         }
         ClientState::parse(&fields.join("\n"))
+    }
+
+    async fn query(&mut self, format: &str) -> Result<String, TmuxError> {
+        self.execute(&format!("display-message -p '{}'", format))
+            .await
+    }
+
+    // Commands here use fixed formats or tmux-generated identifiers only.
+    async fn execute(&mut self, command: &str) -> Result<String, TmuxError> {
+        self.child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| TmuxError::Command("tmux client closed".into()))?
+            .write_all(format!("{command}\n").as_bytes())
+            .await?;
+        self.response(true).await
+    }
+
+    pub async fn reset_key_table(&self) -> Result<(), TmuxError> {
+        command(
+            self.socket.as_deref(),
+            &["switch-client", "-c", &self.name, "-T", "root"],
+        )
+        .await?;
+        Ok(())
     }
 
     async fn response(&mut self, control_only: bool) -> Result<String, TmuxError> {
@@ -358,7 +533,7 @@ mod tests {
         .unwrap();
         let created = command(
             sock,
-            &super::super::create::window_args(&format!("{}:", session.trim()), "/tmp"),
+            &super::super::create::window_args(&format!("{}:", session.trim()), "/tmp", false),
         )
         .await
         .unwrap();
@@ -383,6 +558,118 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         panic!("control client leaked after disconnect");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires permission to start an isolated tmux server"]
+    async fn independent_selection_shares_content_without_moving_desktop() {
+        let socket = format!("/tmp/reattach-independent-{}.sock", uuid::Uuid::new_v4());
+        struct Cleanup(String);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::process::Command::new("tmux")
+                    .args(["-S", &self.0, "kill-server"])
+                    .output();
+            }
+        }
+        let _cleanup = Cleanup(socket.clone());
+        let sock = Some(socket.as_str());
+        command(
+            sock,
+            &["-f", "/dev/null", "new-session", "-d", "-s", "probe", "cat"],
+        )
+        .await
+        .unwrap();
+        command(sock, &["set-option", "-t", "probe", "prefix", "C-j"])
+            .await
+            .unwrap();
+        command(sock, &["split-window", "-d", "-t", "probe:0", "cat"])
+            .await
+            .unwrap();
+        command(sock, &["new-window", "-d", "-t", "probe", "cat"])
+            .await
+            .unwrap();
+        let desktop = command(
+            sock,
+            &["display-message", "-p", "-t", "probe", "#{pane_id}"],
+        )
+        .await
+        .unwrap();
+        let mut client = ControlClient::attach_independent_at("probe:0.1", Some(socket.clone()))
+            .await
+            .unwrap();
+        let lease_id = client.private_session.as_ref().unwrap().id.clone();
+        let initial = client.state().await.unwrap();
+        assert_eq!(initial.target, "probe:0.1");
+        assert_eq!(initial.prefix, "C-j");
+        assert_eq!(
+            command(
+                sock,
+                &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+            )
+            .await
+            .unwrap(),
+            desktop
+        );
+        client.send_key("j", &[KeyModifier::Control]).await.unwrap();
+        client.send_text("n").await.unwrap();
+        let next = client.state().await.unwrap();
+        assert_eq!(next.target, "probe:1.0");
+        assert_eq!(
+            command(
+                sock,
+                &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+            )
+            .await
+            .unwrap(),
+            desktop
+        );
+        let mut other = ControlClient::attach_independent_at("probe:0.0", Some(socket.clone()))
+            .await
+            .unwrap();
+        assert_eq!(other.state().await.unwrap().target, "probe:0.0");
+        assert_eq!(client.state().await.unwrap().target, "probe:1.0");
+        client.send_text("日本語").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(command(sock, &["capture-pane", "-p", "-t", "probe:1.0"])
+            .await
+            .unwrap()
+            .contains("日本語"));
+        let visible = command(
+            sock,
+            &[
+                "list-panes",
+                "-a",
+                "-f",
+                "#{!=:#{@reattach_private},1}",
+                "-F",
+                "#{session_name}",
+            ],
+        )
+        .await
+        .unwrap();
+        assert!(visible.lines().all(|line| line == "probe"));
+        drop(other);
+        drop(client);
+        for _ in 0..40 {
+            let sessions = command(sock, &["list-sessions", "-F", "#{session_id}"])
+                .await
+                .unwrap();
+            if !sessions.lines().any(|id| id == lease_id) {
+                assert_eq!(
+                    command(
+                        sock,
+                        &["display-message", "-p", "-t", "probe", "#{pane_id}"]
+                    )
+                    .await
+                    .unwrap(),
+                    desktop
+                );
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("private session leaked");
     }
 
     #[tokio::test]

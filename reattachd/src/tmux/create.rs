@@ -18,7 +18,7 @@ fn session_args<'a>(name: &'a str, cwd: &'a str) -> Vec<&'a str> {
     args
 }
 
-pub fn create_window(target: &str) -> Result<String, TmuxError> {
+pub fn create_window(target: &str, independent: bool) -> Result<String, TmuxError> {
     let session = run(&["display-message", "-p", "-t", target, "#{session_id}"])?;
     let cwd = run(&[
         "display-message",
@@ -27,11 +27,12 @@ pub fn create_window(target: &str) -> Result<String, TmuxError> {
         target,
         "#{pane_current_path}",
     ])?;
-    run(&window_args(&format!("{session}:"), &cwd))
+    let destination = format!("{session}:");
+    run(&window_args(&destination, &cwd, independent))
 }
 
-pub(super) fn window_args<'a>(session: &'a str, cwd: &'a str) -> Vec<&'a str> {
-    vec![
+pub(super) fn window_args<'a>(session: &'a str, cwd: &'a str, independent: bool) -> Vec<&'a str> {
+    let mut args = vec![
         "new-window",
         "-P",
         "-F",
@@ -40,7 +41,11 @@ pub(super) fn window_args<'a>(session: &'a str, cwd: &'a str) -> Vec<&'a str> {
         session,
         "-c",
         cwd,
-    ]
+    ];
+    if independent {
+        args.insert(1, "-d");
+    }
+    args
 }
 
 fn run(args: &[&str]) -> Result<String, TmuxError> {
@@ -69,9 +74,16 @@ mod tests {
         assert!(!args.contains(&"claude"));
     }
     #[test]
+    fn independent_window_creation_does_not_select_the_window() {
+        let args = window_args("$1:", "/tmp", true);
+        assert_eq!(&args[..2], &["new-window", "-d"]);
+        assert!(!window_args("$1:", "/tmp", false).contains(&"-d"));
+    }
+
+    #[test]
     fn window_creation_targets_session_and_preserves_directory_argument() {
         assert_eq!(
-            window_args("$1:", "/tmp/path with spaces"),
+            window_args("$1:", "/tmp/path with spaces", false),
             vec![
                 "new-window",
                 "-P",

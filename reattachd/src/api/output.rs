@@ -11,6 +11,8 @@ use crate::tmux;
 pub struct OutputQuery {
     #[serde(default = "default_lines")]
     pub lines: u32,
+    #[serde(default)]
+    pub independent: bool,
 }
 
 fn default_lines() -> u32 {

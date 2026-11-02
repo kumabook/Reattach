@@ -391,6 +391,7 @@ struct PaneDetailView: View {
     let pane: Pane
     let windowName: String
     var onTmuxNavigation: ((TmuxNavigationState) -> Void)?
+    @State private var configManager = ServerConfigManager.shared
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
     @State private var zoomRequest: TerminalZoomRequest?
@@ -642,6 +643,22 @@ struct PaneDetailView: View {
                 .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
             }
             ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("表示するペイン", selection: Binding(
+                        get: { configManager.synchronizesSelection },
+                        set: { configManager.synchronizesSelection = $0 }
+                    )) {
+                        Label("他の端末と揃える", systemImage: "rectangle").tag(true)
+                        Label("この端末だけで切り替える", systemImage: "rectangle.on.rectangle").tag(false)
+                    }
+                    Text("入力した内容は、どちらでも共有されます")
+                } label: {
+                    Image(systemName: configManager.synchronizesSelection ? "rectangle" : "rectangle.on.rectangle")
+                }
+                .accessibilityLabel(configManager.synchronizesSelection ? "他の端末と揃える" : "この端末だけで切り替える")
+                .disabled(isDirectCompositionActive || configManager.isDemoMode)
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
                         await viewModel.refreshLive()
@@ -699,9 +716,9 @@ struct PaneDetailView: View {
             )
             .modifier(iPadPagePresentationModifier())
         }
-        .task(id: pane.target) {
+        .task(id: pane.target + "|" + String(configManager.synchronizesSelection)) {
             viewModel.setDirectMode(!composeEnabled)
-            await viewModel.openPane(pane.target)
+            await viewModel.openPane(pane.target, synchronize: configManager.synchronizesSelection)
             if !Task.isCancelled { scrollToBottom = true }
         }
         .onDisappear {
@@ -781,6 +798,7 @@ class PaneDetailViewModel {
     var tmuxNavigation: TmuxNavigationState?
     private var target: String
     private var directMode = false
+    private var synchronizesSelection = true
     private var supportsTmuxKeys = false
     private let api = ReattachAPI.shared
     @ObservationIgnored private var streamGeneration = UUID()
@@ -1006,9 +1024,10 @@ class PaneDetailViewModel {
         cursor = nil
     }
 
-    func openPane(_ selectedTarget: String) async {
+    func openPane(_ selectedTarget: String, synchronize: Bool = true) async {
         // A navigation notification already changed the live stream's pane.
-        if isStreamConnected, tmuxNavigation?.target == selectedTarget { return }
+        if isStreamConnected, tmuxNavigation?.target == selectedTarget, synchronizesSelection == synchronize { return }
+        synchronizesSelection = synchronize
         stopStreaming()
         target = selectedTarget
         tmuxNavigation = nil
@@ -1016,7 +1035,7 @@ class PaneDetailViewModel {
         output = NSAttributedString()
         contentVersion = UUID()
         do {
-            try await api.selectPane(target: selectedTarget)
+            if synchronize { try await api.selectPane(target: selectedTarget) }
             try Task.checkCancellation()
             await startStreaming()
         } catch is CancellationError {
@@ -1045,7 +1064,8 @@ class PaneDetailViewModel {
     private func runStreamLoop(generation: UUID) async {
         while !Task.isCancelled && generation == streamGeneration {
             do {
-                let socket = try api.makePaneWebSocket(target: target, lines: 500)
+                let connectionTarget = tmuxNavigation?.target ?? target
+                let socket = try api.makePaneWebSocket(target: connectionTarget, lines: 500, independent: !synchronizesSelection)
                 webSocketTask = socket
                 socket.resume()
 
@@ -1061,6 +1081,13 @@ class PaneDetailViewModel {
                     isStreamConnected = true
                     switch response.type {
                     case "ready":
+                        if !synchronizesSelection && response.independentSelection != true {
+                            socket.cancel(with: .goingAway, reason: nil)
+                            webSocketTask = nil
+                            isStreamConnected = false
+                            showDirectInputError("独立モードには新しいdaemonが必要です。daemonを更新してください。")
+                            return
+                        }
                         supportsTmuxKeys = response.tmuxKeys == true
                         if supportsTmuxKeys { enqueueDirectRequest(.directMode(directMode)) }
                     case "navigation":

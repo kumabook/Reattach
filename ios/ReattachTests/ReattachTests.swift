@@ -12,6 +12,29 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func selectionPreferenceDecodesOlderConfigurationAndPersistsIndependently() throws {
+        let legacy = Data(#"{"serverURL":"http://localhost:8080","deviceToken":"test","deviceId":"test","deviceName":"phone","serverName":"server","registeredAt":0}"#.utf8)
+        var config = try JSONDecoder().decode(ServerConfig.self, from: legacy)
+        #expect(config.synchronizeSelection == nil)
+        #expect((config.synchronizeSelection ?? true) == true)
+        config.synchronizeSelection = false
+        let restored = try JSONDecoder().decode(ServerConfig.self, from: JSONEncoder().encode(config))
+        #expect(restored.synchronizeSelection == false)
+        #expect(try JSONDecoder().decode(ServerConfig.self, from: legacy).synchronizeSelection == nil)
+    }
+
+    @Test func independentSelectionCapabilityAndWindowRequest() throws {
+        let legacy = try JSONDecoder().decode(PaneStreamResponse.self, from: Data(#"{"type":"ready","tmux_keys":true}"#.utf8))
+        #expect(legacy.independentSelection == nil)
+        let ready = try JSONDecoder().decode(PaneStreamResponse.self, from: Data(#"{"type":"ready","tmux_keys":true,"independent_selection":true}"#.utf8))
+        #expect(ready.independentSelection == true)
+        let request = CreateWindowRequest(target: "work:1.0", independent: true)
+        let data = try JSONEncoder().encode(request)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["independent"] as? Bool == true)
+        #expect(object["target"] as? String == "work:1.0")
+    }
+
     @Test func liveOutputDoesNotInterruptScrollingOrHistoryReading() {
         let coordinator = ZoomableTextView.Coordinator()
         let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))
