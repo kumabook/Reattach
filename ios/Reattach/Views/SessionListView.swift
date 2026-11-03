@@ -97,6 +97,8 @@ struct SessionListView: View {
     @State private var isCreatingWindow = false
     @State private var selectedPane: PaneNavigationItem?
     @State private var detailIdentity = UUID()
+    @State private var pendingNavigationID: UUID?
+    private let paneSelectionStore = PaneSelectionStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var unreadPaneKeys: Set<String> = []
 
@@ -157,34 +159,32 @@ struct SessionListView: View {
             Text(viewModel.errorMessage)
         }
         .task {
-            await viewModel.loadSessions()
+            await loadAndRestorePane()
             unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
-            handlePendingNavigation()
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let deviceId = notification.userInfo?["deviceId"] as? String,
                   let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
-            Task {
-                ServerConfigManager.shared.setActiveServer(deviceId)
-                await viewModel.loadSessions()
-                navigateToPaneWithTarget(paneTarget)
-            }
+            navigateToPaneWithKey("\(deviceId):\(paneTarget)")
         }
         .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
             unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
         }
         .onReceive(NotificationCenter.default.publisher(for: .authenticationRestored)) { _ in
             Task {
-                await viewModel.loadSessions()
-                handlePendingNavigation()
+                await loadAndRestorePane()
             }
         }
-        .onChange(of: configManager.activeServerId) { _, _ in
+        .onChange(of: configManager.activeServer?.id) { _, _ in
             selectedPane = nil
             detailIdentity = UUID()
-            Task {
-                await viewModel.loadSessions()
-            }
+            Task { await loadAndRestorePane() }
+        }
+        .onChange(of: selectedPane?.pane.target) { _, target in
+            guard let target, !configManager.isDemoMode,
+                  let serverID = configManager.activeServer?.id,
+                  viewModel.loadedServerID == serverID else { return }
+            paneSelectionStore.save(target, for: serverID)
         }
     }
 
@@ -314,7 +314,7 @@ struct SessionListView: View {
             }
             .listStyle(.sidebar)
             .refreshable {
-                await viewModel.loadSessions()
+                await loadAndRestorePane()
             }
             .confirmationDialog(
                 "Delete Pane",
@@ -339,6 +339,22 @@ struct SessionListView: View {
         }
     }
 
+    private func loadAndRestorePane() async {
+        let serverID = configManager.activeServer?.id
+        guard await viewModel.loadSessions(), !Task.isCancelled,
+              configManager.activeServer?.id == serverID else { return }
+        handlePendingNavigation()
+        guard !configManager.isDemoMode, pendingNavigationID == nil,
+              selectedPane == nil, let serverID,
+              let target = paneSelectionStore.target(for: serverID) else { return }
+        if let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) {
+            selectedPane = item
+        } else {
+            // Only discard a missing target after a successful list response.
+            paneSelectionStore.save(nil, for: serverID)
+        }
+    }
+
     private func handlePendingNavigation() {
         guard let key = AppDelegate.shared?.pendingNavigationTarget,
               !viewModel.sessions.isEmpty else { return }
@@ -352,24 +368,24 @@ struct SessionListView: View {
         let deviceId = String(components[0])
         let paneTarget = String(components[1])
 
+        let navigationID = UUID()
+        pendingNavigationID = navigationID
         Task {
-            ServerConfigManager.shared.setActiveServer(deviceId)
+            defer {
+                if pendingNavigationID == navigationID { pendingNavigationID = nil }
+            }
+            configManager.setActiveServer(deviceId)
             await viewModel.loadSessions()
+            guard pendingNavigationID == navigationID,
+                  configManager.activeServer?.id == deviceId,
+                  viewModel.loadedServerID == deviceId else { return }
             navigateToPaneWithTarget(paneTarget)
         }
     }
 
     private func navigateToPaneWithTarget(_ paneTarget: String) {
-        for session in viewModel.sessions {
-            for window in session.windows {
-                for pane in window.panes {
-                    if pane.target == paneTarget {
-                        let item = PaneNavigationItem(pane: pane, windowName: window.name)
-                        selectedPane = item
-                        return
-                    }
-                }
-            }
+        if let item = PaneNavigationItem.matching(target: paneTarget, in: viewModel.sessions) {
+            selectedPane = item
         }
     }
 
@@ -407,6 +423,17 @@ struct SessionListView: View {
 struct PaneNavigationItem: Hashable {
     let pane: Pane
     let windowName: String
+
+    static func matching(target: String, in sessions: [Session]) -> Self? {
+        for session in sessions {
+            for window in session.windows {
+                if let pane = window.panes.first(where: { $0.target == target }) {
+                    return Self(pane: pane, windowName: window.name)
+                }
+            }
+        }
+        return nil
+    }
 
     static func adjacent(to selected: Self?, in sessions: [Session], backward: Bool) -> Self? {
         let items = sessions.flatMap { session in
@@ -584,21 +611,31 @@ struct PaneRow: View {
 @Observable
 class SessionListViewModel {
     var sessions: [Session] = []
+    private(set) var loadedServerID: String?
     var isLoading = false
     var showError = false
     var errorMessage = ""
 
     private let api = ReattachAPI.shared
 
-    func loadSessions() async {
+    @discardableResult
+    func loadSessions() async -> Bool {
+        let serverID = ServerConfigManager.shared.activeServer?.id
+        let isDemo = ServerConfigManager.shared.isDemoMode
         isLoading = true
         defer { isLoading = false }
 
         do {
-            sessions = try await api.listSessions()
+            let loaded = try await api.listSessions()
+            guard !Task.isCancelled,
+                  ServerConfigManager.shared.activeServer?.id == serverID,
+                  ServerConfigManager.shared.isDemoMode == isDemo else { return false }
+            sessions = loaded
+            loadedServerID = serverID
+            return true
         } catch let error as APIError {
             if case .unauthorized = error {
-                return
+                return false
             }
             errorMessage = error.localizedDescription
             showError = true
@@ -606,6 +643,7 @@ class SessionListViewModel {
             errorMessage = error.localizedDescription
             showError = true
         }
+        return false
     }
 
     func createSession(name: String, cwd: String) async throws -> PaneNavigationItem {

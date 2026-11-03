@@ -12,6 +12,34 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func lastPanePersistsSeparatelyForEachServer() throws {
+        let suite = "ReattachTests.lastPane.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PaneSelectionStore(defaults: defaults)
+        #expect(store.target(for: "one") == nil)
+        store.save("work:1.0", for: "one")
+        store.save("work:2.1", for: "two")
+        let reopened = PaneSelectionStore(defaults: try #require(UserDefaults(suiteName: suite)))
+        #expect(reopened.target(for: "one") == "work:1.0")
+        #expect(reopened.target(for: "two") == "work:2.1")
+        reopened.save(nil, for: "one")
+        #expect(reopened.target(for: "one") == nil)
+        #expect(reopened.target(for: "two") == "work:2.1")
+    }
+
+    @Test func paneRestorationRequiresAnExistingExactTarget() {
+        let pane = Pane(index: 0, active: false, target: "work:1.0", currentPath: "/tmp")
+        let sessions = [Session(name: "work", attached: true, windows: [
+            Window(index: 1, name: "editor", active: false, panes: [pane])
+        ])]
+        let restored = PaneNavigationItem.matching(target: "work:1.0", in: sessions)
+        #expect(restored?.pane == pane)
+        #expect(restored?.windowName == "editor")
+        #expect(PaneNavigationItem.matching(target: "deleted:1.0", in: sessions) == nil)
+        #expect(PaneNavigationItem.matching(target: "work:1.0", in: []) == nil)
+    }
+
     @Test func selectionPreferenceDecodesOlderConfigurationAndPersistsIndependently() throws {
         let legacy = Data(#"{"serverURL":"http://localhost:8080","deviceToken":"test","deviceId":"test","deviceName":"phone","serverName":"server","registeredAt":0}"#.utf8)
         var config = try JSONDecoder().decode(ServerConfig.self, from: legacy)
