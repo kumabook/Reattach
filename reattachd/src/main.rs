@@ -1,6 +1,8 @@
 mod api;
+mod attention;
 mod apns;
 mod auth;
+mod notification_content;
 mod tmux;
 
 use std::sync::Arc;
@@ -86,6 +88,11 @@ enum Commands {
         /// Print success output (default is silent)
         #[arg(short, long)]
         verbose: bool,
+    },
+    /// Report a permission lifecycle event from stdin (never approves requests)
+    AgentEvent {
+        #[arg(long, default_value = "8787")]
+        port: u16,
     },
     /// Manage coding agent notification hooks
     Hooks {
@@ -312,6 +319,9 @@ async fn main() {
             )
             .await;
         }
+        Some(Commands::AgentEvent { port }) => {
+            attention::run_hook(&data_dir, port).await;
+        }
         Some(Commands::Hooks { action }) => {
             run_hooks_command(action);
         }
@@ -527,6 +537,10 @@ fn parse_agent_notify_payload(input: &str) -> Result<Option<NotifyPayload>, Stri
                 }
             }
         }
+    }
+
+    if notification_content::is_candidate_generation(&body) {
+        return Ok(None);
     }
 
     if let Some(ref c) = cwd {
@@ -983,7 +997,9 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         tracing::info!("Starting in open mode (no authentication required)");
     }
 
-    let apns_service = init_apns_service(data_dir).await;
+    let apns_service = init_apns_service(data_dir.clone()).await;
+    let attention_service = attention::Service::new(&data_dir, apns_service.clone())
+        .expect("Failed to initialize agent event service");
 
     let auth_for_middleware = auth_service.clone();
 
@@ -1002,6 +1018,12 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
             auth_for_middleware,
             auth_middleware,
         ));
+
+    let base_routes = base_routes.merge(Router::new()
+        .route("/attention", get(attention::list))
+        .with_state(attention_service.clone())
+        .layer(middleware::from_fn_with_state(auth_service.clone(), auth_middleware)))
+        .merge(Router::new().route("/agent-events", post(attention::record)).with_state(attention_service));
 
     // Registration endpoint (no auth required)
     let register_routes = Router::new()
@@ -1178,6 +1200,23 @@ async fn init_apns_service(data_dir: std::path::PathBuf) -> Option<Arc<ApnsServi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn candidate_completion_does_not_become_a_notification() {
+        for body in [r#"{"exclude":[]}"#, r#"{"suggestions":[{"title":"候補"}]}"#] {
+            let event = serde_json::json!({
+                "type": "agent-turn-complete", "last-assistant-message": body
+            });
+            assert!(parse_agent_notify_payload(&event.to_string()).unwrap().is_none());
+        }
+        let event = serde_json::json!({
+            "type": "agent-turn-complete", "last-assistant-message": r#"{"result":"ok"}"#
+        });
+        let parsed = parse_agent_notify_payload(&event.to_string()).unwrap().unwrap();
+        assert_eq!(parsed.body, r#"{"result":"ok"}"#);
+        let permission = serde_json::json!({"hook_event_name":"Notification", "notification_type":"permission_prompt"});
+        assert!(parse_agent_notify_payload(&permission.to_string()).unwrap().is_some());
+    }
 
     #[test]
     fn parse_tailscale_info_strips_trailing_dot_and_picks_ipv4() {

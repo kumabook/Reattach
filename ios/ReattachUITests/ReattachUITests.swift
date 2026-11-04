@@ -21,6 +21,36 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testPermissionMenuNavigatesBetweenWaitingPanes() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture"]
+        app.launch()
+        let menu = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        let menuExists = menu.waitForExistence(timeout: 15)
+        if !menuExists { print(app.debugDescription) }
+        XCTAssertTrue(menuExists)
+        XCTAssertTrue(menu.label.contains("2"))
+        menu.tap()
+        let first = app.buttons["claude-demo:0.0"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.tap()
+        XCTAssertTrue(app.navigationBars["claude"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.otherElements["permissionWaitingBanner"].exists)
+        XCTAssertTrue(app.buttons["permissionEnterButton"].waitForExistence(timeout: 5))
+        let keyboardIntroduction = app.buttons["Continue"]
+        if keyboardIntroduction.exists && keyboardIntroduction.isHittable { keyboardIntroduction.tap() }
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Permission waiting on another pane"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        menu.tap()
+        let second = app.buttons["myproject:0.0"]
+        XCTAssertTrue(second.waitForExistence(timeout: 5))
+        second.tap()
+        XCTAssertTrue(app.navigationBars["main"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()

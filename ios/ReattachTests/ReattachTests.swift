@@ -12,6 +12,23 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func permissionStatusTracksOtherPanesAndRejectsOldServerResponses() throws {
+        let state = PermissionStatus()
+        state.reset(serverID: "one")
+        let data = Data(#"[{"target":"work:0.0","tool":"Bash","received_at":123},{"target":"work:1.0","tool":"Edit","received_at":124}]"#.utf8)
+        let entries = try JSONDecoder().decode([PermissionAttention].self, from: data)
+        state.update(entries, serverID: "one")
+        #expect(state.isWaiting("work:0.0"))
+        #expect(state.isWaiting("work:1.0"))
+        #expect(!state.isWaiting("work:2.0"))
+        state.reset(serverID: "two")
+        state.update(entries, serverID: "one")
+        #expect(state.entries.isEmpty)
+        state.update(entries, serverID: "two")
+        state.update([], serverID: "two")
+        #expect(state.entries.isEmpty)
+    }
+
     @Test func lastPanePersistsSeparatelyForEachServer() throws {
         let suite = "ReattachTests.lastPane.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -92,6 +92,8 @@ enum PaneIcon {
 // MARK: - SessionListView
 
 struct SessionListView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var permissionStatus = PermissionStatus.shared
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSheet = false
     @State private var isCreatingWindow = false
@@ -162,6 +164,24 @@ struct SessionListView: View {
             await loadAndRestorePane()
             unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
         }
+        .task(id: "\(configManager.activeServer?.id ?? "none")|\(scenePhase == .active)|\(configManager.isDemoMode)") {
+            guard scenePhase == .active else { return }
+            let serverID = configManager.activeServer?.id
+            permissionStatus.reset(serverID: serverID)
+            while !Task.isCancelled {
+                if scenePhase == .active, !configManager.isDemoMode || PermissionStatus.usesUITestFixture {
+                    do {
+                        let entries = try await ReattachAPI.shared.permissionAttention()
+                        guard !Task.isCancelled else { return }
+                        permissionStatus.update(entries, serverID: serverID)
+                    } catch {
+                        guard !Task.isCancelled else { return }
+                        permissionStatus.update([], serverID: serverID)
+                    }
+                }
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let deviceId = notification.userInfo?["deviceId"] as? String,
                   let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
@@ -188,6 +208,40 @@ struct SessionListView: View {
         }
     }
 
+    @ViewBuilder
+    private var permissionMenu: some View {
+        if !permissionStatus.entries.isEmpty {
+            Menu {
+                Text("許可待ち \(permissionStatus.entries.count)件")
+                ForEach(permissionStatus.entries) { entry in
+                    Button {
+                        Task {
+                            let serverID = configManager.activeServer?.id
+                            await viewModel.loadSessions()
+                            guard configManager.activeServer?.id == serverID else { return }
+                            navigateToPaneWithTarget(entry.target)
+                        }
+                    } label: {
+                        Label(permissionPaneTitle(entry.target), systemImage: "hand.raised.fill")
+                    }
+                    .accessibilityIdentifier(entry.target)
+                }
+            } label: {
+                Label("許可待ち \(permissionStatus.entries.count)件", systemImage: "hand.raised.fill")
+            }
+            .tint(.orange)
+            .accessibilityLabel("許可待ち \(permissionStatus.entries.count)件")
+            .accessibilityIdentifier("permissionWaitingMenu")
+        }
+    }
+
+    private func permissionPaneTitle(_ target: String) -> String {
+        guard let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) else {
+            return "ペイン \(target)"
+        }
+        return "\(item.windowName)（\(target)）"
+    }
+
     // Keep one navigation hierarchy as the display opens, closes, or resizes.
     private var adaptiveLayout: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -199,6 +253,9 @@ struct SessionListView: View {
                     }
                     ToolbarItem(placement: .primaryAction) {
                         settingsButton
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        permissionMenu
                     }
                 }
         } detail: {
@@ -222,6 +279,9 @@ struct SessionListView: View {
                     }
                 }
                     .id(detailIdentity)
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) { permissionMenu }
+                    }
                     .onAppear {
                         if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
                             AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: selected.pane.target)
@@ -233,6 +293,9 @@ struct SessionListView: View {
                     systemImage: "terminal",
                     description: Text("Choose a pane from the sidebar")
                 )
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) { permissionMenu }
+                }
             }
         }
     }
@@ -540,13 +603,20 @@ struct WindowRow: View {
 // MARK: - WindowLabel
 
 struct WindowLabel: View {
+    @State private var permissionStatus = PermissionStatus.shared
     let window: Window
     var isUnread: Bool = false
 
+    private var isWaiting: Bool {
+        window.panes.contains { permissionStatus.isWaiting($0.target) }
+    }
+
     var body: some View {
         HStack {
-            Image(systemName: PaneIcon.iconName(for: window.name, path: window.panes.first?.currentPath ?? ""))
-                .foregroundStyle(PaneIcon.iconColor(for: window.name, isActive: window.active))
+            Image(systemName: isWaiting ? "hand.raised.fill" : PaneIcon.iconName(for: window.name, path: window.panes.first?.currentPath ?? ""))
+                .foregroundStyle(isWaiting ? .orange : PaneIcon.iconColor(for: window.name, isActive: window.active))
+                .frame(width: 20)
+                .accessibilityLabel(isWaiting ? "許可待ち" : "")
             VStack(alignment: .leading) {
                 Text(window.name)
                     .font(.body)
@@ -574,14 +644,21 @@ struct WindowLabel: View {
 // MARK: - PaneRow
 
 struct PaneRow: View {
+    @State private var permissionStatus = PermissionStatus.shared
     let pane: Pane
     var windowName: String = ""
     var isUnread: Bool = false
 
+    private var isWaiting: Bool {
+        permissionStatus.isWaiting(pane.target)
+    }
+
     var body: some View {
         HStack {
-            Image(systemName: PaneIcon.iconName(for: windowName, path: pane.currentPath))
-                .foregroundStyle(PaneIcon.iconColor(for: windowName, isActive: pane.active))
+            Image(systemName: isWaiting ? "hand.raised.fill" : PaneIcon.iconName(for: windowName, path: pane.currentPath))
+                .foregroundStyle(isWaiting ? .orange : PaneIcon.iconColor(for: windowName, isActive: pane.active))
+                .frame(width: 20)
+                .accessibilityLabel(isWaiting ? "許可待ち" : "")
             VStack(alignment: .leading) {
                 Text("Pane \(pane.index)")
                     .font(.body)

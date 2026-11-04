@@ -97,6 +97,12 @@ class ReattachAPI {
         return try JSONDecoder().decode([Session].self, from: data)
     }
 
+    func permissionAttention() async throws -> [PermissionAttention] {
+        if isDemoMode { return PermissionStatus.uiTestEntries }
+        let data = try await request(path: "/attention", method: "GET")
+        return try JSONDecoder().decode([PermissionAttention].self, from: data)
+    }
+
     func createSession(name: String, cwd: String) async throws -> String {
         let body = CreateSessionRequest(name: name, cwd: cwd)
         let data = try await request(path: "/sessions", method: "POST", body: body)

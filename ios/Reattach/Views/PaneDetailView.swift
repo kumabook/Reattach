@@ -388,6 +388,7 @@ enum CompositionPlacement {
 // MARK: - PaneDetailView
 
 struct PaneDetailView: View {
+    @State private var permissionStatus = PermissionStatus.shared
     let pane: Pane
     let windowName: String
     var onTmuxNavigation: ((TmuxNavigationState) -> Void)?
@@ -409,7 +410,12 @@ struct PaneDetailView: View {
         _viewModel = State(wrappedValue: PaneDetailViewModel(target: pane.target))
     }
 
+    private var isWaitingForPermission: Bool {
+        permissionStatus.isWaiting(viewModel.tmuxNavigation?.target ?? pane.target)
+    }
+
     private var hasQuickAction: Bool {
+        if isWaitingForPermission { return true }
         switch viewModel.quickAction {
         case .options, .suggestions, .yesNo:
             return true
@@ -486,7 +492,30 @@ struct PaneDetailView: View {
                 }
             }
 
-            if composeEnabled {
+            if isWaitingForPermission {
+                Divider()
+                HStack(spacing: 8) {
+                    Label("許可待ち・内容を確認してください", systemImage: "hand.raised.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        viewModel.queueDirectKey("enter")
+                    } label: {
+                        Label("Enter", systemImage: "return")
+                            .font(.caption)
+                            .fixedSize()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.isStreamConnected || viewModel.isSending || isDirectCompositionActive)
+                    .accessibilityLabel("Enterを送信")
+                    .accessibilityIdentifier("permissionEnterButton")
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(.bar)
+                Divider()
+            } else if composeEnabled {
                 Divider()
 
                 switch viewModel.quickAction {

@@ -36,6 +36,10 @@ pub async fn send_notification(
     State(apns): State<SharedApnsService>,
     Json(payload): Json<SendNotificationRequest>,
 ) -> StatusCode {
+    // Older installed CLI hooks also submit here; filter before contacting APNs.
+    if crate::notification_content::is_candidate_generation(&payload.body) {
+        return StatusCode::OK;
+    }
     match apns
         .send_notification(&payload.title, &payload.body, payload.pane_target.as_deref())
         .await
