@@ -182,6 +182,23 @@ struct SessionListView: View {
                 do { try await Task.sleep(for: .seconds(3)) } catch { return }
             }
         }
+        .task(id: "list|\(configManager.activeServer?.id ?? "none")|\(scenePhase == .active)|\(configManager.isDemoMode)") {
+            guard scenePhase == .active, !configManager.isDemoMode else { return }
+            await viewModel.observeSessionChanges()
+        }
+        .onChange(of: PaneNavigationItem.items(in: viewModel.sessions)) { _, items in
+            guard viewModel.loadedServerID == configManager.activeServer?.id,
+                  let selected = selectedPane else { return }
+            if let current = items.first(where: { $0.pane.target == selected.pane.target }) {
+                if current != selected { selectedPane = current }
+            } else {
+                selectedPane = nil
+                detailIdentity = UUID()
+                if let serverID = configManager.activeServer?.id {
+                    paneSelectionStore.save(nil, for: serverID)
+                }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let deviceId = notification.userInfo?["deviceId"] as? String,
                   let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
@@ -410,7 +427,8 @@ struct SessionListView: View {
         guard !configManager.isDemoMode, pendingNavigationID == nil,
               selectedPane == nil, let serverID,
               let target = paneSelectionStore.target(for: serverID) else { return }
-        if let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) {
+        if let item = PaneNavigationItem.restoring(target: target, in: viewModel.sessions,
+                                                   synchronize: configManager.synchronizesSelection) {
             selectedPane = item
         } else {
             // Only discard a missing target after a successful list response.
@@ -498,12 +516,27 @@ struct PaneNavigationItem: Hashable {
         return nil
     }
 
-    static func adjacent(to selected: Self?, in sessions: [Session], backward: Bool) -> Self? {
-        let items = sessions.flatMap { session in
+    static func restoring(target: String, in sessions: [Session], synchronize: Bool) -> Self? {
+        guard synchronize else { return matching(target: target, in: sessions) }
+        // Saved window/pane indexes can be stale. Reopening a synchronized
+        // session should follow its current selection rather than change it.
+        guard let sessionName = target.split(separator: ":", maxSplits: 1).first,
+              let session = sessions.first(where: { $0.name == String(sessionName) }),
+              let window = session.windows.first(where: \.active),
+              let pane = window.panes.first(where: \.active) else { return nil }
+        return Self(pane: pane, windowName: window.name)
+    }
+
+    static func items(in sessions: [Session]) -> [Self] {
+        sessions.flatMap { session in
             session.windows.flatMap { window in
                 window.panes.map { Self(pane: $0, windowName: window.name) }
             }
         }
+    }
+
+    static func adjacent(to selected: Self?, in sessions: [Session], backward: Bool) -> Self? {
+        let items = items(in: sessions)
         guard !items.isEmpty else { return nil }
         guard let index = items.firstIndex(where: { $0.pane.target == selected?.pane.target }) else {
             return backward ? items.last : items.first
@@ -694,29 +727,85 @@ class SessionListViewModel {
     var errorMessage = ""
 
     private let api = ReattachAPI.shared
+    private var loadGeneration = 0
+    private var reloadRequested = false
+
+    func observeSessionChanges() async {
+        var retryDelay = 1
+        while !Task.isCancelled {
+            do {
+                let socket = try api.makeSessionListWebSocket()
+                try await withTaskCancellationHandler {
+                    socket.resume()
+                    defer { socket.cancel(with: .goingAway, reason: nil) }
+                    try Task.checkCancellation()
+                    while !Task.isCancelled {
+                        let message = try await socket.receive()
+                        let data: Data
+                        switch message {
+                        case .string(let text): data = Data(text.utf8)
+                        case .data(let bytes): data = bytes
+                        @unknown default: continue
+                        }
+                        let event = try JSONDecoder().decode(SessionListEvent.self, from: data)
+                        if event.type == "sessions_changed" {
+                            retryDelay = 1
+                            await loadSessions(silently: true)
+                        }
+                    }
+                } onCancel: {
+                    socket.cancel(with: .goingAway, reason: nil)
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
+            do { try await Task.sleep(for: .seconds(retryDelay)) } catch { return }
+            retryDelay = min(retryDelay * 2, 30)
+        }
+    }
+
+    private struct SessionListEvent: Decodable {
+        let type: String
+    }
 
     @discardableResult
-    func loadSessions() async -> Bool {
+    func loadSessions(silently: Bool = false) async -> Bool {
+        if silently && isLoading {
+            reloadRequested = true
+            return false
+        }
+        loadGeneration += 1
+        let generation = loadGeneration
         let serverID = ServerConfigManager.shared.activeServer?.id
         let isDemo = ServerConfigManager.shared.isDemoMode
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                if reloadRequested {
+                    reloadRequested = false
+                    Task { await self.loadSessions(silently: true) }
+                }
+            }
+        }
 
         do {
             let loaded = try await api.listSessions()
-            guard !Task.isCancelled,
+            guard generation == loadGeneration, !Task.isCancelled,
                   ServerConfigManager.shared.activeServer?.id == serverID,
                   ServerConfigManager.shared.isDemoMode == isDemo else { return false }
             sessions = loaded
             loadedServerID = serverID
             return true
         } catch let error as APIError {
+            guard generation == loadGeneration, !Task.isCancelled, !silently else { return false }
             if case .unauthorized = error {
                 return false
             }
             errorMessage = error.localizedDescription
             showError = true
         } catch {
+            guard generation == loadGeneration, !Task.isCancelled, !silently else { return false }
             errorMessage = error.localizedDescription
             showError = true
         }

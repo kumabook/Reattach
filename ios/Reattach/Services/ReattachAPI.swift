@@ -153,6 +153,21 @@ class ReattachAPI {
         return response.output
     }
 
+    func makeSessionListWebSocket() throws -> URLSessionWebSocketTask {
+        guard var components = URLComponents(string: baseURL + "/sessions/stream") else {
+            throw APIError.invalidURL
+        }
+        switch components.scheme?.lowercased() {
+        case "https": components.scheme = "wss"
+        case "http": components.scheme = "ws"
+        default: throw APIError.invalidURL
+        }
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        applyAuthenticationHeaders(to: &request)
+        return session.webSocketTask(with: request)
+    }
+
     func makePaneWebSocket(target: String, lines: Int = 500, independent: Bool = false) throws -> URLSessionWebSocketTask {
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
         guard var components = URLComponents(string: baseURL + "/panes/\(encodedTarget)/stream?lines=\(lines)&independent=\(independent)") else {

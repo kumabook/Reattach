@@ -57,6 +57,21 @@ struct ReattachTests {
         #expect(PaneNavigationItem.matching(target: "work:1.0", in: []) == nil)
     }
 
+    @Test func synchronizedRestorationFollowsCurrentSessionSelection() {
+        let previous = Pane(index: 0, active: true, target: "work:1.0", currentPath: "/tmp")
+        let current = Pane(index: 1, active: true, target: "work:2.1", currentPath: "/tmp")
+        let sessions = [Session(name: "work", attached: true, windows: [
+            Window(index: 1, name: "previous", active: false, panes: [previous]),
+            Window(index: 2, name: "current", active: true, panes: [current])
+        ])]
+        #expect(PaneNavigationItem.restoring(target: previous.target, in: sessions, synchronize: true)?.pane == current)
+        #expect(PaneNavigationItem.restoring(target: previous.target, in: sessions, synchronize: false)?.pane == previous)
+        // A removed or renumbered saved window must not redirect the host.
+        #expect(PaneNavigationItem.restoring(target: "work:9.0", in: sessions, synchronize: true)?.pane == current)
+        #expect(PaneNavigationItem.restoring(target: "work:9.0", in: sessions, synchronize: false) == nil)
+        #expect(PaneNavigationItem.restoring(target: "missing:1.0", in: sessions, synchronize: true) == nil)
+    }
+
     @Test func selectionPreferenceDecodesOlderConfigurationAndPersistsIndependently() throws {
         let legacy = Data(#"{"serverURL":"http://localhost:8080","deviceToken":"test","deviceId":"test","deviceName":"phone","serverName":"server","registeredAt":0}"#.utf8)
         var config = try JSONDecoder().decode(ServerConfig.self, from: legacy)

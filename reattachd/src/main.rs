@@ -1007,6 +1007,7 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
     let base_routes = Router::new()
         .route("/sessions", get(api::list_sessions))
         .route("/sessions", post(api::create_session))
+        .route("/sessions/stream", get(api::stream_sessions))
         .route("/windows", post(api::create_window))
         .route("/panes/{target}", delete(api::delete_pane))
         .route("/panes/{target}/select", post(api::select_pane))
