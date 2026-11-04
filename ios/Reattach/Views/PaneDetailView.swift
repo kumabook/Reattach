@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Observation
+import GameController
 
 // MARK: - ZoomableTextView
 
@@ -397,6 +398,9 @@ struct PaneDetailView: View {
     @State private var scrollToBottom = false
     @State private var zoomRequest: TerminalZoomRequest?
     @State private var inputText = ""
+    @State private var keyboardFocusRequest: UUID?
+    @State private var keyboardVisible = false
+    @State private var hardwareKeyboardConnected = GCKeyboard.coalesced != nil
     @State private var isDirectCompositionActive = false
     @State private var visibleCursorRect: CGRect?
     @State private var showCommandEditor = false
@@ -408,6 +412,17 @@ struct PaneDetailView: View {
         self.pane = pane
         self.windowName = windowName
         _viewModel = State(wrappedValue: PaneDetailViewModel(target: pane.target))
+    }
+
+    @ViewBuilder
+    private var inputModeMenuItems: some View {
+        Picker("入力モード", selection: $composeEnabled) {
+            Label("直接入力", systemImage: "keyboard").tag(false)
+            Label("文章入力", systemImage: "text.alignleft").tag(true)
+        }
+        if !composeEnabled {
+            Button("Escapeを送信") { viewModel.queueDirectKey("escape") }
+        }
     }
 
     private var isWaitingForPermission: Bool {
@@ -441,7 +456,8 @@ struct PaneDetailView: View {
                         DirectInputTextViewRepresentable(
                             onText: { viewModel.queueDirectText($0) },
                             onKey: { viewModel.queueDirectKey($0, modifiers: $1) },
-                            onCompositionChanged: { isDirectCompositionActive = $0 }
+                            onCompositionChanged: { isDirectCompositionActive = $0 },
+                            keyboardFocusRequest: keyboardFocusRequest
                         )
                         .frame(width: frame.width, height: frame.height)
                         .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))
@@ -614,7 +630,8 @@ struct PaneDetailView: View {
                                 Task { await viewModel.sendInput(text) }
                             },
                             draft: $inputText,
-                            onCompositionState: { isDirectCompositionActive = $0 }
+                            onCompositionState: { isDirectCompositionActive = $0 },
+                            keyboardFocusRequest: keyboardFocusRequest
                         )
                     }
 
@@ -655,21 +672,46 @@ struct PaneDetailView: View {
         }
         .navigationTitle(viewModel.tmuxNavigation?.windowName ?? windowName)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            hardwareKeyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in
+            hardwareKeyboardConnected = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
+            hardwareKeyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            hardwareKeyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Picker("入力モード", selection: $composeEnabled) {
-                        Label("直接入力", systemImage: "keyboard").tag(false)
-                        Label("文章入力", systemImage: "text.alignleft").tag(true)
+                if keyboardVisible || hardwareKeyboardConnected {
+                    Menu {
+                        inputModeMenuItems
+                    } label: {
+                        Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
                     }
-                    if !composeEnabled {
-                        Button("Escapeを送信") { viewModel.queueDirectKey("escape") }
+                    .disabled(isDirectCompositionActive)
+                    .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
+                } else {
+                    Menu {
+                        inputModeMenuItems
+                    } label: {
+                        Image(systemName: "keyboard")
+                    } primaryAction: {
+                        keyboardFocusRequest = UUID()
                     }
-                } label: {
-                    Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
+                    .accessibilityLabel("キーボードを表示")
+                    .accessibilityHint("長押しで入力モードを切り替え")
+                    .accessibilityIdentifier("showKeyboardButton")
                 }
-                .disabled(isDirectCompositionActive)
-                .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu {

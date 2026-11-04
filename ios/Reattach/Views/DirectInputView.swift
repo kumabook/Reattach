@@ -18,6 +18,7 @@ struct DirectInputView: View {
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
     @Binding var draft: String
     var onCompositionState: (Bool) -> Void = { _ in }
+    var keyboardFocusRequest: UUID? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +28,7 @@ struct DirectInputView: View {
                         guard !text.isEmpty else { return false }
                         onSendAndEnter(text)
                         return true
-                    })
+                    }, keyboardFocusRequest: keyboardFocusRequest)
                         .accessibilityIdentifier("directInputDraft")
                     Button {
                         let text = draft
@@ -67,7 +68,8 @@ struct DirectInputView: View {
             onCompositionChanged: {
                 isComposingText = $0
                 onCompositionState($0)
-            }
+            },
+            keyboardFocusRequest: keyboardFocusRequest
         )
             // Keep the native responder mounted for hardware keyboards and IME.
             // Only marked text needs a visible editor; idle direct input takes no space.
@@ -126,6 +128,7 @@ struct DirectInputView: View {
 struct DirectInputDraftEditor: UIViewRepresentable {
     @Binding var text: String
     var onSendAndEnter: (String) -> Bool = { _ in false }
+    var keyboardFocusRequest: UUID? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
@@ -147,6 +150,10 @@ struct DirectInputDraftEditor: UIViewRepresentable {
 
     func updateUIView(_ view: DirectInputDraftTextView, context: Context) {
         view.onSendAndEnter = onSendAndEnter
+        if let request = keyboardFocusRequest, context.coordinator.lastFocusRequest != request {
+            context.coordinator.lastFocusRequest = request
+            DispatchQueue.main.async { [weak view] in view?.becomeFirstResponder() }
+        }
         context.coordinator.text = $text
         // Never replace marked text while the input method is composing it.
         if view.markedTextRange == nil, view.text != text {
@@ -165,6 +172,7 @@ struct DirectInputDraftEditor: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var text: Binding<String>
+        var lastFocusRequest: UUID?
 
         init(text: Binding<String>) {
             self.text = text
@@ -197,6 +205,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
     let onText: (String) -> Void
     let onKey: (_ key: String, _ modifiers: [String]) -> Void
     let onCompositionChanged: (Bool) -> Void
+    var keyboardFocusRequest: UUID? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -238,12 +247,17 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: TerminalInputTextView, context: Context) {
+        if let request = keyboardFocusRequest, context.coordinator.lastFocusRequest != request {
+            context.coordinator.lastFocusRequest = request
+            DispatchQueue.main.async { [weak textView] in textView?.becomeFirstResponder() }
+        }
         context.coordinator.onText = onText
         context.coordinator.onKey = onKey
         context.coordinator.onCompositionChanged = onCompositionChanged
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
+        var lastFocusRequest: UUID?
         var onText: (String) -> Void
         var onKey: (_ key: String, _ modifiers: [String]) -> Void
         var onCompositionChanged: (Bool) -> Void
