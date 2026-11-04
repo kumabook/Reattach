@@ -12,6 +12,37 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func terminalStylesAndLinksSurviveRendering() throws {
+        let text = "\u{1B}[7mselected\u{1B}[27m normal \u{1B}[48;5;21mblue\u{1B}[m https://example.com/path\n\u{1B}]8;;https://example.org\u{1B}\\日本語リンク\u{1B}]8;;\u{1B}\\"
+        let rendered = TerminalTextRenderer.render(text)
+        #expect(!rendered.string.contains("\u{1B}"))
+        #expect(rendered.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+        #expect(rendered.attribute(.backgroundColor, at: 9, effectiveRange: nil) == nil)
+        let plain = (rendered.string as NSString).range(of: "https://example.com/path")
+        #expect((rendered.attribute(.link, at: plain.location, effectiveRange: nil) as? URL)?.absoluteString == "https://example.com/path")
+        let named = (rendered.string as NSString).range(of: "日本語リンク")
+        #expect((rendered.attribute(.link, at: named.location, effectiveRange: nil) as? URL)?.absoluteString == "https://example.org")
+        let blue = (rendered.string as NSString).range(of: "blue")
+        #expect(rendered.attribute(.backgroundColor, at: blue.location, effectiveRange: nil) as? UIColor == UIColor(red: 0, green: 0, blue: 1, alpha: 1))
+    }
+
+    @Test func copyModeSelectionAndCursorUseTheVisibleGrid() throws {
+        let cursor = try JSONDecoder().decode(PaneCursorState.self, from: Data(#"{"x":3,"row_from_bottom":1,"pane_width":80,"visible":true,"copy_mode":true,"selection":[{"row_from_bottom":1,"start_x":1,"end_x":5}]}"#.utf8))
+        let textView = UITextView(frame: CGRect(x: 0, y: 0, width: 400, height: 100))
+        textView.attributedText = TerminalTextRenderer.render("a日本b\nnext\n")
+        let coordinator = ZoomableTextView.Coordinator()
+        let caret = UIView()
+        textView.addSubview(caret)
+        coordinator.cursorView = caret
+        coordinator.updateCursor(cursor, in: textView, force: true)
+        #expect(!caret.isHidden)
+        let highlights = textView.subviews.filter { $0.backgroundColor == UIColor.systemBlue.withAlphaComponent(0.3) }
+        #expect(highlights.count == 1)
+        #expect(try #require(highlights.first).frame.width > 0)
+        coordinator.updateCursor(PaneCursorState(x: 0, rowFromBottom: 0, paneWidth: 80, visible: true), in: textView, force: false)
+        #expect(textView.subviews.filter { $0.backgroundColor == UIColor.systemBlue.withAlphaComponent(0.3) }.isEmpty)
+    }
+
     @Test func permissionStatusTracksOtherPanesAndRejectsOldServerResponses() throws {
         let state = PermissionStatus()
         state.reset(serverID: "one")
@@ -415,4 +446,105 @@ struct ReattachTests {
         )
     }
 
+}
+
+@MainActor
+private final class RecoverySocket: PaneStreamSocket {
+    var incoming: [URLSessionWebSocketTask.Message] = []
+    var receiver: CheckedContinuation<URLSessionWebSocketTask.Message, Error>?
+    var blockedSend: CheckedContinuation<Void, Error>?
+    var sent: [String] = []
+    var cancelled = false
+    var respondsToPing = true
+    var blockNextSend = false
+
+    init(ready: Bool = true) {
+        if ready { incoming = [.string(#"{"type":"ready","tmux_keys":true,"independent_selection":true}"#)] }
+    }
+    func resume() {}
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        cancelled = true
+        receiver?.resume(throwing: URLError(.cancelled))
+        receiver = nil
+    }
+    func receive() async throws -> URLSessionWebSocketTask.Message {
+        if cancelled { throw URLError(.cancelled) }
+        if !incoming.isEmpty { return incoming.removeFirst() }
+        return try await withCheckedThrowingContinuation { receiver = $0 }
+    }
+    func send(_ message: URLSessionWebSocketTask.Message) async throws {
+        if cancelled { throw URLError(.cancelled) }
+        if case .string(let text) = message { sent.append(text) }
+        if blockNextSend {
+            blockNextSend = false
+            try await withCheckedThrowingContinuation { blockedSend = $0 }
+        }
+    }
+    func sendPing(pongReceiveHandler: @escaping @Sendable (Error?) -> Void) {
+        if respondsToPing { pongReceiveHandler(nil) }
+    }
+}
+
+@MainActor
+struct StreamRecoveryTests {
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<200 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        Issue.record("Timed out waiting for stream state")
+    }
+
+    @Test func silentHandshakeIsReplaced() async throws {
+        let first = RecoverySocket(ready: false)
+        let second = RecoverySocket()
+        var attempts = 0
+        let model = PaneDetailViewModel(target: "probe", heartbeatInterval: .milliseconds(40), retryInterval: .milliseconds(5)) { _, _ in
+            attempts += 1
+            return attempts == 1 ? first : second
+        }
+        defer { model.stopStreaming() }
+        await model.startStreaming()
+        try await waitUntil { attempts == 2 && model.isStreamConnected }
+        #expect(first.cancelled)
+        #expect(!second.cancelled)
+    }
+
+    @Test func lostPongReconnectsWithoutReplayingQueuedInputOrAcceptingOldFailure() async throws {
+        let first = RecoverySocket()
+        first.respondsToPing = false
+        let second = RecoverySocket()
+        var attempts = 0
+        let model = PaneDetailViewModel(target: "probe", heartbeatInterval: .milliseconds(80), retryInterval: .milliseconds(5)) { _, _ in
+            attempts += 1
+            return attempts == 1 ? first : second
+        }
+        defer { model.stopStreaming() }
+        model.setDirectMode(true)
+        await model.startStreaming()
+        try await waitUntil { model.isStreamConnected }
+        first.blockNextSend = true
+        model.queueDirectKey("left")
+        try await waitUntil { first.blockedSend != nil }
+        model.queueDirectText("old input")
+        model.flushDirectInput()
+        try await waitUntil { attempts == 2 && model.isStreamConnected }
+        first.blockedSend?.resume(throwing: URLError(.networkConnectionLost))
+        first.blockedSend = nil
+        model.queueDirectText("new input")
+        model.flushDirectInput()
+        try await waitUntil { second.sent.contains { $0.contains("new input") } }
+        #expect(!second.sent.contains { $0.contains("old input") })
+        #expect(!second.cancelled)
+        #expect(model.isStreamConnected)
+        let mode = try JSONDecoder().decode(PaneStreamRequest.self, from: Data(second.sent[0].utf8))
+        #expect(mode.type == "direct_mode" && mode.enabled == true)
+    }
+
+    @Test func copyRequestAndResponsePreserveUnicodeAndNewlines() throws {
+        let data = try JSONEncoder().encode(PaneStreamRequest.copySelection)
+        #expect(try JSONDecoder().decode(PaneStreamRequest.self, from: data).type == "copy_selection")
+        let response = try JSONDecoder().decode(PaneStreamResponse.self, from: Data(#"{"type":"clipboard","text":"日本語\nnext","error":null}"#.utf8))
+        #expect(response.text == "日本語\nnext")
+    }
 }

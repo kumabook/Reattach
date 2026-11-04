@@ -63,6 +63,7 @@ pub struct ControlClient {
     socket: Option<String>,
     output: BufReader<ChildStdout>,
     private_session: Option<PrivateSession>,
+    copied_text: Option<String>,
 }
 
 impl ControlClient {
@@ -201,6 +202,7 @@ impl ControlClient {
             name: String::new(),
             socket,
             private_session: None,
+            copied_text: None,
         };
         client.response(false).await?; // initial attach command response
         for _ in 0..40 {
@@ -309,26 +311,128 @@ impl ControlClient {
         .map_err(|_| TmuxError::Command("tmux control response timed out".into()))?
     }
 
-    pub async fn send_text(&self, text: &str) -> Result<(), TmuxError> {
+    pub async fn send_text(&mut self, text: &str) -> Result<(), TmuxError> {
         if !text.is_empty() {
+            let keys: Vec<String> = text.chars().map(|key| key.to_string()).collect();
+            let clipboard = self.prepare_clipboard(&keys).await;
             command(
                 self.socket.as_deref(),
                 &["send-keys", "-K", "-c", &self.name, "-l", "--", text],
             )
             .await?;
+            self.finish_clipboard(clipboard).await;
         }
         Ok(())
     }
 
-    pub async fn send_key(&self, key: &str, modifiers: &[KeyModifier]) -> Result<(), TmuxError> {
+    pub async fn send_key(
+        &mut self,
+        key: &str,
+        modifiers: &[KeyModifier],
+    ) -> Result<(), TmuxError> {
         let key = tmux_key_name(key, modifiers)?;
+        let clipboard = self.prepare_clipboard(std::slice::from_ref(&key)).await;
         command(
             self.socket.as_deref(),
             &["send-keys", "-K", "-c", &self.name, "--", &key],
         )
         .await?;
+        self.finish_clipboard(clipboard).await;
         Ok(())
     }
+    pub fn take_copied_text(&mut self) -> Option<String> {
+        self.copied_text.take()
+    }
+
+    // Only observe a copy binding dispatched by this connection. Do not sync
+    // the server-global paste buffer on connect, navigation, or polling ticks.
+    async fn prepare_clipboard(&mut self, keys: &[String]) -> Option<Option<String>> {
+        let mode = self
+            .query("#{pane_mode}|#{mode-keys}|#{client_key_table}")
+            .await
+            .ok()?;
+        let mut fields = mode.split('|');
+        if fields.next()? != "copy-mode" {
+            return None;
+        }
+        let table = if fields.next()? == "vi" {
+            "copy-mode-vi"
+        } else {
+            "copy-mode"
+        };
+        if fields.next()? != "root" {
+            return None;
+        }
+        let bindings = command(self.socket.as_deref(), &["list-keys", "-T", table])
+            .await
+            .ok()?;
+        for binding in bindings.lines() {
+            let Some(key) = binding
+                .split_whitespace()
+                .skip_while(|part| *part != "-T")
+                .nth(2)
+            else {
+                continue;
+            };
+            let key = key.trim_matches(['\'', '"']);
+            if keys
+                .iter()
+                .any(|input| input == key || (input == " " && key == "Space"))
+                && is_copy_binding(binding)
+            {
+                return self.latest_buffer_name().await.ok();
+            }
+        }
+        None
+    }
+
+    async fn latest_buffer_name(&self) -> Result<Option<String>, TmuxError> {
+        let buffers = command(
+            self.socket.as_deref(),
+            &["list-buffers", "-F", "#{buffer_name}"],
+        )
+        .await?;
+        Ok(buffers.lines().next().map(str::to_owned))
+    }
+
+    async fn finish_clipboard(&mut self, before: Option<Option<String>>) {
+        let Some(before) = before else {
+            return;
+        };
+        let Ok(Some(name)) = self.latest_buffer_name().await else {
+            return;
+        };
+        if before.as_ref() == Some(&name) {
+            return;
+        }
+        if let Ok(text) = command(self.socket.as_deref(), &["save-buffer", "-b", &name, "-"]).await
+        {
+            self.copied_text = Some(text);
+        }
+    }
+}
+
+fn is_copy_binding(binding: &str) -> bool {
+    binding.split_whitespace().any(|word| {
+        let word = word.trim_matches(['\'', '"', ';', '{', '}']);
+        matches!(
+            word,
+            "copy-selection"
+                | "copy-selection-no-clear"
+                | "copy-selection-and-cancel"
+                | "copy-pipe"
+                | "copy-pipe-no-clear"
+                | "copy-pipe-and-cancel"
+                | "copy-line"
+                | "copy-line-and-cancel"
+                | "copy-end-of-line"
+                | "copy-end-of-line-and-cancel"
+                | "copy-pipe-line"
+                | "copy-pipe-line-and-cancel"
+                | "copy-pipe-end-of-line"
+                | "copy-pipe-end-of-line-and-cancel"
+        )
+    })
 }
 
 async fn read_response<R: tokio::io::AsyncBufRead + Unpin>(
@@ -384,7 +488,7 @@ fn tmux_command(socket: Option<&str>) -> Command {
     command
 }
 
-async fn command(socket: Option<&str>, args: &[&str]) -> Result<String, TmuxError> {
+pub(super) async fn command(socket: Option<&str>, args: &[&str]) -> Result<String, TmuxError> {
     let output = tokio::time::timeout(
         Duration::from_secs(3),
         tmux_command(socket).args(args).kill_on_drop(true).output(),
@@ -402,6 +506,160 @@ async fn command(socket: Option<&str>, args: &[&str]) -> Result<String, TmuxErro
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recognizes_custom_copy_bindings_but_not_movement_or_cancel() {
+        assert!(is_copy_binding("bind-key -T copy-mode C-w send -X copy-pipe-and-cancel 'reattach-to-user-namespace pbcopy'"));
+        assert!(is_copy_binding(
+            "bind-key -T copy-mode-vi y send-keys -X copy-selection-no-clear"
+        ));
+        assert!(!is_copy_binding(
+            "bind-key -T copy-mode C-g send-keys -X cancel"
+        ));
+        assert!(!is_copy_binding(
+            "bind-key -T copy-mode Left send-keys -X cursor-left"
+        ));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires permission to start an isolated tmux server"]
+    async fn automatically_copies_custom_bindings_without_replaying_other_buffers() {
+        let socket = format!("/tmp/reattach-auto-copy-{}.sock", uuid::Uuid::new_v4());
+        struct Cleanup(String);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::process::Command::new("tmux")
+                    .args(["-S", &self.0, "kill-server"])
+                    .output();
+            }
+        }
+        let _cleanup = Cleanup(socket.clone());
+        let sock = Some(socket.as_str());
+        command(
+            sock,
+            &[
+                "-f",
+                "/dev/null",
+                "new-session",
+                "-d",
+                "-s",
+                "probe",
+                "printf 'hello 日本語\\nnext line\\n'; sleep 60",
+            ],
+        )
+        .await
+        .unwrap();
+        command(
+            sock,
+            &["set-option", "-w", "-t", "probe", "mode-keys", "emacs"],
+        )
+        .await
+        .unwrap();
+        command(
+            sock,
+            &[
+                "bind-key",
+                "-T",
+                "copy-mode",
+                "C-w",
+                "send-keys",
+                "-X",
+                "copy-pipe-and-cancel",
+                "cat >/dev/null",
+            ],
+        )
+        .await
+        .unwrap();
+        command(
+            sock,
+            &[
+                "bind-key",
+                "-T",
+                "copy-mode",
+                "C-g",
+                "send-keys",
+                "-X",
+                "cancel",
+            ],
+        )
+        .await
+        .unwrap();
+        let mut client = ControlClient::attach_at("probe", Some(socket.clone()))
+            .await
+            .unwrap();
+        assert!(client.take_copied_text().is_none());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        async fn select(socket: &str) {
+            let sock = Some(socket);
+            command(sock, &["copy-mode", "-t", "probe"]).await.unwrap();
+            for action in [
+                "history-top",
+                "start-of-line",
+                "begin-selection",
+                "cursor-down",
+                "end-of-line",
+            ] {
+                command(sock, &["send-keys", "-t", "probe", "-X", action])
+                    .await
+                    .unwrap();
+            }
+        }
+        for _ in 0..2 {
+            select(&socket).await;
+            client.send_key("w", &[KeyModifier::Control]).await.unwrap();
+            assert_eq!(
+                client.take_copied_text().as_deref(),
+                Some("hello 日本語\nnext line")
+            );
+            assert!(client.take_copied_text().is_none());
+        }
+        select(&socket).await;
+        command(
+            sock,
+            &["set-buffer", "-b", "other-client", "unrelated copy"],
+        )
+        .await
+        .unwrap();
+        client.state().await.unwrap();
+        assert!(client.take_copied_text().is_none());
+        client.send_key("left", &[]).await.unwrap();
+        assert!(client.take_copied_text().is_none());
+        client.send_key("g", &[KeyModifier::Control]).await.unwrap();
+        assert!(client.take_copied_text().is_none());
+        command(
+            sock,
+            &["set-option", "-w", "-t", "probe", "mode-keys", "vi"],
+        )
+        .await
+        .unwrap();
+        command(
+            sock,
+            &[
+                "bind-key",
+                "-T",
+                "copy-mode-vi",
+                "y",
+                "send-keys",
+                "-X",
+                "copy-selection-no-clear",
+            ],
+        )
+        .await
+        .unwrap();
+        select(&socket).await;
+        client.send_text("y").await.unwrap();
+        assert_eq!(
+            client.take_copied_text().as_deref(),
+            Some("hello 日本語\nnext line\n")
+        );
+        assert_eq!(client.query("#{pane_mode}").await.unwrap(), "copy-mode");
+        drop(client);
+        let mut reconnected = ControlClient::attach_at("probe", Some(socket.clone()))
+            .await
+            .unwrap();
+        reconnected.state().await.unwrap();
+        assert!(reconnected.take_copied_text().is_none());
+    }
 
     // Explicitly opt in: this starts a disposable tmux server on its own socket.
     #[tokio::test]

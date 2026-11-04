@@ -36,6 +36,7 @@ enum ClientMessage {
     },
     Escape,
     Refresh,
+    CopySelection,
 }
 
 #[derive(Serialize)]
@@ -43,7 +44,12 @@ enum ClientMessage {
 enum ServerMessage {
     Ready {
         tmux_keys: bool,
+        clipboard: bool,
         independent_selection: bool,
+    },
+    Clipboard {
+        text: Option<String>,
+        error: Option<String>,
     },
     Navigation {
         state: tmux::ClientState,
@@ -103,6 +109,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
         &mut socket,
         &ServerMessage::Ready {
             tmux_keys: true,
+            clipboard: true,
             independent_selection: true,
         },
     )
@@ -115,6 +122,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
     heartbeat.tick().await;
+    let mut last_pong = tokio::time::Instant::now();
     let mut last_output: Option<String> = None;
     let mut last_cursor: Option<tmux::PaneCursor> = None;
 
@@ -192,7 +200,8 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                 }
             }
             _ = heartbeat.tick() => {
-                if socket.send(Message::Ping(Vec::new().into())).await.is_err() {
+                if last_pong.elapsed() > Duration::from_secs(45) { break; }
+                if send_frame(&mut socket, Message::Ping(Vec::new().into())).await.is_err() {
                     break;
                 }
             }
@@ -223,7 +232,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                             }
                             Ok(ClientMessage::Text { text }) => {
                                 let text_target = target.clone();
-                                if let Some(control) = client.as_ref().filter(|_| direct_mode) {
+                                if let Some(control) = client.as_mut().filter(|_| direct_mode) {
                                     control.send_text(&text).await
                                 } else {
                                     run_tmux(move || tmux::send_text(&text_target, &text)).await
@@ -231,7 +240,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                             }
                             Ok(ClientMessage::Key { key, modifiers }) => {
                                 let key_target = target.clone();
-                                if let Some(control) = client.as_ref().filter(|_| direct_mode) {
+                                if let Some(control) = client.as_mut().filter(|_| direct_mode) {
                                     control.send_key(&key, &modifiers).await
                                 } else {
                                     run_tmux(move || tmux::send_key(&key_target, &key, &modifiers)).await
@@ -240,6 +249,14 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                             Ok(ClientMessage::Escape) => {
                                 let escape_target = target.clone();
                                 run_tmux(move || tmux::send_escape(&escape_target)).await
+                            }
+                            Ok(ClientMessage::CopySelection) => {
+                                let message = match tmux::copy_selection(&target).await {
+                                    Ok(text) => ServerMessage::Clipboard { text: Some(text), error: None },
+                                    Err(error) => ServerMessage::Clipboard { text: None, error: Some(error.to_string()) },
+                                };
+                                if send_message(&mut socket, &message).await.is_err() { break; }
+                                continue;
                             }
                             Ok(ClientMessage::Refresh) => {
                                 last_output = None;
@@ -253,6 +270,10 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                             }
                         };
 
+                        if let Some(text) = client.as_mut().and_then(tmux::ControlClient::take_copied_text) {
+                            if send_message(&mut socket, &ServerMessage::Clipboard { text: Some(text), error: None }).await.is_err() { break; }
+                        }
+
                         if let Err(error) = result {
                             let _ = send_message(&mut socket, &ServerMessage::Error {
                                 error: error.to_string(),
@@ -261,11 +282,12 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
                     }
                     Message::Close(_) => break,
                     Message::Ping(payload) => {
-                        if socket.send(Message::Pong(payload)).await.is_err() {
+                        if send_frame(&mut socket, Message::Pong(payload)).await.is_err() {
                             break;
                         }
                     }
-                    Message::Pong(_) | Message::Binary(_) => {}
+                    Message::Pong(_) => last_pong = tokio::time::Instant::now(),
+                    Message::Binary(_) => {}
                 }
             }
         }
@@ -323,9 +345,15 @@ where
 
 async fn send_message(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), ()> {
     let text = serde_json::to_string(message).map_err(|_| ())?;
-    socket
-        .send(Message::Text(text.into()))
+    send_frame(socket, Message::Text(text.into())).await
+}
+
+// Bound writes as well as reads so a lost mobile connection releases its
+// control client and temporary session even when the TCP send buffer fills.
+async fn send_frame(socket: &mut WebSocket, message: Message) -> Result<(), ()> {
+    tokio::time::timeout(Duration::from_secs(5), socket.send(message))
         .await
+        .map_err(|_| ())?
         .map_err(|_| ())
 }
 
@@ -373,13 +401,15 @@ mod tests {
                 row_from_bottom: 0,
                 pane_width: 80,
                 visible: true,
+                copy_mode: false,
+                selection: Vec::new(),
             },
         })
         .expect("output message should serialize");
 
         assert_eq!(
             json,
-            r#"{"type":"output","output":"ready","cursor":{"x":3,"row_from_bottom":0,"pane_width":80,"visible":true}}"#
+            r#"{"type":"output","output":"ready","cursor":{"x":3,"row_from_bottom":0,"pane_width":80,"visible":true,"copy_mode":false,"selection":[]}}"#
         );
     }
 
@@ -430,6 +460,8 @@ mod tests {
             row_from_bottom: 0,
             pane_width: 80,
             visible: true,
+            copy_mode: false,
+            selection: Vec::new(),
         }
     }
 }

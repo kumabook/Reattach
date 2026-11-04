@@ -1,4 +1,5 @@
 mod capture;
+mod clipboard;
 mod control;
 mod create;
 mod kill;
@@ -7,6 +8,7 @@ mod select;
 mod send;
 
 pub use capture::{capture_pane, capture_pane_snapshot, PaneCursor, PaneSnapshot};
+pub use clipboard::copy_selection;
 pub use control::{ClientState, ControlClient};
 pub use create::{create_session, create_window};
 pub use kill::kill_pane;

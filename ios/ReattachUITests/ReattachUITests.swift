@@ -51,6 +51,39 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testTextSizePopover() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture"]
+        app.launch()
+        let waiting = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 15))
+        waiting.tap()
+        app.buttons["claude-demo:0.0"].tap()
+        XCTAssertTrue(app.navigationBars["claude"].waitForExistence(timeout: 5))
+        let size = app.buttons["textSizeButton"]
+        if size.isHittable {
+            size.tap()
+        } else {
+            app.buttons["More"].firstMatch.tap()
+            let overflowSize = app.buttons["文字サイズ"]
+            XCTAssertTrue(overflowSize.waitForExistence(timeout: 5))
+            overflowSize.tap()
+        }
+        let slider = app.sliders.firstMatch
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        slider.adjust(toNormalizedSliderPosition: 0.5)
+        // XCUI slider dragging is approximate; verify the displayed zoom changed.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "2[0-9]{2}%"))
+            .firstMatch.waitForExistence(timeout: 5))
+        app.buttons["標準に戻す"].tap()
+        XCTAssertTrue(app.staticTexts["100%"].waitForExistence(timeout: 5))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Text size popover"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()

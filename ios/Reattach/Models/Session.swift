@@ -99,6 +99,7 @@ struct PaneStreamRequest: Codable {
     }
 
     static let escape = PaneStreamRequest(type: "escape", text: nil, key: nil, modifiers: nil)
+    static let copySelection = PaneStreamRequest(type: "copy_selection", text: nil, key: nil, modifiers: nil)
     static let refresh = PaneStreamRequest(type: "refresh", text: nil, key: nil, modifiers: nil)
 }
 
@@ -110,12 +111,14 @@ struct PaneStreamResponse: Codable {
     let deleteCount: Int?
     let lines: [String]?
     let cursor: PaneCursorState?
+    var text: String? = nil
+    var clipboard: Bool? = nil
     var tmuxKeys: Bool? = nil
     var independentSelection: Bool? = nil
     var state: TmuxNavigationState? = nil
 
     enum CodingKeys: String, CodingKey {
-        case type, output, error, lines, cursor, state
+        case type, output, error, lines, cursor, state, text, clipboard
         case tmuxKeys = "tmux_keys"
         case independentSelection = "independent_selection"
         case startLine = "start_line"
@@ -143,9 +146,12 @@ struct PaneCursorState: Codable, Equatable {
     let rowFromBottom: Int
     let paneWidth: Int
     let visible: Bool
+    var copyMode: Bool? = nil
+    var selection: [PaneSelectionSpan]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case x, visible
+        case x, visible, selection
+        case copyMode = "copy_mode"
         case rowFromBottom = "row_from_bottom"
         case paneWidth = "pane_width"
     }
@@ -153,4 +159,15 @@ struct PaneCursorState: Codable, Equatable {
 
 struct ErrorResponse: Codable {
     let error: String
+}
+
+struct PaneSelectionSpan: Codable, Equatable {
+    let rowFromBottom: Int
+    let startX: Int
+    let endX: Int
+    enum CodingKeys: String, CodingKey {
+        case rowFromBottom = "row_from_bottom"
+        case startX = "start_x"
+        case endX = "end_x"
+    }
 }

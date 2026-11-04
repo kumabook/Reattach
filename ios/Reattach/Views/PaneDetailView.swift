@@ -12,7 +12,8 @@ import GameController
 struct TerminalZoomRequest {
     let id = UUID()
     // nil restores the original scale.
-    let multiplier: CGFloat?
+    var multiplier: CGFloat? = nil
+    var scale: CGFloat? = nil
 }
 
 struct ZoomableTextView: UIViewRepresentable {
@@ -22,6 +23,7 @@ struct ZoomableTextView: UIViewRepresentable {
     @Binding var scrollToBottom: Bool
     var zoomRequest: TerminalZoomRequest? = nil
     var onCursorRectChanged: ((CGRect?) -> Void)? = nil
+    var onZoomChanged: ((CGFloat) -> Void)? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         context.coordinator.lastContentVersion = nil
@@ -35,6 +37,9 @@ struct ZoomableTextView: UIViewRepresentable {
 
         let textView = UITextView()
         textView.isEditable = false
+        textView.isSelectable = true
+        textView.dataDetectorTypes = [.link]
+        textView.linkTextAttributes = [.foregroundColor: UIColor.link, .underlineStyle: NSUnderlineStyle.single.rawValue]
         textView.isScrollEnabled = false
         textView.backgroundColor = .clear
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
@@ -60,6 +65,7 @@ struct ZoomableTextView: UIViewRepresentable {
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
         context.coordinator.onCursorRectChanged = onCursorRectChanged
+        context.coordinator.onZoomChanged = onZoomChanged
         guard let textView = scrollView.viewWithTag(100) as? UITextView else { return }
 
         let contentChanged = context.coordinator.lastContentVersion != contentVersion
@@ -100,7 +106,7 @@ struct ZoomableTextView: UIViewRepresentable {
             context.coordinator.applyZoom(zoomRequest, in: scrollView)
         }
 
-        if contentChanged {
+        if contentChanged && cursor?.copyMode != true {
             context.coordinator.scrollToLatest(in: scrollView)
         }
         if scrollToBottom {
@@ -120,7 +126,9 @@ struct ZoomableTextView: UIViewRepresentable {
         var lastCursor: PaneCursorState?
         weak var scrollView: UIScrollView?
         weak var cursorView: UIView?
+        private var selectionViews: [UIView] = []
         var onCursorRectChanged: ((CGRect?) -> Void)?
+        var onZoomChanged: ((CGFloat) -> Void)?
         private var publishedCursorRect: CGRect?
         private var isUserScrolling = false
         private var isUserZooming = false
@@ -168,7 +176,13 @@ struct ZoomableTextView: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) { publishCursorRect() }
-        func scrollViewDidZoom(_ scrollView: UIScrollView) { publishCursorRect() }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            publishCursorRect()
+            DispatchQueue.main.async { [weak self, weak scrollView] in
+                guard let scrollView else { return }
+                self?.onZoomChanged?(scrollView.zoomScale)
+            }
+        }
 
         func publishCursorRect() {
             var rect: CGRect?
@@ -199,6 +213,7 @@ struct ZoomableTextView: UIViewRepresentable {
         ) {
             guard force || cursor != lastCursor else { return }
             lastCursor = cursor
+            updateSelection(cursor, in: textView)
             cursorView?.layer.removeAllAnimations()
 
             guard let cursor,
@@ -208,6 +223,9 @@ struct ZoomableTextView: UIViewRepresentable {
                 return
             }
 
+            if cursor.copyMode == true, let scrollView, !isUserScrolling, !isUserZooming {
+                scrollView.scrollRectToVisible(textView.convert(frame.insetBy(dx: -8, dy: -8), to: scrollView), animated: false)
+            }
             cursorView?.frame = frame
             cursorView?.alpha = 0.9
             cursorView?.isHidden = false
@@ -218,6 +236,23 @@ struct ZoomableTextView: UIViewRepresentable {
             ) {
                 self.cursorView?.alpha = 0.15
             }
+        }
+
+        private func updateSelection(_ cursor: PaneCursorState?, in textView: UITextView) {
+            selectionViews.forEach { $0.removeFromSuperview() }
+            selectionViews.removeAll()
+            guard let cursor, cursor.copyMode == true else { return }
+            for span in cursor.selection ?? [] {
+                let start = PaneCursorState(x: span.startX, rowFromBottom: span.rowFromBottom, paneWidth: cursor.paneWidth, visible: true)
+                let end = PaneCursorState(x: span.endX, rowFromBottom: span.rowFromBottom, paneWidth: cursor.paneWidth, visible: true)
+                guard let left = cursorFrame(start, in: textView), let right = cursorFrame(end, in: textView), right.minX > left.minX else { continue }
+                let highlight = UIView(frame: CGRect(x: left.minX, y: left.minY, width: right.minX - left.minX, height: left.height))
+                highlight.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.3)
+                highlight.isUserInteractionEnabled = false
+                textView.addSubview(highlight)
+                selectionViews.append(highlight)
+            }
+            if let cursorView { textView.bringSubviewToFront(cursorView) }
         }
 
         func cursorFrame(
@@ -261,7 +296,7 @@ struct ZoomableTextView: UIViewRepresentable {
         }
 
         func applyZoom(_ request: TerminalZoomRequest, in scrollView: UIScrollView) {
-            let scale = request.multiplier.map { scrollView.zoomScale * $0 } ?? 1
+            let scale = request.scale ?? request.multiplier.map { scrollView.zoomScale * $0 } ?? 1
             let clampedScale = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, scale))
             guard let textView = viewForZooming(in: scrollView) else { return }
             // Keep the visible insertion point stationary. When reading history,
@@ -389,6 +424,7 @@ enum CompositionPlacement {
 // MARK: - PaneDetailView
 
 struct PaneDetailView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var permissionStatus = PermissionStatus.shared
     let pane: Pane
     let windowName: String
@@ -397,6 +433,8 @@ struct PaneDetailView: View {
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
     @State private var zoomRequest: TerminalZoomRequest?
+    @State private var showTextSize = false
+    @State private var displayedZoom: CGFloat = 1
     @State private var inputText = ""
     @State private var keyboardFocusRequest: UUID?
     @State private var keyboardVisible = false
@@ -439,7 +477,129 @@ struct PaneDetailView: View {
         }
     }
 
-    var body: some View {
+    @ToolbarContentBuilder
+    private var paneToolbar: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            if keyboardVisible || hardwareKeyboardConnected {
+                Menu {
+                    inputModeMenuItems
+                } label: {
+                    Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
+                }
+                .disabled(isDirectCompositionActive)
+                .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
+            } else {
+                Menu {
+                    inputModeMenuItems
+                } label: {
+                    Image(systemName: "keyboard")
+                } primaryAction: {
+                    keyboardFocusRequest = UUID()
+                }
+                .accessibilityLabel("キーボードを表示")
+                .accessibilityHint("長押しで入力モードを切り替え")
+                .accessibilityIdentifier("showKeyboardButton")
+            }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Picker("表示するペイン", selection: Binding(
+                    get: { configManager.synchronizesSelection },
+                    set: { configManager.synchronizesSelection = $0 }
+                )) {
+                    Label("他の端末と揃える", systemImage: "rectangle").tag(true)
+                    Label("この端末だけで切り替える", systemImage: "rectangle.on.rectangle").tag(false)
+                }
+                Text("入力した内容は、どちらでも共有されます")
+            } label: {
+                Image(systemName: configManager.synchronizesSelection ? "rectangle" : "rectangle.on.rectangle")
+            }
+            .accessibilityLabel(configManager.synchronizesSelection ? "他の端末と揃える" : "この端末だけで切り替える")
+            .disabled(isDirectCompositionActive || configManager.isDemoMode)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button("今すぐ更新", systemImage: "arrow.clockwise") {
+                    Task { await viewModel.refreshLive() }
+                }
+                .disabled(viewModel.isLoading)
+                Toggle("自動更新", isOn: $viewModel.autoRefresh)
+            } label: {
+                Label("画面の更新", systemImage: "arrow.clockwise")
+            }
+            .accessibilityLabel("画面の更新")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button("tmux の選択範囲をコピー", systemImage: "doc.on.doc") {
+                    viewModel.copyTmuxSelection()
+                }
+                .disabled(!viewModel.isStreamConnected || !viewModel.supportsClipboard)
+                PasteButton(payloadType: String.self) { strings in
+                    inputText += strings.joined(separator: "\n")
+                    composeEnabled = true
+                    keyboardFocusRequest = UUID()
+                }
+                .disabled(isDirectCompositionActive)
+            } label: {
+                Label("コピーと貼り付け", systemImage: "doc.on.clipboard")
+            }
+            .accessibilityIdentifier("clipboardMenu")
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showTextSize.toggle()
+            } label: {
+                Label("文字サイズ", systemImage: "textformat.size")
+            }
+            .popover(isPresented: $showTextSize) {
+                VStack(spacing: 16) {
+                    HStack {
+                        Text("文字サイズ").font(.headline)
+                        Spacer()
+                        Text("\(Int((displayedZoom * 100).rounded()))%")
+                            .monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    Slider(value: Binding(
+                        get: { displayedZoom },
+                        set: {
+                            displayedZoom = $0
+                            zoomRequest = TerminalZoomRequest(scale: $0)
+                        }
+                    ), in: 1...4, step: 0.05) {
+                        Text("文字サイズ")
+                    }
+                    Button("標準に戻す") {
+                        zoomRequest = TerminalZoomRequest(multiplier: nil)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(20)
+                .frame(width: 280)
+                .presentationCompactAdaptation(.popover)
+            }
+            .accessibilityIdentifier("textSizeButton")
+        }
+
+    }
+
+    private var zoomShortcuts: some View {
+
+            // Keep shortcuts registered even while the popover is closed.
+            Group {
+                Button("文字を拡大") { zoomRequest = TerminalZoomRequest(multiplier: 1.25) }
+                    .keyboardShortcut("+", modifiers: .command)
+                Button("文字を縮小") { zoomRequest = TerminalZoomRequest(multiplier: 1 / 1.25) }
+                    .keyboardShortcut("-", modifiers: .command)
+                Button("標準サイズに戻す") { zoomRequest = TerminalZoomRequest(multiplier: nil) }
+                    .keyboardShortcut("0", modifiers: .command)
+            }
+            .hidden()
+
+    }
+
+    private var terminalContent: some View {
         VStack(spacing: 0) {
             ZoomableTextView(
                 attributedText: viewModel.output,
@@ -447,7 +607,8 @@ struct PaneDetailView: View {
                 cursor: viewModel.cursor,
                 scrollToBottom: $scrollToBottom,
                 zoomRequest: zoomRequest,
-                onCursorRectChanged: { visibleCursorRect = $0 }
+                onCursorRectChanged: { visibleCursorRect = $0 },
+                onZoomChanged: { displayedZoom = $0 }
             )
             .overlay(alignment: .topLeading) {
                 if !composeEnabled {
@@ -670,6 +831,10 @@ struct PaneDetailView: View {
                 }
             }
         }
+    }
+
+    private var decoratedPane: some View {
+        terminalContent
         .navigationTitle(viewModel.tmuxNavigation?.windowName ?? windowName)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -690,75 +855,12 @@ struct PaneDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                if keyboardVisible || hardwareKeyboardConnected {
-                    Menu {
-                        inputModeMenuItems
-                    } label: {
-                        Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
-                    }
-                    .disabled(isDirectCompositionActive)
-                    .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
-                } else {
-                    Menu {
-                        inputModeMenuItems
-                    } label: {
-                        Image(systemName: "keyboard")
-                    } primaryAction: {
-                        keyboardFocusRequest = UUID()
-                    }
-                    .accessibilityLabel("キーボードを表示")
-                    .accessibilityHint("長押しで入力モードを切り替え")
-                    .accessibilityIdentifier("showKeyboardButton")
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Picker("表示するペイン", selection: Binding(
-                        get: { configManager.synchronizesSelection },
-                        set: { configManager.synchronizesSelection = $0 }
-                    )) {
-                        Label("他の端末と揃える", systemImage: "rectangle").tag(true)
-                        Label("この端末だけで切り替える", systemImage: "rectangle.on.rectangle").tag(false)
-                    }
-                    Text("入力した内容は、どちらでも共有されます")
-                } label: {
-                    Image(systemName: configManager.synchronizesSelection ? "rectangle" : "rectangle.on.rectangle")
-                }
-                .accessibilityLabel(configManager.synchronizesSelection ? "他の端末と揃える" : "この端末だけで切り替える")
-                .disabled(isDirectCompositionActive || configManager.isDemoMode)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.refreshLive()
-                    }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(viewModel.isLoading)
-            }
+        .toolbar { paneToolbar }
+        .background { zoomShortcuts }
+    }
 
-            ToolbarItem(placement: .secondaryAction) {
-                Toggle("Auto Refresh", isOn: $viewModel.autoRefresh)
-            }
-
-            ToolbarItemGroup(placement: .secondaryAction) {
-                Button("文字を拡大", systemImage: "textformat.size.larger") {
-                    zoomRequest = TerminalZoomRequest(multiplier: 1.25)
-                }
-                .keyboardShortcut("+", modifiers: .command)
-                Button("文字を縮小", systemImage: "textformat.size.smaller") {
-                    zoomRequest = TerminalZoomRequest(multiplier: 1 / 1.25)
-                }
-                .keyboardShortcut("-", modifiers: .command)
-                Button("標準サイズに戻す", systemImage: "arrow.counterclockwise") {
-                    zoomRequest = TerminalZoomRequest(multiplier: nil)
-                }
-                .keyboardShortcut("0", modifiers: .command)
-            }
-        }
+    private var presentedPane: some View {
+        decoratedPane
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
         } message: {
@@ -787,6 +889,10 @@ struct PaneDetailView: View {
             )
             .modifier(iPadPagePresentationModifier())
         }
+    }
+
+    var body: some View {
+        presentedPane
         .task(id: pane.target + "|" + String(configManager.synchronizesSelection)) {
             viewModel.setDirectMode(!composeEnabled)
             await viewModel.openPane(pane.target, synchronize: configManager.synchronizesSelection)
@@ -794,6 +900,10 @@ struct PaneDetailView: View {
         }
         .onDisappear {
             viewModel.stopStreaming()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { viewModel.stopStreaming() }
+            if phase == .active { Task { await viewModel.startStreaming() } }
         }
         .onChange(of: viewModel.autoRefresh) { _, enabled in
             if enabled {
@@ -850,6 +960,19 @@ private struct SendableAttributedString: @unchecked Sendable {
     let value: NSAttributedString
 }
 
+// The transport boundary lets recovery tests simulate a connection that stops
+// responding without relying on a real network or the user's daemon.
+@MainActor
+protocol PaneStreamSocket: AnyObject {
+    func resume()
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
+    func receive() async throws -> URLSessionWebSocketTask.Message
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
+    func sendPing(pongReceiveHandler: @escaping @Sendable (Error?) -> Void)
+}
+
+extension URLSessionWebSocketTask: PaneStreamSocket {}
+
 // MARK: - PaneDetailViewModel
 
 @MainActor
@@ -871,17 +994,31 @@ class PaneDetailViewModel {
     private var directMode = false
     private var synchronizesSelection = true
     private var supportsTmuxKeys = false
+    var supportsClipboard = false
     private let api = ReattachAPI.shared
     @ObservationIgnored private var streamGeneration = UUID()
     @ObservationIgnored private var streamingTask: Task<Void, Never>?
-    @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
+    @ObservationIgnored private var webSocketTask: (any PaneStreamSocket)?
+    @ObservationIgnored private var connectionID = UUID()
+    @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
+    @ObservationIgnored private var awaitingPong = false
     @ObservationIgnored private var rawOutput: String = ""
     @ObservationIgnored private var directTextBuffer = ""
     @ObservationIgnored private var directTextFlushTask: Task<Void, Never>?
     @ObservationIgnored private var directSendTail: Task<Void, Never>?
 
-    init(target: String) {
+    @ObservationIgnored private let socketFactory: ((String, Bool) throws -> any PaneStreamSocket)?
+    private let heartbeatInterval: Duration
+    private let retryInterval: Duration
+
+    init(target: String,
+         heartbeatInterval: Duration = .seconds(10),
+         retryInterval: Duration = .seconds(2),
+         socketFactory: ((String, Bool) throws -> any PaneStreamSocket)? = nil) {
         self.target = target
+        self.heartbeatInterval = heartbeatInterval
+        self.retryInterval = retryInterval
+        self.socketFactory = socketFactory
     }
 
     nonisolated private static func detectQuickAction(from text: String) -> QuickAction {
@@ -995,104 +1132,61 @@ class PaneDetailViewModel {
         return (options.count >= 2 && hasSelector) ? options : []
     }
 
-    nonisolated private static func parseAnsiToAttributedString(_ text: String) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        var currentColor: UIColor = .label
-        var isBold = false
-        var isDim = false
-
-        let baseFont = UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
-        let boldFont = UIFont.monospacedSystemFont(ofSize: 8, weight: .bold)
-
-        let pattern = "\u{1B}\\[([0-9;]*)m"
-        let regex = try! NSRegularExpression(pattern: pattern, options: [])
-
-        var lastEnd = text.startIndex
-        let nsText = text as NSString
-        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
-
-        for match in matches {
-            if let range = Range(match.range, in: text) {
-                let beforeRange = lastEnd..<range.lowerBound
-                if beforeRange.lowerBound < beforeRange.upperBound {
-                    let segmentText = String(text[beforeRange])
-                    let color = isDim ? currentColor.withAlphaComponent(0.6) : currentColor
-                    let font = isBold ? boldFont : baseFont
-                    let attrs: [NSAttributedString.Key: Any] = [
-                        .foregroundColor: color,
-                        .font: font
-                    ]
-                    result.append(NSAttributedString(string: segmentText, attributes: attrs))
-                }
-                lastEnd = range.upperBound
-            }
-
-            if let codeRange = Range(match.range(at: 1), in: text) {
-                let codes = String(text[codeRange]).split(separator: ";").compactMap { Int($0) }
-                for code in codes {
-                    switch code {
-                    case 0:
-                        currentColor = .label
-                        isBold = false
-                        isDim = false
-                    case 1:
-                        isBold = true
-                    case 2:
-                        isDim = true
-                    case 22:
-                        isBold = false
-                        isDim = false
-                    case 30: currentColor = .black
-                    case 31: currentColor = .systemRed
-                    case 32: currentColor = .systemGreen
-                    case 33: currentColor = .systemYellow
-                    case 34: currentColor = .systemBlue
-                    case 35: currentColor = .systemPurple
-                    case 36: currentColor = .systemCyan
-                    case 37: currentColor = .label
-                    case 39: currentColor = .label
-                    case 90: currentColor = .gray
-                    case 91: currentColor = .systemRed
-                    case 92: currentColor = .systemGreen
-                    case 93: currentColor = .systemYellow
-                    case 94: currentColor = .systemBlue
-                    case 95: currentColor = .systemPurple
-                    case 96: currentColor = .systemCyan
-                    case 97: currentColor = .label
-                    default: break
-                    }
-                }
-            }
-        }
-
-        if lastEnd < text.endIndex {
-            let segmentText = String(text[lastEnd...])
-            let color = isDim ? currentColor.withAlphaComponent(0.6) : currentColor
-            let font = isBold ? boldFont : baseFont
-            let attrs: [NSAttributedString.Key: Any] = [
-                .foregroundColor: color,
-                .font: font
-            ]
-            result.append(NSAttributedString(string: segmentText, attributes: attrs))
-        }
-
-        return result
-    }
-
     func stopStreaming() {
         streamGeneration = UUID()
         streamingTask?.cancel()
         streamingTask = nil
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-        isStreamConnected = false
-        supportsTmuxKeys = false
+        if let socket = webSocketTask { disconnect(socket) }
+        clearPendingInput()
+        cursor = nil
+    }
+
+    private func clearPendingInput() {
+        connectionID = UUID()
         directTextFlushTask?.cancel()
         directTextFlushTask = nil
         directSendTail?.cancel()
         directSendTail = nil
         directTextBuffer = ""
         cursor = nil
+    }
+
+    private func disconnect(_ socket: any PaneStreamSocket) {
+        socket.cancel(with: .goingAway, reason: nil)
+        guard webSocketTask === socket else { return }
+        webSocketTask = nil
+        isStreamConnected = false
+        supportsTmuxKeys = false
+        supportsClipboard = false
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        awaitingPong = false
+        clearPendingInput()
+    }
+
+    private func monitorConnection(_ socket: any PaneStreamSocket) {
+        heartbeatTask?.cancel()
+        let interval = heartbeatInterval
+        heartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: interval) } catch { return }
+                guard let self, self.webSocketTask === socket else { return }
+                // Also bounds the initial handshake. A silent connection must
+                // not leave receive() and queued sends waiting indefinitely.
+                guard self.isStreamConnected, !self.awaitingPong else {
+                    self.disconnect(socket)
+                    return
+                }
+                self.awaitingPong = true
+                socket.sendPing { [weak self] error in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.webSocketTask === socket else { return }
+                        if error != nil { self.disconnect(socket) }
+                        else { self.awaitingPong = false }
+                    }
+                }
+            }
+        }
     }
 
     func openPane(_ selectedTarget: String, synchronize: Bool = true) async {
@@ -1121,7 +1215,7 @@ class PaneDetailViewModel {
     func startStreaming() async {
         stopStreaming()
 
-        if api.isDemoMode {
+        if api.isDemoMode && socketFactory == nil {
             await refresh()
             return
         }
@@ -1136,31 +1230,48 @@ class PaneDetailViewModel {
         while !Task.isCancelled && generation == streamGeneration {
             do {
                 let connectionTarget = tmuxNavigation?.target ?? target
-                let socket = try api.makePaneWebSocket(target: connectionTarget, lines: 500, independent: !synchronizesSelection)
+                let socket: any PaneStreamSocket
+                if let socketFactory {
+                    socket = try socketFactory(connectionTarget, !synchronizesSelection)
+                } else {
+                    socket = try api.makePaneWebSocket(target: connectionTarget, lines: 500, independent: !synchronizesSelection)
+                }
                 webSocketTask = socket
+                clearPendingInput()
                 socket.resume()
+                monitorConnection(socket)
 
                 while !Task.isCancelled {
                     let message = try await socket.receive()
                     guard generation == streamGeneration, !Task.isCancelled else { return }
+                    guard webSocketTask === socket else { throw URLError(.networkConnectionLost) }
                     guard case .string(let text) = message,
                           let data = text.data(using: .utf8) else {
                         continue
                     }
 
                     let response = try JSONDecoder().decode(PaneStreamResponse.self, from: data)
-                    isStreamConnected = true
                     switch response.type {
                     case "ready":
                         if !synchronizesSelection && response.independentSelection != true {
-                            socket.cancel(with: .goingAway, reason: nil)
-                            webSocketTask = nil
-                            isStreamConnected = false
+                            disconnect(socket)
                             showDirectInputError("独立モードには新しいdaemonが必要です。daemonを更新してください。")
                             return
                         }
                         supportsTmuxKeys = response.tmuxKeys == true
-                        if supportsTmuxKeys { enqueueDirectRequest(.directMode(directMode)) }
+                        supportsClipboard = response.clipboard == true
+                        // Restore mode before accepting user input on this socket.
+                        if supportsTmuxKeys {
+                            try await sendStreamMessage(.directMode(directMode), over: socket)
+                        }
+                        guard webSocketTask === socket else { throw URLError(.networkConnectionLost) }
+                        isStreamConnected = true
+                    case "clipboard":
+                        if let text = response.text {
+                            UIPasteboard.general.string = text
+                        } else {
+                            showDirectInputError(response.error ?? "コピーできませんでした")
+                        }
                     case "navigation":
                         if let state = response.state {
                             if target != state.paneId {
@@ -1194,15 +1305,12 @@ class PaneDetailViewModel {
                 }
             } catch {
                 guard generation == streamGeneration else { return }
-                webSocketTask?.cancel(with: .goingAway, reason: nil)
-                webSocketTask = nil
-                isStreamConnected = false
+                if let socket = webSocketTask { disconnect(socket) }
 
                 guard !Task.isCancelled else { return }
-                await refreshSilently()
 
                 do {
-                    try await Task.sleep(for: .seconds(2))
+                    try await Task.sleep(for: retryInterval)
                 } catch {
                     return
                 }
@@ -1219,8 +1327,7 @@ class PaneDetailViewModel {
         do {
             try await sendStreamMessage(.refresh, over: socket)
         } catch {
-            socket.cancel(with: .goingAway, reason: nil)
-            webSocketTask = nil
+            disconnect(socket)
             await refresh()
         }
     }
@@ -1236,8 +1343,7 @@ class PaneDetailViewModel {
         do {
             try await sendStreamMessage(.refresh, over: socket)
         } catch {
-            socket.cancel(with: .goingAway, reason: nil)
-            webSocketTask = nil
+            disconnect(socket)
             await refresh()
         }
     }
@@ -1279,8 +1385,7 @@ class PaneDetailViewModel {
                 do {
                     try await sendStreamMessage(.input(text), over: socket)
                 } catch {
-                    socket.cancel(with: .goingAway, reason: nil)
-                    webSocketTask = nil
+                    disconnect(socket)
                     throw error
                 }
             } else {
@@ -1311,8 +1416,7 @@ class PaneDetailViewModel {
                 do {
                     try await sendStreamMessage(.escape, over: socket)
                 } catch {
-                    socket.cancel(with: .goingAway, reason: nil)
-                    webSocketTask = nil
+                    disconnect(socket)
                     throw error
                 }
             } else {
@@ -1333,6 +1437,11 @@ class PaneDetailViewModel {
         }
     }
 
+    func copyTmuxSelection() {
+        flushDirectInput()
+        enqueueDirectRequest(.copySelection)
+    }
+
     func setDirectMode(_ enabled: Bool) {
         flushDirectInput()
         directMode = enabled
@@ -1343,6 +1452,10 @@ class PaneDetailViewModel {
 
     func queueDirectText(_ text: String) {
         guard !text.isEmpty else { return }
+        guard isStreamConnected else {
+            showDirectInputError("再接続中です。接続が戻ってから入力してください。")
+            return
+        }
         directTextBuffer.append(text)
         guard directTextFlushTask == nil else { return }
 
@@ -1372,30 +1485,23 @@ class PaneDetailViewModel {
     }
 
     private func enqueueDirectRequest(_ request: PaneStreamRequest) {
-        let previous = directSendTail
-        let generation = streamGeneration
-        directSendTail = Task { [weak self] in
-            await previous?.value
-            guard !Task.isCancelled, self?.streamGeneration == generation else { return }
-            await self?.sendDirectRequest(request)
-        }
-    }
-
-    private func sendDirectRequest(_ request: PaneStreamRequest) async {
         guard let socket = webSocketTask, isStreamConnected else {
-            showDirectInputError("Direct Input requires an active WebSocket connection")
+            showDirectInputError("再接続中です。接続が戻ってから入力してください。")
             return
         }
-
-        let generation = streamGeneration
-        do {
-            try await sendStreamMessage(request, over: socket)
-        } catch {
-            guard generation == streamGeneration else { return }
-            socket.cancel(with: .goingAway, reason: nil)
-            webSocketTask = nil
-            isStreamConnected = false
-            showDirectInputError(error.localizedDescription)
+        let previous = directSendTail
+        let connection = connectionID
+        directSendTail = Task { [weak self] in
+            await previous?.value
+            guard let self, !Task.isCancelled,
+                  self.connectionID == connection, self.webSocketTask === socket else { return }
+            do {
+                try await self.sendStreamMessage(request, over: socket)
+            } catch {
+                guard self.webSocketTask === socket else { return }
+                self.disconnect(socket)
+                self.showDirectInputError("接続が切れました。最後の入力が届いたか確認してください。")
+            }
         }
     }
 
@@ -1406,7 +1512,7 @@ class PaneDetailViewModel {
 
     private func sendStreamMessage(
         _ request: PaneStreamRequest,
-        over socket: URLSessionWebSocketTask
+        over socket: any PaneStreamSocket
     ) async throws {
         let data = try JSONEncoder().encode(request)
         guard let text = String(data: data, encoding: .utf8) else {
@@ -1420,12 +1526,12 @@ class PaneDetailViewModel {
     }
 
     private func applyOutput(_ newRawOutput: String) async {
-        guard newRawOutput != rawOutput else { return }
         rawOutput = newRawOutput
+        let generation = streamGeneration
 
         async let parsedOutput = Task.detached(priority: .userInitiated) {
             SendableAttributedString(
-                value: Self.parseAnsiToAttributedString(newRawOutput)
+                value: TerminalTextRenderer.render(newRawOutput)
             )
         }.value
 
@@ -1434,6 +1540,7 @@ class PaneDetailViewModel {
         }.value
 
         let (newOutput, newAction) = await (parsedOutput, detectedAction)
+        guard generation == streamGeneration, rawOutput == newRawOutput else { return }
         output = newOutput.value
         quickAction = newAction
         contentVersion = UUID()
