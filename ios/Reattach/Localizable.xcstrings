@@ -2868,6 +2868,23 @@
           }
         }
       }
+    },
+    "Reconnecting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnecting…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再接続中…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

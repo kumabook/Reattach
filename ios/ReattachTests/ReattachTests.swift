@@ -521,6 +521,34 @@ struct StreamRecoveryTests {
         Issue.record("Timed out waiting for stream state")
     }
 
+    @Test func reconnectingStatusClearsAfterRecoveryAndIntentionalStop() async throws {
+        let first = RecoverySocket()
+        let second = RecoverySocket()
+        var attempts = 0
+        let model = PaneDetailViewModel(target: "probe", retryInterval: .milliseconds(100)) { _, _ in
+            attempts += 1
+            return attempts == 1 ? first : second
+        }
+        defer { model.stopStreaming() }
+        #expect(!model.isReconnecting)
+        await model.startStreaming()
+        try await waitUntil { model.isStreamConnected && first.receiver != nil }
+        #expect(!model.isReconnecting)
+        first.receiver?.resume(throwing: URLError(.networkConnectionLost))
+        first.receiver = nil
+        try await waitUntil { model.isReconnecting }
+        #expect(!model.isStreamConnected)
+        try await waitUntil { attempts == 2 && model.isStreamConnected }
+        #expect(!model.isReconnecting)
+        try await waitUntil { second.receiver != nil }
+        second.receiver?.resume(throwing: URLError(.networkConnectionLost))
+        second.receiver = nil
+        try await waitUntil { model.isReconnecting }
+        model.stopStreaming()
+        #expect(!model.isReconnecting)
+        #expect(!model.isStreamConnected)
+    }
+
     @Test func silentHandshakeIsReplaced() async throws {
         let first = RecoverySocket(ready: false)
         let second = RecoverySocket()

@@ -636,7 +636,16 @@ struct PaneDetailView: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
+                if viewModel.isReconnecting {
+                    Text(String(localized: "Reconnecting…"))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(6)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(8)
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("streamReconnectingStatus")
+                } else if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
                     Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
                         .font(.caption)
                         .padding(6)
@@ -988,6 +997,7 @@ class PaneDetailViewModel {
     var autoRefresh = true
     var quickAction: QuickAction = .none
     var isStreamConnected = false
+    private(set) var isReconnecting = false
     var cursor: PaneCursorState?
 
     var tmuxNavigation: TmuxNavigationState?
@@ -1138,6 +1148,7 @@ class PaneDetailViewModel {
         streamingTask?.cancel()
         streamingTask = nil
         if let socket = webSocketTask { disconnect(socket) }
+        isReconnecting = false
         clearPendingInput()
         cursor = nil
     }
@@ -1157,6 +1168,7 @@ class PaneDetailViewModel {
         guard webSocketTask === socket else { return }
         webSocketTask = nil
         isStreamConnected = false
+        isReconnecting = true
         supportsTmuxKeys = false
         supportsClipboard = false
         heartbeatTask?.cancel()
@@ -1255,7 +1267,7 @@ class PaneDetailViewModel {
                     switch response.type {
                     case "ready":
                         if !synchronizesSelection && response.independentSelection != true {
-                            disconnect(socket)
+                            stopStreaming()
                             showDirectInputError(String(localized: "Independent mode requires a newer daemon. Please update the daemon."))
                             return
                         }
@@ -1267,6 +1279,7 @@ class PaneDetailViewModel {
                         }
                         guard webSocketTask === socket else { throw URLError(.networkConnectionLost) }
                         isStreamConnected = true
+                        isReconnecting = false
                     case "clipboard":
                         if let text = response.text {
                             UIPasteboard.general.string = text
@@ -1309,6 +1322,7 @@ class PaneDetailViewModel {
                 if let socket = webSocketTask { disconnect(socket) }
 
                 guard !Task.isCancelled else { return }
+                isReconnecting = true
 
                 do {
                     try await Task.sleep(for: retryInterval)
