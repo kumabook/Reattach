@@ -22,21 +22,21 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Invalid URL"
+            return String(localized: "Invalid URL")
         case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
+            return String(localized: "Network error: \(error.localizedDescription)")
         case .serverError(let message):
-            return "Server error: \(message)"
+            return String(localized: "Server error: \(message)")
         case .decodingError(let error):
-            return "Decoding error: \(error.localizedDescription)"
+            return String(localized: "Decoding error: \(error.localizedDescription)")
         case .unauthorized(let type):
             switch type {
             case .cloudflareExpired:
-                return "Session expired - please sign in again"
+                return String(localized: "Session expired - please sign in again")
             case .cloudflareServiceTokenInvalid:
-                return "Cloudflare Access denied - please check your Service Token credentials"
+                return String(localized: "Cloudflare Access denied - please check your Service Token credentials")
             case .deviceTokenInvalid:
-                return "Device not registered - please scan QR code again"
+                return String(localized: "Device not registered - please scan QR code again")
             }
         }
     }
@@ -231,7 +231,7 @@ class ReattachAPI {
             let (data, response) = try await session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.networkError(NSError(domain: "Invalid response", code: 0))
+                throw APIError.networkError(NSError(domain: "ReattachAPI", code: 0, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid response")]))
             }
 
             switch httpResponse.statusCode {

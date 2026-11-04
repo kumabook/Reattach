@@ -18,11 +18,11 @@ struct LoginView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.tint)
 
-            Text("Reattach")
+            Text(verbatim: "Reattach")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Resume your local Claude Code sessions from anywhere")
+            Text(String(localized: "Resume your local Claude Code sessions from anywhere"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -35,7 +35,7 @@ struct LoginView: View {
             } label: {
                 HStack {
                     Image(systemName: "person.badge.key.fill")
-                    Text("Sign in with GitHub")
+                    Text(String(localized: "Sign in with GitHub"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -43,7 +43,7 @@ struct LoginView: View {
             .buttonStyle(.borderedProminent)
             .padding(.horizontal, 40)
 
-            Text("Authentication is handled by Cloudflare Access")
+            Text(String(localized: "Authentication is handled by Cloudflare Access"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -77,11 +77,11 @@ struct CloudflareAuthWebView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Sign In")
+            .navigationTitle(String(localized: "Sign In"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         isPresented = false
                     }
                 }

@@ -45,11 +45,11 @@ struct CommandEditorView: View {
                     commandManager.move(from: source, to: destination)
                 }
             }
-            .navigationTitle("Saved Commands")
+            .navigationTitle(String(localized: "Saved Commands"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
+                    Button(String(localized: "Done")) {
                         dismiss()
                     }
                 }
@@ -100,8 +100,8 @@ struct CommandFormView: View {
 
     private var title: String {
         switch mode {
-        case .add: return "Add Command"
-        case .edit: return "Edit Command"
+        case .add: return String(localized: "Add Command")
+        case .edit: return String(localized: "Edit Command")
         }
     }
 
@@ -109,11 +109,11 @@ struct CommandFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Label", text: $label)
-                    TextField("Command", text: $command)
+                    TextField(String(localized: "Label"), text: $label)
+                    TextField(String(localized: "Command"), text: $command)
                         .fontDesign(.monospaced)
                 } footer: {
-                    Text("The label is shown on the button. The command is sent when tapped.")
+                    Text(String(localized: "The label is shown on the button. The command is sent when tapped."))
                 }
 
                 if case .edit(let existingCommand) = mode {
@@ -124,7 +124,7 @@ struct CommandFormView: View {
                         } label: {
                             HStack {
                                 Spacer()
-                                Text("Delete Command")
+                                Text(String(localized: "Delete Command"))
                                 Spacer()
                             }
                         }
@@ -135,12 +135,12 @@ struct CommandFormView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(String(localized: "Save")) {
                         save()
                         dismiss()
                     }
@@ -194,9 +194,9 @@ struct CommandPickerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Tab", selection: $selectedTab) {
+                Picker(String(localized: "Tab"), selection: $selectedTab) {
                     ForEach(Tab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab == .saved ? String(localized: "Saved") : String(localized: "History")).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -215,16 +215,16 @@ struct CommandPickerView: View {
                     }
                 }
             }
-            .navigationTitle("Commands")
+            .navigationTitle(String(localized: "Commands"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if isReordering {
-                        Button("Done") {
+                        Button(String(localized: "Done")) {
                             isReordering = false
                         }
                     } else {
-                        Button("Cancel") {
+                        Button(String(localized: "Cancel")) {
                             dismiss()
                         }
                     }
@@ -252,9 +252,9 @@ struct CommandPickerView: View {
     private var savedCommandsView: some View {
         if commandManager.commands.isEmpty {
             ContentUnavailableView(
-                "No Saved Commands",
+                String(localized: "No Saved Commands"),
                 systemImage: "bookmark",
-                description: Text("Tap Edit to add commands")
+                description: Text(String(localized: "Tap Edit to add commands"))
             )
         } else {
             List {
@@ -282,7 +282,7 @@ struct CommandPickerView: View {
                         Button {
                             UIPasteboard.general.string = command.command
                         } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
+                            Label(String(localized: "Copy"), systemImage: "doc.on.doc")
                         }
 
                         Divider()
@@ -292,7 +292,7 @@ struct CommandPickerView: View {
                                 dismiss()
                                 onCommandInsert?(command.command)
                             } label: {
-                                Label("Insert", systemImage: "text.cursor")
+                                Label(String(localized: "Insert"), systemImage: "text.cursor")
                             }
                         }
 
@@ -300,7 +300,7 @@ struct CommandPickerView: View {
                             dismiss()
                             onCommandSelected(command.command)
                         } label: {
-                            Label("Send", systemImage: "paperplane")
+                            Label(String(localized: "Send"), systemImage: "paperplane")
                         }
 
                         Divider()
@@ -308,13 +308,13 @@ struct CommandPickerView: View {
                         Button {
                             editingCommand = command
                         } label: {
-                            Label("Edit", systemImage: "pencil")
+                            Label(String(localized: "Edit"), systemImage: "pencil")
                         }
 
                         Button(role: .destructive) {
                             commandManager.delete(command)
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Label(String(localized: "Delete"), systemImage: "trash")
                         }
                     }
                 }
@@ -330,9 +330,9 @@ struct CommandPickerView: View {
     private var historyView: some View {
         if historyManager.history.isEmpty {
             ContentUnavailableView(
-                "No History",
+                String(localized: "No History"),
                 systemImage: "clock",
-                description: Text("Commands you send will appear here")
+                description: Text(String(localized: "Commands you send will appear here"))
             )
         } else {
             List {
@@ -362,7 +362,7 @@ struct CommandPickerView: View {
                         Button {
                             savingHistoryItem = item
                         } label: {
-                            Label("Save", systemImage: "bookmark")
+                            Label(String(localized: "Save"), systemImage: "bookmark")
                         }
                         .tint(.purple)
                     }
@@ -388,25 +388,25 @@ struct SaveFromHistoryView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Label", text: $label)
+                    TextField(String(localized: "Label"), text: $label)
                     Text(command)
                         .font(.body)
                         .fontDesign(.monospaced)
                         .foregroundStyle(.secondary)
                 } footer: {
-                    Text("Enter a label for this command")
+                    Text(String(localized: "Enter a label for this command"))
                 }
             }
-            .navigationTitle("Save Command")
+            .navigationTitle(String(localized: "Save Command"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(String(localized: "Save")) {
                         if commandManager.canAddCommand {
                             let newCommand = SavedCommand(
                                 label: label.trimmingCharacters(in: .whitespaces),

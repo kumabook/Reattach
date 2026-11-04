@@ -454,12 +454,12 @@ struct PaneDetailView: View {
 
     @ViewBuilder
     private var inputModeMenuItems: some View {
-        Picker("入力モード", selection: $composeEnabled) {
-            Label("直接入力", systemImage: "keyboard").tag(false)
-            Label("文章入力", systemImage: "text.alignleft").tag(true)
+        Picker(String(localized: "Input Mode"), selection: $composeEnabled) {
+            Label(String(localized: "Direct Input"), systemImage: "keyboard").tag(false)
+            Label(String(localized: "Compose"), systemImage: "text.alignleft").tag(true)
         }
         if !composeEnabled {
-            Button("Escapeを送信") { viewModel.queueDirectKey("escape") }
+            Button(String(localized: "Send Escape")) { viewModel.queueDirectKey("escape") }
         }
     }
 
@@ -484,55 +484,56 @@ struct PaneDetailView: View {
                 Menu {
                     inputModeMenuItems
                 } label: {
-                    Image(systemName: composeEnabled ? "text.alignleft" : "keyboard")
+                    Label(composeEnabled ? String(localized: "Compose") : String(localized: "Direct Input"), systemImage: composeEnabled ? "text.alignleft" : "keyboard")
                 }
                 .disabled(isDirectCompositionActive)
-                .accessibilityLabel(composeEnabled ? "文章入力" : "直接入力")
+                .accessibilityLabel(composeEnabled ? String(localized: "Compose") : String(localized: "Direct Input"))
             } else {
                 Menu {
                     inputModeMenuItems
                 } label: {
-                    Image(systemName: "keyboard")
+                    Label(String(localized: "Show Keyboard"), systemImage: "keyboard")
                 } primaryAction: {
                     keyboardFocusRequest = UUID()
                 }
-                .accessibilityLabel("キーボードを表示")
-                .accessibilityHint("長押しで入力モードを切り替え")
+                .accessibilityLabel(String(localized: "Show Keyboard"))
+                .accessibilityHint(String(localized: "Touch and hold to switch input modes"))
                 .accessibilityIdentifier("showKeyboardButton")
             }
         }
         ToolbarItem(placement: .primaryAction) {
             Menu {
-                Picker("表示するペイン", selection: Binding(
+                Picker(String(localized: "Pane Selection"), selection: Binding(
                     get: { configManager.synchronizesSelection },
                     set: { configManager.synchronizesSelection = $0 }
                 )) {
-                    Label("他の端末と揃える", systemImage: "rectangle").tag(true)
-                    Label("この端末だけで切り替える", systemImage: "rectangle.on.rectangle").tag(false)
+                    Label(String(localized: "Sync with Other Devices"), systemImage: "rectangle").tag(true)
+                    Label(String(localized: "Switch on This Device Only"), systemImage: "rectangle.on.rectangle").tag(false)
                 }
-                Text("入力した内容は、どちらでも共有されます")
+                Text(String(localized: "Input is shared in either mode."))
             } label: {
-                Image(systemName: configManager.synchronizesSelection ? "rectangle" : "rectangle.on.rectangle")
+                Label(String(localized: "Pane Selection"), systemImage: configManager.synchronizesSelection ? "rectangle" : "rectangle.on.rectangle")
             }
-            .accessibilityLabel(configManager.synchronizesSelection ? "他の端末と揃える" : "この端末だけで切り替える")
+            .accessibilityLabel(String(localized: "Pane Selection"))
+            .accessibilityValue(configManager.synchronizesSelection ? String(localized: "Sync with Other Devices") : String(localized: "Switch on This Device Only"))
             .disabled(isDirectCompositionActive || configManager.isDemoMode)
         }
         ToolbarItem(placement: .primaryAction) {
             Menu {
-                Button("今すぐ更新", systemImage: "arrow.clockwise") {
+                Button(String(localized: "Refresh Now"), systemImage: "arrow.clockwise") {
                     Task { await viewModel.refreshLive() }
                 }
                 .disabled(viewModel.isLoading)
-                Toggle("自動更新", isOn: $viewModel.autoRefresh)
+                Toggle(String(localized: "Auto Refresh"), isOn: $viewModel.autoRefresh)
             } label: {
-                Label("画面の更新", systemImage: "arrow.clockwise")
+                Label(String(localized: "Refresh Display"), systemImage: "arrow.clockwise")
             }
-            .accessibilityLabel("画面の更新")
+            .accessibilityLabel(String(localized: "Refresh Display"))
         }
 
         ToolbarItem(placement: .primaryAction) {
             Menu {
-                Button("tmux の選択範囲をコピー", systemImage: "doc.on.doc") {
+                Button(String(localized: "Copy tmux Selection"), systemImage: "doc.on.doc") {
                     viewModel.copyTmuxSelection()
                 }
                 .disabled(!viewModel.isStreamConnected || !viewModel.supportsClipboard)
@@ -543,7 +544,7 @@ struct PaneDetailView: View {
                 }
                 .disabled(isDirectCompositionActive)
             } label: {
-                Label("コピーと貼り付け", systemImage: "doc.on.clipboard")
+                Label(String(localized: "Copy and Paste"), systemImage: "doc.on.clipboard")
             }
             .accessibilityIdentifier("clipboardMenu")
         }
@@ -551,14 +552,14 @@ struct PaneDetailView: View {
             Button {
                 showTextSize.toggle()
             } label: {
-                Label("文字サイズ", systemImage: "textformat.size")
+                Label(String(localized: "Text Size"), systemImage: "textformat.size")
             }
             .popover(isPresented: $showTextSize) {
                 VStack(spacing: 16) {
                     HStack {
-                        Text("文字サイズ").font(.headline)
+                        Text(String(localized: "Text Size")).font(.headline)
                         Spacer()
-                        Text("\(Int((displayedZoom * 100).rounded()))%")
+                        Text(verbatim: "\(Int((displayedZoom * 100).rounded()))%")
                             .monospacedDigit().foregroundStyle(.secondary)
                     }
                     Slider(value: Binding(
@@ -568,9 +569,9 @@ struct PaneDetailView: View {
                             zoomRequest = TerminalZoomRequest(scale: $0)
                         }
                     ), in: 1...4, step: 0.05) {
-                        Text("文字サイズ")
+                        Text(String(localized: "Text Size"))
                     }
-                    Button("標準に戻す") {
+                    Button(String(localized: "Reset to Default")) {
                         zoomRequest = TerminalZoomRequest(multiplier: nil)
                     }
                     .frame(maxWidth: .infinity)
@@ -588,11 +589,11 @@ struct PaneDetailView: View {
 
             // Keep shortcuts registered even while the popover is closed.
             Group {
-                Button("文字を拡大") { zoomRequest = TerminalZoomRequest(multiplier: 1.25) }
+                Button(String(localized: "Increase Text Size")) { zoomRequest = TerminalZoomRequest(multiplier: 1.25) }
                     .keyboardShortcut("+", modifiers: .command)
-                Button("文字を縮小") { zoomRequest = TerminalZoomRequest(multiplier: 1 / 1.25) }
+                Button(String(localized: "Decrease Text Size")) { zoomRequest = TerminalZoomRequest(multiplier: 1 / 1.25) }
                     .keyboardShortcut("-", modifiers: .command)
-                Button("標準サイズに戻す") { zoomRequest = TerminalZoomRequest(multiplier: nil) }
+                Button(String(localized: "Reset Text Size")) { zoomRequest = TerminalZoomRequest(multiplier: nil) }
                     .keyboardShortcut("0", modifiers: .command)
             }
             .hidden()
@@ -636,7 +637,7 @@ struct PaneDetailView: View {
             }
             .overlay(alignment: .topLeading) {
                 if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
-                    Text("tmux · 次のキーを入力（\(state.prefix)）")
+                    Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
                         .font(.caption)
                         .padding(6)
                         .background(.regularMaterial, in: Capsule())
@@ -659,7 +660,7 @@ struct PaneDetailView: View {
                             ProgressView()
                                 .scaleEffect(1.5)
                                 .tint(.white)
-                            Text("Sending...")
+                            Text(String(localized: "Sending..."))
                                 .font(.subheadline)
                                 .foregroundStyle(.white)
                         }
@@ -672,20 +673,20 @@ struct PaneDetailView: View {
             if isWaitingForPermission {
                 Divider()
                 HStack(spacing: 8) {
-                    Label("許可待ち・内容を確認してください", systemImage: "hand.raised.fill")
+                    Label(String(localized: "Permission Required — Review the Request"), systemImage: "hand.raised.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button {
                         viewModel.queueDirectKey("enter")
                     } label: {
-                        Label("Enter", systemImage: "return")
+                        Label(String(localized: "Enter"), systemImage: "return")
                             .font(.caption)
                             .fixedSize()
                     }
                     .buttonStyle(.bordered)
                     .disabled(!viewModel.isStreamConnected || viewModel.isSending || isDirectCompositionActive)
-                    .accessibilityLabel("Enterを送信")
+                    .accessibilityLabel(String(localized: "Send Enter"))
                     .accessibilityIdentifier("permissionEnterButton")
                 }
                 .padding(.horizontal)
@@ -705,7 +706,7 @@ struct PaneDetailView: View {
                                         await viewModel.sendInput(option.number)
                                     }
                                 } label: {
-                                    Text("\(option.number). \(option.label)")
+                                    Text(verbatim: "\(option.number). \(option.label)")
                                         .font(.caption)
                                         .lineLimit(1)
                                 }
@@ -726,7 +727,7 @@ struct PaneDetailView: View {
                                 await viewModel.sendInput("y")
                             }
                         } label: {
-                            Label("Yes", systemImage: "checkmark.circle.fill")
+                            Label(String(localized: "Yes"), systemImage: "checkmark.circle.fill")
                                 .font(.subheadline)
                         }
                         .buttonStyle(.bordered)
@@ -737,7 +738,7 @@ struct PaneDetailView: View {
                                 await viewModel.sendInput("n")
                             }
                         } label: {
-                            Label("No", systemImage: "xmark.circle.fill")
+                            Label(String(localized: "No"), systemImage: "xmark.circle.fill")
                                 .font(.subheadline)
                         }
                         .buttonStyle(.bordered)
@@ -861,8 +862,8 @@ struct PaneDetailView: View {
 
     private var presentedPane: some View {
         decoratedPane
-        .alert("Error", isPresented: $viewModel.showError) {
-            Button("OK") {}
+        .alert(String(localized: "Error"), isPresented: $viewModel.showError) {
+            Button(String(localized: "OK")) {}
         } message: {
             Text(viewModel.errorMessage)
         }
@@ -1255,7 +1256,7 @@ class PaneDetailViewModel {
                     case "ready":
                         if !synchronizesSelection && response.independentSelection != true {
                             disconnect(socket)
-                            showDirectInputError("独立モードには新しいdaemonが必要です。daemonを更新してください。")
+                            showDirectInputError(String(localized: "Independent mode requires a newer daemon. Please update the daemon."))
                             return
                         }
                         supportsTmuxKeys = response.tmuxKeys == true
@@ -1270,7 +1271,7 @@ class PaneDetailViewModel {
                         if let text = response.text {
                             UIPasteboard.general.string = text
                         } else {
-                            showDirectInputError(response.error ?? "コピーできませんでした")
+                            showDirectInputError(response.error ?? String(localized: "Could not copy the selection."))
                         }
                     case "navigation":
                         if let state = response.state {
@@ -1298,7 +1299,7 @@ class PaneDetailViewModel {
                             cursor = response.cursor
                         }
                     case "error":
-                        throw APIError.serverError(response.error ?? "Pane stream failed")
+                        throw APIError.serverError(response.error ?? String(localized: "Pane stream failed"))
                     default:
                         continue
                     }
@@ -1453,7 +1454,7 @@ class PaneDetailViewModel {
     func queueDirectText(_ text: String) {
         guard !text.isEmpty else { return }
         guard isStreamConnected else {
-            showDirectInputError("再接続中です。接続が戻ってから入力してください。")
+            showDirectInputError(String(localized: "Reconnecting. Please wait before typing."))
             return
         }
         directTextBuffer.append(text)
@@ -1486,7 +1487,7 @@ class PaneDetailViewModel {
 
     private func enqueueDirectRequest(_ request: PaneStreamRequest) {
         guard let socket = webSocketTask, isStreamConnected else {
-            showDirectInputError("再接続中です。接続が戻ってから入力してください。")
+            showDirectInputError(String(localized: "Reconnecting. Please wait before typing."))
             return
         }
         let previous = directSendTail
@@ -1500,7 +1501,7 @@ class PaneDetailViewModel {
             } catch {
                 guard self.webSocketTask === socket else { return }
                 self.disconnect(socket)
-                self.showDirectInputError("接続が切れました。最後の入力が届いたか確認してください。")
+                self.showDirectInputError(String(localized: "Disconnected. Check whether your last input was received."))
             }
         }
     }
@@ -1518,7 +1519,7 @@ class PaneDetailViewModel {
         guard let text = String(data: data, encoding: .utf8) else {
             throw APIError.decodingError(
                 NSError(domain: "PaneStream", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to encode pane stream message"
+                    NSLocalizedDescriptionKey: String(localized: "Failed to encode pane stream message")
                 ])
             )
         }

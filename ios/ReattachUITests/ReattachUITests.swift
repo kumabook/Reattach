@@ -23,7 +23,7 @@ final class ReattachUITests: XCTestCase {
     @MainActor
     func testPermissionMenuNavigatesBetweenWaitingPanes() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture"]
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         let menu = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
         let menuExists = menu.waitForExistence(timeout: 15)
@@ -53,7 +53,7 @@ final class ReattachUITests: XCTestCase {
     @MainActor
     func testTextSizePopover() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture"]
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         let waiting = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
         XCTAssertTrue(waiting.waitForExistence(timeout: 15))
@@ -61,11 +61,11 @@ final class ReattachUITests: XCTestCase {
         app.buttons["claude-demo:0.0"].tap()
         XCTAssertTrue(app.navigationBars["claude"].waitForExistence(timeout: 5))
         let size = app.buttons["textSizeButton"]
-        if size.isHittable {
+        if size.exists && size.isHittable {
             size.tap()
         } else {
-            app.buttons["More"].firstMatch.tap()
-            let overflowSize = app.buttons["文字サイズ"]
+            app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+            let overflowSize = app.buttons["Text Size"]
             XCTAssertTrue(overflowSize.waitForExistence(timeout: 5))
             overflowSize.tap()
         }
@@ -75,12 +75,47 @@ final class ReattachUITests: XCTestCase {
         // XCUI slider dragging is approximate; verify the displayed zoom changed.
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "2[0-9]{2}%"))
             .firstMatch.waitForExistence(timeout: 5))
-        app.buttons["標準に戻す"].tap()
+        app.buttons["Reset to Default"].tap()
         XCTAssertTrue(app.staticTexts["100%"].waitForExistence(timeout: 5))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Text size popover"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    @MainActor
+    func testLocalizedTerminalControls() throws {
+        for (language, locale, waitingLabel, textSize, copyMenu) in [
+            ("en", "en_US", "2 pending requests", "Text Size", "Copy and Paste"),
+            ("ja", "ja_JP", "許可待ち 2件", "文字サイズ", "コピーと貼り付け")
+        ] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                                   "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+            app.launch()
+            let waiting = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+            XCTAssertTrue(waiting.waitForExistence(timeout: 15))
+            XCTAssertEqual(waiting.label, waitingLabel)
+            waiting.tap()
+            app.buttons["claude-demo:0.0"].tap()
+            XCTAssertTrue(app.navigationBars["claude"].waitForExistence(timeout: 5))
+            let size = app.buttons["textSizeButton"]
+            if size.exists {
+                XCTAssertEqual(size.label, textSize)
+                XCTAssertEqual(app.buttons["clipboardMenu"].label, copyMenu)
+            } else {
+                app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+                XCTAssertTrue(app.buttons[textSize].exists)
+                XCTAssertTrue(app.buttons[copyMenu].exists)
+                XCTAssertTrue(app.buttons[language == "ja" ? "文章入力" : "Compose"].exists)
+                XCTAssertTrue(app.buttons[language == "ja" ? "表示するペイン" : "Pane Selection"].exists)
+            }
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Terminal controls — \(language)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            app.terminate()
+        }
     }
 
     @MainActor

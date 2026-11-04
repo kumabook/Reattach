@@ -43,7 +43,7 @@ struct QRScannerView: View {
                         VStack(spacing: 12) {
                             ProgressView()
                                 .scaleEffect(1.5)
-                            Text("Registering device...")
+                            Text(String(localized: "Registering device..."))
                                 .font(.headline)
                         }
                         .padding(32)
@@ -53,15 +53,15 @@ struct QRScannerView: View {
                     Spacer()
 
                     VStack(spacing: 12) {
-                        Text("Scan QR code from your PC")
+                        Text(String(localized: "Scan QR code from your PC"))
                             .font(.headline)
                             .foregroundStyle(.white)
 
-                        Text("Run this command on your computer:")
+                        Text(String(localized: "Run this command on your computer:"))
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.8))
 
-                        Text("reattachd setup --url <your-url>")
+                        Text(verbatim: "reattachd setup --url <your-url>")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
@@ -69,7 +69,7 @@ struct QRScannerView: View {
                             .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
 
                         Link(destination: URL(string: "https://reattach.tmux.kumabook.tokyo/setup.html")!) {
-                            Text("Setup guide")
+                            Text(String(localized: "Setup guide"))
                                 .font(.caption)
                                 .foregroundStyle(.blue)
                         }
@@ -80,21 +80,21 @@ struct QRScannerView: View {
                     .padding(.bottom, 50)
                 }
             }
-            .navigationTitle("Scan QR Code")
+            .navigationTitle(String(localized: "Scan QR Code"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         dismiss()
                     }
                 }
             }
-            .alert("Error", isPresented: $showError) {
-                Button("OK") {
+            .alert(String(localized: "Error"), isPresented: $showError) {
+                Button(String(localized: "OK")) {
                     isScanning = true
                 }
             } message: {
-                Text(errorMessage ?? "Unknown error")
+                Text(errorMessage ?? String(localized: "Unknown error"))
             }
             .sheet(item: $scannedServer) { server in
                 ServerConfirmView(
@@ -145,7 +145,7 @@ struct QRScannerView: View {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let setupToken = components.queryItems?.first(where: { $0.name == "setup_token" })?.value
         else {
-            errorMessage = "Invalid QR code format"
+            errorMessage = String(localized: "Invalid QR code format")
             showError = true
             return
         }
@@ -153,7 +153,7 @@ struct QRScannerView: View {
         var baseComponents = components
         baseComponents.queryItems = nil
         guard let baseURL = baseComponents.url?.absoluteString else {
-            errorMessage = "Invalid server URL"
+            errorMessage = String(localized: "Invalid server URL")
             showError = true
             return
         }
@@ -193,7 +193,7 @@ struct QRScannerView: View {
                 let (data, response) = try await session.data(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    throw NSError(domain: "Reattach", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+                    throw NSError(domain: "Reattach", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid response")])
                 }
 
                 if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
@@ -221,7 +221,7 @@ struct QRScannerView: View {
                     if let errorResponse = try? JSONDecoder().decode(RegisterError.self, from: data) {
                         throw NSError(domain: "Reattach", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
                     }
-                    throw NSError(domain: "Reattach", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Registration failed: \(httpResponse.statusCode)"])
+                    throw NSError(domain: "Reattach", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: String(localized: "Registration failed: \(httpResponse.statusCode)")])
                 }
 
                 struct RegisterResponse: Decodable {
@@ -273,37 +273,37 @@ struct ServerConfirmView: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Name") {
-                        TextField("Server Name", text: $serverName)
+                    LabeledContent(String(localized: "Name")) {
+                        TextField(String(localized: "Server Name"), text: $serverName)
                             .multilineTextAlignment(.trailing)
                     }
-                    LabeledContent("URL", value: serverURL)
+                    LabeledContent(String(localized: "URL"), value: serverURL)
                 } header: {
-                    Text("Server")
+                    Text(String(localized: "Server"))
                 }
 
                 Section {
-                    Toggle("Use Service Token", isOn: $showCloudflareFields)
+                    Toggle(String(localized: "Use Service Token"), isOn: $showCloudflareFields)
 
                     if showCloudflareFields {
-                        TextField("Client ID", text: $cfAccessClientId)
+                        TextField(String(localized: "Client ID"), text: $cfAccessClientId)
                             .textContentType(.username)
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
-                        SecureField("Client Secret", text: $cfAccessClientSecret)
+                        SecureField(String(localized: "Client Secret"), text: $cfAccessClientSecret)
                             .textContentType(.password)
                     }
                 } header: {
-                    Text("Cloudflare Access")
+                    Text(String(localized: "Cloudflare Access"))
                 } footer: {
-                    Text("Enable this if your server uses Cloudflare Access with Service Token authentication.")
+                    Text(String(localized: "Enable this if your server uses Cloudflare Access with Service Token authentication."))
                 }
 
                 Section {
                     Button(action: onRegister) {
                         HStack {
                             Spacer()
-                            Text("Register Device")
+                            Text(String(localized: "Register Device"))
                                 .fontWeight(.semibold)
                             Spacer()
                         }
@@ -311,11 +311,11 @@ struct ServerConfirmView: View {
                     .disabled(showCloudflareFields && (cfAccessClientId.isEmpty || cfAccessClientSecret.isEmpty))
                 }
             }
-            .navigationTitle("Add Server")
+            .navigationTitle(String(localized: "Add Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
+                    Button(String(localized: "Cancel"), action: onCancel)
                 }
             }
         }
@@ -341,11 +341,11 @@ struct CloudflareAuthView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Sign In")
+            .navigationTitle(String(localized: "Sign In"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         onCancel()
                     }
                 }

@@ -12,6 +12,32 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func localizedResourcesIncludeBothLanguagesAndPluralForms() throws {
+        for (language, copy, error, camera) in [
+            ("en", "Copy tmux Selection", "Could not copy the selection.", "Camera access"),
+            ("ja", "tmux の選択範囲をコピー", "コピーできませんでした", "カメラ")
+        ] {
+            let path = try #require(Bundle.main.path(forResource: language, ofType: "lproj"))
+            let bundle = try #require(Bundle(path: path))
+            #expect(bundle.localizedString(forKey: "Copy tmux Selection", value: nil, table: nil) == copy)
+            #expect(bundle.localizedString(forKey: "Could not copy the selection.", value: nil, table: nil) == error)
+            #expect(bundle.localizedString(forKey: "NSCameraUsageDescription", value: nil, table: "InfoPlist").contains(camera))
+            for count in [0, 1, 2] {
+                let text = String(localized: "\(count) pending requests", bundle: bundle, locale: Locale(identifier: language))
+                let expected = language == "ja" ? "許可待ち \(count)件" : "\(count) pending request\(count == 1 ? "" : "s")"
+                #expect(text == expected)
+            }
+            let index: UInt32 = 2
+            let pane = String(localized: "Pane \(index)", bundle: bundle)
+            let window = String(localized: "Window \(index)", bundle: bundle)
+            #expect(pane == (language == "ja" ? "ペイン 2" : "Pane 2"))
+            #expect(window == (language == "ja" ? "ウィンドウ 2" : "Window 2"))
+            let server = "日本語-server"
+            let prompt = String(localized: "Are you sure you want to delete \(server)?", bundle: bundle)
+            #expect(prompt == (language == "ja" ? "「日本語-server」を削除しますか？" : "Are you sure you want to delete 日本語-server?"))
+        }
+    }
+
     @Test func terminalStylesAndLinksSurviveRendering() throws {
         let text = "\u{1B}[7mselected\u{1B}[27m normal \u{1B}[48;5;21mblue\u{1B}[m https://example.com/path\n\u{1B}]8;;https://example.org\u{1B}\\日本語リンク\u{1B}]8;;\u{1B}\\"
         let rendered = TerminalTextRenderer.render(text)

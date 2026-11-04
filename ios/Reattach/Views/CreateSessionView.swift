@@ -18,29 +18,29 @@ struct CreateSessionView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Session Name", text: $name)
+                    TextField(String(localized: "Session Name"), text: $name)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    TextField("Working Directory (optional)", text: $cwd)
+                    TextField(String(localized: "Working Directory (optional)"), text: $cwd)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } header: {
-                    Text("New Session")
+                    Text(String(localized: "New Session"))
                 } footer: {
-                    Text("A new tmux session will open with your default shell.")
+                    Text(String(localized: "A new tmux session will open with your default shell."))
                 }
             }
-            .navigationTitle("Create Session")
+            .navigationTitle(String(localized: "Create Session"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel")) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
+                    Button(String(localized: "Create")) {
                         Task {
                             isCreating = true
                             defer { isCreating = false }
@@ -56,8 +56,8 @@ struct CreateSessionView: View {
                 }
             }
             .interactiveDismissDisabled(isCreating)
-            .alert("Create Session Failed", isPresented: Binding(get: { creationError != nil }, set: { if !$0 { creationError = nil } })) {
-                Button("OK") { creationError = nil }
+            .alert(String(localized: "Create Session Failed"), isPresented: Binding(get: { creationError != nil }, set: { if !$0 { creationError = nil } })) {
+                Button(String(localized: "OK")) { creationError = nil }
             } message: {
                 Text(creationError ?? "")
             }

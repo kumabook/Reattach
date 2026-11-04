@@ -10,7 +10,7 @@ struct InputComposerView: View {
     @FocusState.Binding var isFocused: Bool
 
     var body: some View {
-        TextField("Enter message...", text: $text, axis: .vertical)
+        TextField(String(localized: "Enter message..."), text: $text, axis: .vertical)
             .textFieldStyle(.plain)
             .lineLimit(1...5)
             .focused($isFocused)

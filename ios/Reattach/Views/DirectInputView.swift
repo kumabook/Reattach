@@ -39,8 +39,8 @@ struct DirectInputView: View {
                         Image(systemName: "paperplane.fill")
                     }
                     .frame(width: 44, height: 44)
-                    .accessibilityLabel("文章を送信")
-                    .accessibilityHint("⌘＋Enterでも送信できます。Enterは改行です")
+                    .accessibilityLabel(String(localized: "Send Text"))
+                    .accessibilityHint(String(localized: "You can also send with Command-Enter. Enter inserts a new line."))
                     .accessibilityIdentifier("directInputSendText")
                     .disabled(draft.isEmpty)
 
@@ -58,7 +58,7 @@ struct DirectInputView: View {
     private var immediateInput: some View {
         DirectInputTextViewRepresentable(
             onText: { text in
-                showActivity("送信しました")
+                showActivity(String(localized: "Sent"))
                 onText(text)
             },
             onKey: { key, modifiers in
@@ -143,7 +143,7 @@ struct DirectInputDraftEditor: UIViewRepresentable {
         view.backgroundColor = .clear
         view.textColor = .label
         view.autocapitalizationType = .none
-        view.accessibilityLabel = "日本語を変換・確定して送信"
+        view.accessibilityLabel = String(localized: "Compose text and confirm conversion before sending")
         DispatchQueue.main.async { [weak view] in view?.becomeFirstResponder() }
         return view
     }
@@ -189,7 +189,7 @@ final class DirectInputDraftTextView: UITextView {
 
     override var keyCommands: [UIKeyCommand]? {
         let send = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(sendDraft))
-        send.discoverabilityTitle = "送信・実行"
+        send.discoverabilityTitle = String(localized: "Send and Run")
         return (super.keyCommands ?? []) + [send]
     }
 
@@ -238,7 +238,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
         textView.smartQuotesType = .no
         textView.smartInsertDeleteType = .no
         textView.keyboardDismissMode = .none
-        textView.accessibilityLabel = "Direct terminal input"
+        textView.accessibilityLabel = String(localized: "Direct terminal input")
 
         DispatchQueue.main.async {
             textView.becomeFirstResponder()

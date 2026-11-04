@@ -67,7 +67,7 @@ class PurchaseManager {
             let products = try await Product.products(for: [productId])
             product = products.first
         } catch {
-            errorMessage = "Failed to load products: \(error.localizedDescription)"
+            errorMessage = String(localized: "Failed to load products: \(error.localizedDescription)")
         }
     }
 
@@ -75,7 +75,7 @@ class PurchaseManager {
 
     func purchase() async -> Bool {
         guard let product else {
-            errorMessage = "Product not available"
+            errorMessage = String(localized: "Product not available")
             return false
         }
 
@@ -96,14 +96,14 @@ class PurchaseManager {
                 return false
 
             case .pending:
-                errorMessage = "Purchase is pending"
+                errorMessage = String(localized: "Purchase is pending")
                 return false
 
             @unknown default:
                 return false
             }
         } catch {
-            errorMessage = "Purchase failed: \(error.localizedDescription)"
+            errorMessage = String(localized: "Purchase failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -116,7 +116,7 @@ class PurchaseManager {
             try await AppStore.sync()
             await updatePurchasedStatus()
         } catch {
-            errorMessage = "Restore failed: \(error.localizedDescription)"
+            errorMessage = String(localized: "Restore failed: \(error.localizedDescription)")
         }
     }
 
@@ -172,6 +172,10 @@ class PurchaseManager {
     }
 }
 
-enum StoreError: Error {
+enum StoreError: LocalizedError {
     case verificationFailed
+
+    var errorDescription: String? {
+        String(localized: "Purchase verification failed.")
+    }
 }

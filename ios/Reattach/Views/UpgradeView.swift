@@ -19,17 +19,17 @@ struct UpgradeView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Upgrade to Pro")
+            .navigationTitle(String(localized: "Upgrade to Pro"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
+                    Button(String(localized: "Close")) {
                         dismiss()
                     }
                 }
             }
-            .alert("Error", isPresented: .constant(purchaseManager.errorMessage != nil)) {
-                Button("OK") {
+            .alert(String(localized: "Error"), isPresented: .constant(purchaseManager.errorMessage != nil)) {
+                Button(String(localized: "OK")) {
                     purchaseManager.errorMessage = nil
                 }
             } message: {
@@ -44,11 +44,11 @@ struct UpgradeView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.yellow)
 
-            Text("Reattach Pro")
+            Text(String(localized: "Reattach Pro"))
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Unlock all features")
+            Text(String(localized: "Unlock all features"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -59,20 +59,20 @@ struct UpgradeView: View {
         VStack(alignment: .leading, spacing: 16) {
             FeatureRow(
                 icon: "server.rack",
-                title: "Unlimited Servers",
-                description: "Connect to all your machines"
+                title: String(localized: "Unlimited Servers"),
+                description: String(localized: "Connect to all your machines")
             )
 
             FeatureRow(
                 icon: "bookmark.fill",
-                title: "Unlimited Bookmarks",
-                description: "Save as many commands as you need"
+                title: String(localized: "Unlimited Bookmarks"),
+                description: String(localized: "Save as many commands as you need")
             )
 
             FeatureRow(
                 icon: "clock.arrow.circlepath",
-                title: "Extended History",
-                description: "Keep up to 100 commands in history"
+                title: String(localized: "Extended History"),
+                description: String(localized: "Keep up to 100 commands in history")
             )
         }
         .padding()
@@ -95,9 +95,9 @@ struct UpgradeView: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Purchase")
+                        Text(String(localized: "Purchase"))
                         if let price = purchaseManager.productPrice {
-                            Text("(\(price))")
+                            Text(verbatim: "(\(price))")
                         }
                     }
                 }
@@ -111,7 +111,7 @@ struct UpgradeView: View {
                     await purchaseManager.restore()
                 }
             } label: {
-                Text("Restore Purchase")
+                Text(String(localized: "Restore Purchase"))
                     .font(.footnote)
             }
             .disabled(purchaseManager.isLoading)

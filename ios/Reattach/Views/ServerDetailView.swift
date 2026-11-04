@@ -19,26 +19,26 @@ struct ServerDetailView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Name") {
-                    TextField("Server Name", text: $serverName)
+                LabeledContent(String(localized: "Name")) {
+                    TextField(String(localized: "Server Name"), text: $serverName)
                         .multilineTextAlignment(.trailing)
                 }
-                LabeledContent("URL", value: server.serverURL)
+                LabeledContent(String(localized: "URL"), value: server.serverURL)
             } header: {
-                Text("Server")
+                Text(String(localized: "Server"))
             }
 
             Section {
-                TextField("Client ID", text: $cfAccessClientId)
+                TextField(String(localized: "Client ID"), text: $cfAccessClientId)
                     .textContentType(.username)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
-                SecureField("Client Secret", text: $cfAccessClientSecret)
+                SecureField(String(localized: "Client Secret"), text: $cfAccessClientSecret)
                     .textContentType(.password)
             } header: {
-                Text("Cloudflare Access (Optional)")
+                Text(String(localized: "Cloudflare Access (Optional)"))
             } footer: {
-                Text("Enter your Service Token credentials if using Cloudflare Access.")
+                Text(String(localized: "Enter your Service Token credentials if using Cloudflare Access."))
             }
 
             Section {
@@ -47,26 +47,26 @@ struct ServerDetailView: View {
                 } label: {
                     HStack {
                         Spacer()
-                        Text("Delete Server")
+                        Text(String(localized: "Delete Server"))
                         Spacer()
                     }
                 }
             }
         }
-        .confirmationDialog("Delete Server", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
+        .confirmationDialog(String(localized: "Delete Server"), isPresented: $showDeleteConfirmation) {
+            Button(String(localized: "Delete"), role: .destructive) {
                 configManager.removeServer(server.id)
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete \(server.serverName)?")
+            Text(String(localized: "Are you sure you want to delete \(server.serverName)?"))
         }
-        .navigationTitle("Server Settings")
+        .navigationTitle(String(localized: "Server Settings"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button(String(localized: "Save")) {
                     saveChanges()
                     dismiss()
                 }

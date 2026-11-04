@@ -1,0 +1,23 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access is needed to scan the QR code from reattachd setup"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reattachd のセットアップで表示された QR コードを読み取るためにカメラを使用します。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

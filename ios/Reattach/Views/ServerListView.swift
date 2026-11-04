@@ -26,11 +26,11 @@ struct ServerListView: View {
                 #endif
                 versionSection
             }
-            .navigationTitle("Servers")
+            .navigationTitle(String(localized: "Servers"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(String(localized: "Done")) {
                         dismiss()
                     }
                 }
@@ -54,9 +54,9 @@ struct ServerListView: View {
             HStack {
                 Image(systemName: "play.circle.fill")
                     .foregroundStyle(.orange)
-                Text("Demo Mode")
+                Text(String(localized: "Demo Mode"))
                 Spacer()
-                Button("Exit") {
+                Button(String(localized: "Exit")) {
                     configManager.disableDemoMode()
                     if configManager.servers.isEmpty {
                         dismiss()
@@ -70,12 +70,12 @@ struct ServerListView: View {
                 HStack {
                     Image(systemName: "star.fill")
                         .foregroundStyle(.yellow)
-                    Text("View Pro Features")
+                    Text(String(localized: "View Pro Features"))
                         .foregroundStyle(.primary)
                 }
             }
         } footer: {
-            Text("You're viewing demo data. Exit to connect to a real server.")
+            Text(String(localized: "You're viewing demo data. Exit to connect to a real server."))
         }
     }
 
@@ -87,7 +87,7 @@ struct ServerListView: View {
                     serverRow(server)
                 }
             } header: {
-                Text("Servers")
+                Text(String(localized: "Servers"))
             }
         }
     }
@@ -119,7 +119,7 @@ struct ServerListView: View {
             NavigationLink {
                 ServerDetailView(server: server)
             } label: {
-                Label("Settings", systemImage: "gearshape")
+                Label(String(localized: "Settings"), systemImage: "gearshape")
             }
             .tint(.gray)
         }
@@ -127,7 +127,7 @@ struct ServerListView: View {
             NavigationLink {
                 ServerDetailView(server: server)
             } label: {
-                Label("Settings", systemImage: "gearshape")
+                Label(String(localized: "Settings"), systemImage: "gearshape")
             }
         }
     }
@@ -145,7 +145,7 @@ struct ServerListView: View {
                 HStack {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(.blue)
-                    Text("Add Server")
+                    Text(String(localized: "Add Server"))
                         .foregroundStyle(.blue)
                     if !configManager.canAddServer {
                         Spacer()
@@ -156,7 +156,7 @@ struct ServerListView: View {
             }
         } footer: {
             if !purchaseManager.isPro {
-                Text("Free: \(configManager.servers.count)/\(PurchaseManager.freeServerLimit) servers")
+                Text(String(localized: "Free: \(configManager.servers.count)/\(PurchaseManager.freeServerLimit) servers"))
             }
         }
     }
@@ -164,9 +164,9 @@ struct ServerListView: View {
     #if DEBUG
     private var debugSection: some View {
         Section {
-            Toggle("Simulate Free Mode", isOn: $purchaseManager.debugSimulateFreeMode)
+            Toggle(String(localized: "Simulate Free Mode"), isOn: $purchaseManager.debugSimulateFreeMode)
         } header: {
-            Text("Debug")
+            Text(String(localized: "Debug"))
         }
     }
     #endif
@@ -174,9 +174,9 @@ struct ServerListView: View {
     private var versionSection: some View {
         Section {
         } footer: {
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
-            Text("Version \(version) (\(build))")
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? String(localized: "Unknown")
+            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? String(localized: "Unknown")
+            Text(String(localized: "Version \(version) (\(build))"))
                 .frame(maxWidth: .infinity)
         }
     }

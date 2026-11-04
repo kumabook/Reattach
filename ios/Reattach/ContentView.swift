@@ -18,7 +18,7 @@ struct ContentView: View {
             if !configManager.isConfigured {
                 SetupView(onTryDemo: { configManager.enableDemoMode() })
             } else if isCheckingAuth && !configManager.isDemoMode {
-                ProgressView("Connecting...")
+                ProgressView(String(localized: "Connecting..."))
             } else {
                 SessionListView()
             }
@@ -68,12 +68,12 @@ struct ContentView: View {
                     NotificationCenter.default.post(name: .authenticationRestored, object: nil)
                 }
         }
-        .alert("Service Token Error", isPresented: $showServiceTokenError) {
-            Button("OK") {
+        .alert(String(localized: "Service Token Error"), isPresented: $showServiceTokenError) {
+            Button(String(localized: "OK")) {
                 api.clearAuthError()
             }
         } message: {
-            Text("Cloudflare Access denied. Please check your Service Token credentials in server settings.")
+            Text(String(localized: "Cloudflare Access denied. Please check your Service Token credentials in server settings."))
         }
     }
 
@@ -117,11 +117,11 @@ struct SetupView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.tint)
 
-            Text("Reattach")
+            Text(verbatim: "Reattach")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Control your tmux sessions remotely")
+            Text(String(localized: "Control your tmux sessions remotely"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -134,7 +134,7 @@ struct SetupView: View {
             } label: {
                 HStack {
                     Image(systemName: "qrcode.viewfinder")
-                    Text("Scan QR Code to Connect")
+                    Text(String(localized: "Scan QR Code to Connect"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -142,14 +142,14 @@ struct SetupView: View {
             .buttonStyle(.borderedProminent)
             .padding(.horizontal, 40)
 
-            Text("Scan the QR code from reattachd setup")
+            Text(String(localized: "Scan the QR code from reattachd setup"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Button {
                 onTryDemo()
             } label: {
-                Text("Try Demo Mode")
+                Text(String(localized: "Try Demo Mode"))
                     .foregroundStyle(.tint)
             }
             .padding(.top, 8)

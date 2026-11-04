@@ -122,19 +122,19 @@ struct SessionListView: View {
         adaptiveLayout
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
-                Button("New Session", systemImage: "plus.rectangle.on.folder") {
+                Button(String(localized: "New Session"), systemImage: "plus.rectangle.on.folder") {
                     showingCreateSheet = true
                 }
                 .disabled(ReattachAPI.shared.isDemoMode)
-                Button("次のペイン", systemImage: "arrow.right") {
+                Button(String(localized: "Next Pane"), systemImage: "arrow.right") {
                     cyclePane(backward: false)
                 }
                 .keyboardShortcut(KeyEquivalent("\t"), modifiers: .control)
-                Button("前のペイン", systemImage: "arrow.left") {
+                Button(String(localized: "Previous Pane"), systemImage: "arrow.left") {
                     cyclePane(backward: true)
                 }
                 .keyboardShortcut(KeyEquivalent("\t"), modifiers: [.control, .shift])
-                Button("一覧の表示・非表示", systemImage: "sidebar.left") {
+                Button(String(localized: "Toggle Sidebar"), systemImage: "sidebar.left") {
                     columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
@@ -155,8 +155,8 @@ struct SessionListView: View {
                 }
             }
         }
-        .alert("Error", isPresented: $viewModel.showError) {
-            Button("OK") {}
+        .alert(String(localized: "Error"), isPresented: $viewModel.showError) {
+            Button(String(localized: "OK")) {}
         } message: {
             Text(viewModel.errorMessage)
         }
@@ -229,7 +229,7 @@ struct SessionListView: View {
     private var permissionMenu: some View {
         if !permissionStatus.entries.isEmpty {
             Menu {
-                Text("許可待ち \(permissionStatus.entries.count)件")
+                Text(String(localized: "\(permissionStatus.entries.count) pending requests"))
                 ForEach(permissionStatus.entries) { entry in
                     Button {
                         Task {
@@ -244,17 +244,17 @@ struct SessionListView: View {
                     .accessibilityIdentifier(entry.target)
                 }
             } label: {
-                Label("許可待ち \(permissionStatus.entries.count)件", systemImage: "hand.raised.fill")
+                Label(String(localized: "\(permissionStatus.entries.count) pending requests"), systemImage: "hand.raised.fill")
             }
             .tint(.orange)
-            .accessibilityLabel("許可待ち \(permissionStatus.entries.count)件")
+            .accessibilityLabel(String(localized: "\(permissionStatus.entries.count) pending requests"))
             .accessibilityIdentifier("permissionWaitingMenu")
         }
     }
 
     private func permissionPaneTitle(_ target: String) -> String {
         guard let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) else {
-            return "ペイン \(target)"
+            return String(localized: "Pane \(target)")
         }
         return "\(item.windowName)（\(target)）"
     }
@@ -306,9 +306,9 @@ struct SessionListView: View {
                     }
             } else {
                 ContentUnavailableView(
-                    "Select a Pane",
+                    String(localized: "Select a Pane"),
                     systemImage: "terminal",
-                    description: Text("Choose a pane from the sidebar")
+                    description: Text(String(localized: "Choose a pane from the sidebar"))
                 )
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) { permissionMenu }
@@ -328,14 +328,14 @@ struct SessionListView: View {
     @ViewBuilder
     private var listContent: some View {
         if viewModel.isLoading && viewModel.sessions.isEmpty {
-            ProgressView("Loading sessions...")
+            ProgressView(String(localized: "Loading sessions..."))
         } else {
             List(selection: $selectedPane) {
                 if viewModel.sessions.isEmpty {
                     ContentUnavailableView(
-                        "No Sessions",
+                        String(localized: "No Sessions"),
                         systemImage: "terminal",
-                        description: Text("Create a new session to get started")
+                        description: Text(String(localized: "Create a new session to get started"))
                     )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -346,9 +346,9 @@ struct SessionListView: View {
                             Image(systemName: "play.circle.fill")
                                 .foregroundStyle(.orange)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Demo Mode")
+                                Text(String(localized: "Demo Mode"))
                                     .font(.headline)
-                                Text("Showing sample data. Set up a server to connect.")
+                                Text(String(localized: "Showing sample data. Set up a server to connect."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -370,7 +370,7 @@ struct SessionListView: View {
                 }
                 Section {
                     if viewModel.sessions.isEmpty {
-                        Button("New Session", systemImage: "plus.circle") { showingCreateSheet = true }
+                        Button(String(localized: "New Session"), systemImage: "plus.circle") { showingCreateSheet = true }
                             .disabled(ReattachAPI.shared.isDemoMode)
                     } else {
                         Button {
@@ -386,7 +386,7 @@ struct SessionListView: View {
                                 }
                             }
                         } label: {
-                            Label("New Window", systemImage: "plus.circle")
+                            Label(String(localized: "New Window"), systemImage: "plus.circle")
                         }
                         .disabled(selectedPane == nil || isCreatingWindow || ReattachAPI.shared.isDemoMode)
                     }
@@ -397,24 +397,24 @@ struct SessionListView: View {
                 await loadAndRestorePane()
             }
             .confirmationDialog(
-                "Delete Pane",
+                String(localized: "Delete Pane"),
                 isPresented: Binding(
                     get: { paneToDelete != nil },
                     set: { if !$0 { paneToDelete = nil } }
                 ),
                 presenting: paneToDelete
             ) { pane in
-                Button("Delete", role: .destructive) {
+                Button(String(localized: "Delete"), role: .destructive) {
                     Task {
                         await viewModel.deletePane(target: pane.target)
                         paneToDelete = nil
                     }
                 }
-                Button("Cancel", role: .cancel) {
+                Button(String(localized: "Cancel"), role: .cancel) {
                     paneToDelete = nil
                 }
             } message: { pane in
-                Text("Are you sure you want to delete this pane?\n\(pane.shortPath)")
+                Text(String(localized: "Are you sure you want to delete this pane?\n\(pane.shortPath)"))
             }
         }
     }
@@ -480,7 +480,7 @@ struct SessionListView: View {
 
     private var currentServerName: String {
         if configManager.isDemoMode {
-            return "Demo"
+            return String(localized: "Demo")
         } else if let server = configManager.activeServer {
             return server.serverName
         }
@@ -572,7 +572,7 @@ struct SessionSection: View {
                     .font(.headline)
                 Spacer()
                 if session.attached {
-                    Text("attached")
+                    Text(String(localized: "attached"))
                         .font(.caption2)
                         .foregroundStyle(.green)
                         .padding(.horizontal, 6)
@@ -628,7 +628,7 @@ struct WindowRow: View {
         Button(role: .destructive) {
             onRequestDelete(pane)
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label(String(localized: "Delete"), systemImage: "trash")
         }
     }
 }
@@ -649,14 +649,14 @@ struct WindowLabel: View {
             Image(systemName: isWaiting ? "hand.raised.fill" : PaneIcon.iconName(for: window.name, path: window.panes.first?.currentPath ?? ""))
                 .foregroundStyle(isWaiting ? .orange : PaneIcon.iconColor(for: window.name, isActive: window.active))
                 .frame(width: 20)
-                .accessibilityLabel(isWaiting ? "許可待ち" : "")
+                .accessibilityLabel(isWaiting ? String(localized: "Permission Required") : "")
             VStack(alignment: .leading) {
                 Text(window.name)
                     .font(.body)
                 HStack(spacing: 4) {
-                    Text("Window \(window.index)")
+                    Text(String(localized: "Window \(window.index)"))
                     if let firstPane = window.panes.first {
-                        Text("·")
+                        Text(verbatim: "·")
                         Text(firstPane.shortPath)
                             .lineLimit(1)
                     }
@@ -691,9 +691,9 @@ struct PaneRow: View {
             Image(systemName: isWaiting ? "hand.raised.fill" : PaneIcon.iconName(for: windowName, path: pane.currentPath))
                 .foregroundStyle(isWaiting ? .orange : PaneIcon.iconColor(for: windowName, isActive: pane.active))
                 .frame(width: 20)
-                .accessibilityLabel(isWaiting ? "許可待ち" : "")
+                .accessibilityLabel(isWaiting ? String(localized: "Permission Required") : "")
             VStack(alignment: .leading) {
-                Text("Pane \(pane.index)")
+                Text(String(localized: "Pane \(pane.index)"))
                     .font(.body)
                 Text(pane.shortPath)
                     .font(.caption)
@@ -707,7 +707,7 @@ struct PaneRow: View {
                     .frame(width: 10, height: 10)
             }
             if pane.active {
-                Text("active")
+                Text(String(localized: "active"))
                     .font(.caption2)
                     .foregroundStyle(.green)
             }
@@ -831,7 +831,7 @@ class SessionListViewModel {
                 }
             }
         }
-        throw APIError.serverError("Created pane could not be found. Refresh the session list.")
+        throw APIError.serverError(String(localized: "Created pane could not be found. Refresh the session list."))
     }
 
     func deletePane(target: String) async {

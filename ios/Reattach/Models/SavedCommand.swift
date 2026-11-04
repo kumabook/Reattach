@@ -38,8 +38,8 @@ class SavedCommandManager {
               let decoded = try? JSONDecoder().decode([SavedCommand].self, from: data) else {
             // Default commands
             commands = [
-                SavedCommand(label: "Yes", command: "y"),
-                SavedCommand(label: "No", command: "n"),
+                SavedCommand(label: String(localized: "Yes"), command: "y"),
+                SavedCommand(label: String(localized: "No"), command: "n"),
             ]
             return
         }
