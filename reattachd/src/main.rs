@@ -539,7 +539,7 @@ fn parse_agent_notify_payload(input: &str) -> Result<Option<NotifyPayload>, Stri
         }
     }
 
-    if notification_content::is_candidate_generation(&body) {
+    if notification_content::is_background_generation(&body) {
         return Ok(None);
     }
 
@@ -1203,8 +1203,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn candidate_completion_does_not_become_a_notification() {
-        for body in [r#"{"exclude":[]}"#, r#"{"suggestions":[{"title":"候補"}]}"#] {
+    fn background_completion_does_not_become_a_notification() {
+        for body in [
+            r#"{"exclude":[]}"#,
+            r#"{"suggestions":[{"title":"候補"}]}"#,
+            r#"{ "title": "xxxx" }"#,
+        ] {
             let event = serde_json::json!({
                 "type": "agent-turn-complete", "last-assistant-message": body
             });

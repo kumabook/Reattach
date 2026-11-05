@@ -37,7 +37,7 @@ pub async fn send_notification(
     Json(payload): Json<SendNotificationRequest>,
 ) -> StatusCode {
     // Older installed CLI hooks also submit here; filter before contacting APNs.
-    if crate::notification_content::is_candidate_generation(&payload.body) {
+    if crate::notification_content::is_background_generation(&payload.body) {
         return StatusCode::OK;
     }
     match apns
