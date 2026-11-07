@@ -318,8 +318,14 @@ extension ReattachAPI {
                     name: "main",
                     active: true,
                     panes: [
-                        Pane(index: 0, active: true, target: "myproject:0.0", currentPath: "/Users/demo/projects/myproject")
-                    ]
+                        Pane(index: 0, active: true, target: "myproject:0.0", currentPath: "/Users/demo/projects/myproject",
+                             geometry: PaneGeometry(left: 0, top: 0, width: 80, height: 40)),
+                        Pane(index: 1, active: false, target: "myproject:0.1", currentPath: "/Users/demo/projects/myproject",
+                             geometry: PaneGeometry(left: 81, top: 0, width: 60, height: 19)),
+                        Pane(index: 2, active: false, target: "myproject:0.2", currentPath: "/Users/demo/projects/myproject",
+                             geometry: PaneGeometry(left: 81, top: 20, width: 60, height: 20))
+                    ],
+                    width: 141, height: 40, zoomed: false
                 )
             ]
         ),
@@ -340,6 +346,35 @@ extension ReattachAPI {
     ]
 
     static func demoOutput(for target: String) -> String {
+        if target == "myproject:0.1" {
+            return """
+            $ cargo test
+            \u{1B}[32m   Compiling\u{1B}[0m myproject v2.0.0
+            \u{1B}[32m    Finished\u{1B}[0m test profile in 1.42s
+
+            running 5 tests
+            test session::create ... \u{1B}[32mok\u{1B}[0m
+            test pane::split ... \u{1B}[32mok\u{1B}[0m
+            test pane::resize ... \u{1B}[32mok\u{1B}[0m
+            test stream::reconnect ... \u{1B}[32mok\u{1B}[0m
+            test clipboard::copy ... \u{1B}[32mok\u{1B}[0m
+
+            \u{1B}[32mtest result: ok. 5 passed; 0 failed\u{1B}[0m
+            $ _
+            """
+        }
+        if target == "myproject:0.2" {
+            return """
+            $ tail -f server.log
+            \u{1B}[36m13:42:01 INFO\u{1B}[0m Listening on :8787
+            \u{1B}[36m13:42:03 INFO\u{1B}[0m Device connected
+            \u{1B}[36m13:42:03 INFO\u{1B}[0m WebSocket ready
+            \u{1B}[36m13:42:04 INFO\u{1B}[0m Session: myproject
+            \u{1B}[36m13:42:05 INFO\u{1B}[0m 3 panes synchronized
+
+            \u{1B}[32m● All systems operational\u{1B}[0m
+            """
+        }
         if target.contains("claude") {
             return """
 ╭────────────────────────────────────────────────────────────────────╮

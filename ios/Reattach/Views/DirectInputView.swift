@@ -206,6 +206,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
     let onKey: (_ key: String, _ modifiers: [String]) -> Void
     let onCompositionChanged: (Bool) -> Void
     var keyboardFocusRequest: UUID? = nil
+    var isInputEnabled = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -240,16 +241,18 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
         textView.keyboardDismissMode = .none
         textView.accessibilityLabel = String(localized: "Direct terminal input")
 
-        DispatchQueue.main.async {
-            textView.becomeFirstResponder()
-        }
+        textView.isEditable = isInputEnabled
+        textView.requestKeyboardFocus()
         return textView
     }
 
     func updateUIView(_ textView: TerminalInputTextView, context: Context) {
+        let wasEnabled = textView.isEditable
+        textView.isEditable = isInputEnabled
+        if isInputEnabled && !wasEnabled { textView.requestKeyboardFocus() }
         if let request = keyboardFocusRequest, context.coordinator.lastFocusRequest != request {
             context.coordinator.lastFocusRequest = request
-            DispatchQueue.main.async { [weak textView] in textView?.becomeFirstResponder() }
+            textView.requestKeyboardFocus()
         }
         context.coordinator.onText = onText
         context.coordinator.onKey = onKey
@@ -417,6 +420,25 @@ enum DirectInputKeyMapper {
 final class TerminalInputTextView: UITextView {
     var onKey: ((_ key: String, _ modifiers: [String]) -> Void)?
     var onCompositionEnded: (() -> Void)?
+
+    private var pendingKeyboardFocus = false
+
+    func requestKeyboardFocus() {
+        pendingKeyboardFocus = true
+        acquirePendingKeyboardFocus()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        acquirePendingKeyboardFocus()
+    }
+
+    private func acquirePendingKeyboardFocus() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.pendingKeyboardFocus, self.window != nil, self.isEditable else { return }
+            if self.becomeFirstResponder() { self.pendingKeyboardFocus = false }
+        }
+    }
 
     override func unmarkText() {
         super.unmarkText()

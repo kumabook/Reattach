@@ -186,10 +186,10 @@ struct SessionListView: View {
             guard scenePhase == .active, !configManager.isDemoMode else { return }
             await viewModel.observeSessionChanges()
         }
-        .onChange(of: PaneNavigationItem.items(in: viewModel.sessions)) { _, items in
+        .onChange(of: PaneNavigationItem.items(in: viewModel.sessions)) { _, _ in
             guard viewModel.loadedServerID == configManager.activeServer?.id,
                   let selected = selectedPane else { return }
-            if let current = items.first(where: { $0.pane.target == selected.pane.target }) {
+            if let current = PaneNavigationItem.reconciling(target: selected.pane.target, in: viewModel.sessions) {
                 if current != selected { selectedPane = current }
             } else {
                 selectedPane = nil
@@ -277,7 +277,9 @@ struct SessionListView: View {
                 }
         } detail: {
             if let selected = selectedPane {
-                PaneDetailView(pane: selected.pane, windowName: selected.windowName) { state in
+                PaneDetailView(pane: selected.pane, windowName: selected.windowName, onSelectPane: { pane in
+                    selectedPane = PaneNavigationItem(pane: pane, windowName: selected.windowName)
+                }) { state in
                     guard state.target != selectedPane?.pane.target else { return }
                     let identity = detailIdentity
                     let previousSelection = selectedPane?.pane.target
@@ -511,6 +513,21 @@ struct PaneNavigationItem: Hashable {
                 if let pane = window.panes.first(where: { $0.target == target }) {
                     return Self(pane: pane, windowName: window.name)
                 }
+            }
+        }
+        return nil
+    }
+
+    // Keep an open window visible when its selected pane exits or is deleted.
+    static func reconciling(target: String, in sessions: [Session]) -> Self? {
+        if let current = matching(target: target, in: sessions) { return current }
+        guard let separator = target.lastIndex(of: ".") else { return nil }
+        let windowTarget = target[..<separator]
+        for session in sessions {
+            for window in session.windows {
+                guard "\(session.name):\(window.index)" == windowTarget,
+                      let pane = window.panes.first(where: \.active) ?? window.panes.first else { continue }
+                return Self(pane: pane, windowName: window.name)
             }
         }
         return nil

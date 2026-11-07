@@ -12,6 +12,136 @@ import SwiftUI
 @MainActor
 struct ReattachTests {
 
+    @Test func literalTmuxBorderStylesAndIndicators() throws {
+        let style = try #require(PaneBorderStyle.parse("fg=#123456,bg=colour220"))
+        #expect(style.foreground == PaneBorderStyle.parseColor("#123456"))
+        #expect(style.background == TerminalTextRenderer.palette(220))
+        #expect(PaneBorderStyle.parse("fg=green,bg=black")?.foreground == TerminalTextRenderer.palette(2))
+        #expect(PaneBorderStyle.parse("fg=default,bg=default")?.foreground == nil)
+        #expect(PaneBorderStyle.parse("fg=red,default")?.foreground == nil)
+        for value in ["fg=#{?pane_active,red,blue}", "fg=colour256", "fg=#xyzxyz", "fg=red,reverse", ""] {
+            #expect(PaneBorderStyle.parse(value) == nil)
+        }
+        let demo = ReattachAPI.demoSessions[0].windows[0]
+        var window = Window(index: 0, name: "test", active: true, panes: Array(demo.panes.prefix(2)))
+        #expect(PaneBorderStyle.usesHalfBorder(window))
+        for (indicators, half) in [("colour", true), ("both", true), ("off", false), ("arrows", false)] {
+            window.borders = PaneBorders(style: "default", activeStyle: "default", indicators: indicators)
+            #expect(PaneBorderStyle.usesHalfBorder(window) == half)
+        }
+        #expect(!PaneBorderStyle.usesHalfBorder(demo))
+        let data = Data(#"{"index":0,"name":"test","active":true,"panes":[],"borders":{"style":"fg=green","active_style":"fg=white,bg=yellow","indicators":"colour"}}"#.utf8)
+        #expect(try JSONDecoder().decode(Window.self, from: data).borders?.activeStyle == "fg=white,bg=yellow")
+    }
+
+    @Test func splitViewportKeepsContentVisibleAboveTrailingBlankRows() {
+        let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+        let text = UITextView(frame: CGRect(x: 0, y: 0, width: 800, height: 1200))
+        text.attributedText = TerminalTextRenderer.render("prompt $" + String(repeating: "\n", count: 100))
+        text.isScrollEnabled = false
+        scroll.addSubview(text)
+        scroll.contentSize = text.bounds.size
+        let coordinator = ZoomableTextView.Coordinator()
+        coordinator.updateLatestContentBottom(in: text)
+        scroll.contentOffset.y = 600
+        scroll.bounds.size.height = 200
+        coordinator.viewportChanged(in: scroll)
+        #expect(scroll.contentOffset.y == 0)
+        // With output filling the pane, follow its end after viewport resizing.
+        let filled = ZoomableTextView.Coordinator()
+        filled.scrollToLatest(in: scroll)
+        #expect(scroll.contentOffset.y == 1000)
+        scroll.bounds.size.height = 400
+        filled.viewportChanged(in: scroll)
+        #expect(scroll.contentOffset.y == 800)
+        filled.scrollViewWillBeginDragging(scroll)
+        scroll.contentOffset.y = 300
+        filled.scrollViewDidEndDragging(scroll, willDecelerate: false)
+        scroll.bounds.size.height = 500
+        filled.viewportChanged(in: scroll)
+        #expect(scroll.contentOffset.y == 300)
+    }
+
+    @Test func closingSelectedPaneKeepsItsWindowOpen() {
+        let first = Pane(index: 0, active: false, target: "work:1.0", currentPath: "/tmp")
+        let active = Pane(index: 2, active: true, target: "work:1.2", currentPath: "/tmp")
+        let window = Window(index: 1, name: "remaining", active: true, panes: [first, active])
+        let sessions = [Session(name: "work", attached: true, windows: [window])]
+        #expect(PaneNavigationItem.reconciling(target: "work:1.1", in: sessions)?.pane == active)
+        // Deleting another pane must not change the current input target.
+        #expect(PaneNavigationItem.reconciling(target: first.target, in: sessions)?.pane == first)
+        #expect(PaneNavigationItem.reconciling(target: "work:9.0", in: sessions) == nil)
+        #expect(PaneNavigationItem.reconciling(target: "other:1.1", in: sessions) == nil)
+        #expect(PaneNavigationItem.reconciling(target: active.target, in: []) == nil)
+        let withoutActive = [Session(name: "work", attached: true, windows: [
+            Window(index: 1, name: "remaining", active: true, panes: [first])
+        ])]
+        #expect(PaneNavigationItem.reconciling(target: active.target, in: withoutActive)?.pane == first)
+    }
+
+    @Test func paneScrollingIsIndependentAndPreservesPositionDuringUpdates() {
+        let first = UIScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 300))
+        let second = UIScrollView(frame: first.frame)
+        first.contentSize = CGSize(width: 1600, height: 1200)
+        second.contentSize = first.contentSize
+        let firstCoordinator = ZoomableTextView.Coordinator()
+        let secondCoordinator = ZoomableTextView.Coordinator()
+        firstCoordinator.scrollToLatest(in: first)
+        secondCoordinator.scrollToLatest(in: second)
+        firstCoordinator.scrollViewWillBeginDragging(first)
+        first.contentOffset = CGPoint(x: 250, y: 400)
+        firstCoordinator.scrollViewDidEndDragging(first, willDecelerate: false)
+        first.contentSize.height = 1400
+        firstCoordinator.scrollToLatest(in: first)
+        #expect(first.contentOffset == CGPoint(x: 250, y: 400))
+        #expect(second.contentOffset == CGPoint(x: 0, y: 900))
+        #expect(first.zoomScale == 1)
+        #expect(second.zoomScale == 1)
+        firstCoordinator.scrollToLatest(in: first, force: true)
+        #expect(first.contentOffset == CGPoint(x: 250, y: 1100))
+    }
+
+    @Test func windowLayoutPreservesMixedSplitsAcrossViewportSizes() throws {
+        let window = ReattachAPI.demoSessions[0].windows[0]
+        for size in [CGSize(width: 1410, height: 800), CGSize(width: 390, height: 600)] {
+            let frames = try #require(WindowLayout.frames(for: window, in: size))
+            let left = try #require(frames["myproject:0.0"])
+            let top = try #require(frames["myproject:0.1"])
+            let bottom = try #require(frames["myproject:0.2"])
+            #expect(frames.count == 3)
+            #expect(abs(left.height - size.height) < 0.001)
+            #expect(left.maxX < top.minX)
+            #expect(top.maxY < bottom.minY)
+            #expect(abs(bottom.maxX - size.width) < 0.001)
+            #expect(abs(bottom.maxY - size.height) < 0.001)
+        }
+    }
+
+    @Test func windowLayoutHandlesZoomAndLegacyDaemons() throws {
+        var window = ReattachAPI.demoSessions[0].windows[0]
+        window.zoomed = true
+        let frames = try #require(WindowLayout.frames(for: window, in: CGSize(width: 800, height: 600)))
+        #expect(frames.count == 1)
+        #expect(frames["myproject:0.0"] == CGRect(x: 0, y: 0, width: 800, height: 600))
+        let legacy = Data(#"{"index":0,"name":"main","active":true,"panes":[{"index":0,"active":true,"target":"s:0.0","current_path":"/tmp"}]}"#.utf8)
+        let decoded = try JSONDecoder().decode(Window.self, from: legacy)
+        #expect(decoded.panes[0].geometry == nil)
+        #expect(WindowLayout.frames(for: decoded, in: CGSize(width: 800, height: 600)) == nil)
+    }
+
+    @Test func windowLayoutRejectsOverlappingOrOutOfBoundsPanes() {
+        let pane = Pane(index: 0, active: true, target: "s:0.0", currentPath: "/tmp",
+                        geometry: PaneGeometry(left: 0, top: 0, width: 80, height: 24))
+        var other = Pane(index: 1, active: false, target: "s:0.1", currentPath: "/tmp",
+                         geometry: PaneGeometry(left: 40, top: 0, width: 40, height: 24))
+        for geometry in [other.geometry!, PaneGeometry(left: -1, top: 0, width: 20, height: 24),
+                         PaneGeometry(left: 81, top: 0, width: 20, height: 24)] {
+            other.geometry = geometry
+            let window = Window(index: 0, name: "main", active: true, panes: [pane, other], width: 80, height: 24)
+            #expect(WindowLayout.frames(for: window, in: CGSize(width: 800, height: 600)) == nil)
+        }
+    }
+
     @Test func localizedResourcesIncludeBothLanguagesAndPluralForms() throws {
         for (language, copy, error, camera) in [
             ("en", "Copy tmux Selection", "Could not copy the selection.", "Camera access"),
@@ -35,6 +165,72 @@ struct ReattachTests {
             let server = "日本語-server"
             let prompt = String(localized: "Are you sure you want to delete \(server)?", bundle: bundle)
             #expect(prompt == (language == "ja" ? "「日本語-server」を削除しますか？" : "Are you sure you want to delete 日本語-server?"))
+        }
+    }
+
+    @Test func directInputAcquiresFocusAfterMountingAndConnection() async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        let controller = UIViewController()
+        window.rootViewController = controller
+        let input = TerminalInputTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 48))
+        input.isEditable = false
+        input.requestKeyboardFocus()
+        controller.view.addSubview(input)
+        window.makeKeyAndVisible()
+        defer {
+            input.resignFirstResponder()
+            window.isHidden = true
+            previousKeyWindow?.makeKey()
+        }
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(!input.isFirstResponder)
+        input.isEditable = true
+        input.requestKeyboardFocus()
+        for _ in 0..<100 {
+            if input.isFirstResponder { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(input.isFirstResponder)
+        // Display replacement must not remove the separate keyboard responder.
+        let display = UIView()
+        controller.view.insertSubview(display, belowSubview: input)
+        display.removeFromSuperview()
+        #expect(input.isFirstResponder)
+        input.removeFromSuperview()
+        input.requestKeyboardFocus()
+        controller.view.addSubview(input)
+        for _ in 0..<100 {
+            if input.isFirstResponder { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(input.isFirstResponder)
+    }
+
+    @Test func terminalDefaultTextContrastsWithExplicitBackgrounds() throws {
+        for appearance in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: appearance)
+            for (codes, expected) in [("48;5;237", UIColor.white), ("48;2;68;68;68", .white),
+                                      ("40", .white), ("107", .black), ("48;2;240;240;240", .black)] {
+                let rendered = TerminalTextRenderer.render("\u{1B}[\(codes)mtext")
+                let foreground = try #require(rendered.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+                #expect(foreground.resolvedColor(with: traits) == expected)
+                #expect(rendered.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+            }
+            let rendered = TerminalTextRenderer.render("\u{1B}[48;5;237;30mA\u{1B}[39mB\u{1B}[49mC\u{1B}[48;5;237mD\u{1B}[0mE")
+            for (index, expected) in [(0, UIColor.black), (1, .white),
+                                      (2, UIColor.label.resolvedColor(with: traits)), (3, .white),
+                                      (4, UIColor.label.resolvedColor(with: traits))] {
+                let foreground = try #require(rendered.attribute(.foregroundColor, at: index, effectiveRange: nil) as? UIColor)
+                #expect(foreground.resolvedColor(with: traits) == expected)
+            }
+            let explicit = TerminalTextRenderer.render("\u{1B}[48;5;237;38;2;12;34;56mX")
+            let foreground = try #require(explicit.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+            #expect(foreground.resolvedColor(with: traits) == UIColor(red: 12/255, green: 34/255, blue: 56/255, alpha: 1))
+            let reversed = TerminalTextRenderer.render("\u{1B}[48;2;68;68;68;7mX")
+            let reverseBackground = try #require(reversed.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+            #expect(reverseBackground.resolvedColor(with: traits) == .white)
         }
     }
 
@@ -519,6 +715,31 @@ struct StreamRecoveryTests {
             try await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for stream state")
+    }
+
+    @Test func changingSelectedPaneRoutesInputOnlyToTheNewStream() async throws {
+        let first = RecoverySocket()
+        let second = RecoverySocket()
+        var targets: [String] = []
+        let model = PaneDetailViewModel(target: "work:0.0") { target, independent in
+            targets.append(target)
+            #expect(independent)
+            return targets.count == 1 ? first : second
+        }
+        defer { model.stopStreaming() }
+        model.setDirectMode(true)
+        await model.openPane("work:0.0", synchronize: false)
+        try await waitUntil { model.isStreamConnected }
+        model.queueDirectText("old pending input")
+        await model.openPane("work:0.2", synchronize: false)
+        try await waitUntil { targets.count == 2 && model.isStreamConnected }
+        model.queueDirectText("new pane input")
+        model.flushDirectInput()
+        try await waitUntil { second.sent.contains { $0.contains("new pane input") } }
+        #expect(targets == ["work:0.0", "work:0.2"])
+        #expect(first.cancelled)
+        #expect(!first.sent.contains { $0.contains("new pane input") })
+        #expect(!second.sent.contains { $0.contains("old pending input") })
     }
 
     @Test func reconnectingStatusClearsAfterRecoveryAndIntentionalStop() async throws {

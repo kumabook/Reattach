@@ -5,6 +5,7 @@ enum TerminalTextRenderer {
     nonisolated static func render(_ text: String) -> NSAttributedString {
         let result = NSMutableAttributedString()
         var foreground: UIColor = .label
+        var usesDefaultForeground = true
         var background: UIColor?
         var bold = false
         var dim = false
@@ -16,8 +17,11 @@ enum TerminalTextRenderer {
         var offset = 0
         func append(_ range: NSRange) {
             guard range.length > 0 else { return }
-            let fg = reverse ? (background ?? .systemBackground) : foreground
-            let bg = reverse ? foreground : background
+            let effectiveForeground = usesDefaultForeground
+                ? background.map { contrastingText(on: $0) } ?? foreground
+                : foreground
+            let fg = reverse ? (background ?? .systemBackground) : effectiveForeground
+            let bg = reverse ? effectiveForeground : background
             var attrs: [NSAttributedString.Key: Any] = [
                 .foregroundColor: dim ? fg.withAlphaComponent(0.6) : fg,
                 .font: UIFont.monospacedSystemFont(ofSize: 8, weight: bold ? .bold : .regular)
@@ -38,17 +42,17 @@ enum TerminalTextRenderer {
             while i < codes.count {
                 let code = codes[i]
                 switch code {
-                case 0: foreground = .label; background = nil; bold = false; dim = false; reverse = false
+                case 0: foreground = .label; usesDefaultForeground = true; background = nil; bold = false; dim = false; reverse = false
                 case 1: bold = true
                 case 2: dim = true
                 case 7: reverse = true
                 case 22: bold = false; dim = false
                 case 27: reverse = false
-                case 30...37: foreground = palette(code - 30)
+                case 30...37: foreground = palette(code - 30); usesDefaultForeground = false
                 case 40...47: background = palette(code - 40)
-                case 90...97: foreground = palette(code - 90 + 8)
+                case 90...97: foreground = palette(code - 90 + 8); usesDefaultForeground = false
                 case 100...107: background = palette(code - 100 + 8)
-                case 39: foreground = .label
+                case 39: foreground = .label; usesDefaultForeground = true
                 case 49: background = nil
                 case 38, 48:
                     var color: UIColor?
@@ -59,7 +63,7 @@ enum TerminalTextRenderer {
                         i += 4
                     }
                     if let color {
-                        if code == 38 { foreground = color } else { background = color }
+                        if code == 38 { foreground = color; usesDefaultForeground = false } else { background = color }
                     }
                 default: break
                 }
@@ -77,6 +81,25 @@ enum TerminalTextRenderer {
         return result
     }
 
+    // Default text must remain legible on an explicit SGR background in either
+    // appearance. Explicit foreground colours and the background are preserved.
+    nonisolated private static func contrastingText(on background: UIColor) -> UIColor {
+        UIColor { traits in
+            let resolved = background.resolvedColor(with: traits)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+                return UIColor.label.resolvedColor(with: traits)
+            }
+            func linear(_ value: CGFloat) -> CGFloat {
+                value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+            let whiteContrast = 1.05 / (luminance + 0.05)
+            let blackContrast = (luminance + 0.05) / 0.05
+            return whiteContrast > blackContrast ? .white : .black
+        }
+    }
+
     nonisolated private static func allowedURL(_ text: String) -> URL? {
         guard let url = URL(string: text), ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") else { return nil }
         return url
@@ -84,7 +107,7 @@ enum TerminalTextRenderer {
 
     nonisolated private static func component(_ value: Int) -> CGFloat { CGFloat(min(255, max(0, value))) / 255 }
 
-    nonisolated private static func palette(_ index: Int) -> UIColor {
+    nonisolated static func palette(_ index: Int) -> UIColor {
         let standard: [UIColor] = [.black, .systemRed, .systemGreen, .systemYellow, .systemBlue, .systemPurple, .systemCyan, .lightGray,
                                    .gray, .systemRed, .systemGreen, .systemYellow, .systemBlue, .systemPurple, .systemCyan, .white]
         if (0..<16).contains(index) { return standard[index] }

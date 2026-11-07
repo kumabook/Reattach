@@ -9,6 +9,7 @@ pub struct PaneResponse {
     pub active: bool,
     pub target: String,
     pub current_path: String,
+    pub geometry: tmux::PaneGeometry,
 }
 
 #[derive(Serialize)]
@@ -17,6 +18,10 @@ pub struct WindowResponse {
     pub name: String,
     pub active: bool,
     pub panes: Vec<PaneResponse>,
+    pub width: u32,
+    pub height: u32,
+    pub zoomed: bool,
+    pub borders: Option<tmux::PaneBorders>,
 }
 
 #[derive(Serialize)]
@@ -53,6 +58,10 @@ pub async fn list_sessions() -> Result<Json<Vec<SessionResponse>>, (StatusCode, 
                             index: w.index,
                             name: w.name,
                             active: w.active,
+                            width: w.width,
+                            height: w.height,
+                            zoomed: w.zoomed,
+                            borders: w.borders,
                             panes: w
                                 .panes
                                 .into_iter()
@@ -61,6 +70,7 @@ pub async fn list_sessions() -> Result<Json<Vec<SessionResponse>>, (StatusCode, 
                                     active: p.active,
                                     target: p.target,
                                     current_path: p.current_path,
+                                    geometry: p.geometry,
                                 })
                                 .collect(),
                         })

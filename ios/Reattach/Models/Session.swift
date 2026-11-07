@@ -10,6 +10,7 @@ struct Pane: Codable, Identifiable, Hashable {
     let active: Bool
     let target: String
     let currentPath: String
+    var geometry: PaneGeometry? = nil
 
     var id: String { target }
 
@@ -18,7 +19,7 @@ struct Pane: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case index, active, target
+        case index, active, target, geometry
         case currentPath = "current_path"
     }
 }
@@ -28,6 +29,10 @@ struct Window: Codable, Identifiable, Hashable {
     let name: String
     let active: Bool
     let panes: [Pane]
+    var width: Int? = nil
+    var height: Int? = nil
+    var zoomed: Bool? = nil
+    var borders: PaneBorders? = nil
 
     var id: UInt32 { index }
 }
@@ -169,5 +174,23 @@ struct PaneSelectionSpan: Codable, Equatable {
         case rowFromBottom = "row_from_bottom"
         case startX = "start_x"
         case endX = "end_x"
+    }
+}
+
+struct PaneGeometry: Codable, Hashable {
+    let left: Int
+    let top: Int
+    let width: Int
+    let height: Int
+}
+
+struct PaneBorders: Codable, Hashable {
+    let style: String
+    let activeStyle: String
+    let indicators: String
+
+    enum CodingKeys: String, CodingKey {
+        case style, indicators
+        case activeStyle = "active_style"
     }
 }

@@ -16,18 +16,34 @@ struct TerminalZoomRequest {
     var scale: CGFloat? = nil
 }
 
+final class TerminalScrollView: UIScrollView {
+    var onViewportChange: ((UIScrollView) -> Void)?
+    private var previousSize = CGSize.zero
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds.size != previousSize, bounds.width > 0, bounds.height > 0 else { return }
+        previousSize = bounds.size
+        onViewportChange?(self)
+    }
+}
+
 struct ZoomableTextView: UIViewRepresentable {
     let attributedText: NSAttributedString
     let contentVersion: UUID
     let cursor: PaneCursorState?
     @Binding var scrollToBottom: Bool
+    var columns: Int? = nil
     var zoomRequest: TerminalZoomRequest? = nil
     var onCursorRectChanged: ((CGRect?) -> Void)? = nil
     var onZoomChanged: ((CGFloat) -> Void)? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         context.coordinator.lastContentVersion = nil
-        let scrollView = UIScrollView()
+        let scrollView = TerminalScrollView()
+        scrollView.onViewportChange = { [weak coordinator = context.coordinator] view in
+            coordinator?.viewportChanged(in: view)
+        }
         scrollView.delegate = context.coordinator
         scrollView.minimumZoomScale = 1.0
         scrollView.maximumZoomScale = 4.0
@@ -70,7 +86,8 @@ struct ZoomableTextView: UIViewRepresentable {
 
         let contentChanged = context.coordinator.lastContentVersion != contentVersion
         let cellWidth = context.coordinator.terminalCellWidth
-        let terminalWidth = CGFloat(cursor?.paneWidth ?? 0) * cellWidth + 26
+        let paneColumns = cursor?.paneWidth ?? columns
+        let terminalWidth = CGFloat(paneColumns ?? 80) * cellWidth + 26
         let maxWidth = max(scrollView.bounds.width, terminalWidth, 300)
         let layoutChanged = contentChanged || abs(textView.bounds.width - maxWidth) > 0.5
         if layoutChanged {
@@ -83,7 +100,8 @@ struct ZoomableTextView: UIViewRepresentable {
                 textView.attributedText = attributedText
             }
 
-            let size = textView.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
+            var size = textView.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
+            size.width = maxWidth
             // A zoomed view has a transform: assigning frame would alter its
             // unscaled geometry and make subsequent output updates jump.
             textView.bounds = CGRect(origin: .zero, size: size)
@@ -100,13 +118,16 @@ struct ZoomableTextView: UIViewRepresentable {
         }
 
         context.coordinator.updateCursor(cursor, in: textView, force: layoutChanged)
+        if layoutChanged {
+            context.coordinator.updateLatestContentBottom(in: textView)
+        }
 
         if let zoomRequest, context.coordinator.lastZoomRequestID != zoomRequest.id {
             context.coordinator.lastZoomRequestID = zoomRequest.id
             context.coordinator.applyZoom(zoomRequest, in: scrollView)
         }
 
-        if contentChanged && cursor?.copyMode != true {
+        if (layoutChanged || cursor != nil) && cursor?.copyMode != true {
             context.coordinator.scrollToLatest(in: scrollView)
         }
         if scrollToBottom {
@@ -134,6 +155,44 @@ struct ZoomableTextView: UIViewRepresentable {
         private var isUserZooming = false
         private var followsLatestOutput = true
 
+        private var latestContentBottom: CGFloat?
+
+        func updateLatestContentBottom(in textView: UITextView) {
+            let text = textView.attributedText.string
+            var lines = text.components(separatedBy: "\n")
+            if text.hasSuffix("\n") { lines.removeLast() }
+            guard let index = lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) else {
+                latestContentBottom = 0
+                return
+            }
+            let row = PaneCursorState(x: 0, rowFromBottom: lines.count - 1 - index,
+                                      paneWidth: lastCursor?.paneWidth ?? 80, visible: false)
+            latestContentBottom = cursorFrame(row, in: textView).map { $0.maxY + textView.textContainerInset.bottom }
+        }
+
+        private func latestOffset(in scrollView: UIScrollView) -> CGFloat {
+            var bottom = latestContentBottom.map { $0 * scrollView.zoomScale } ?? scrollView.contentSize.height
+            if let cursorView, !cursorView.isHidden {
+                bottom = max(bottom, cursorView.frame.maxY * scrollView.zoomScale + 8)
+            }
+            return max(-scrollView.adjustedContentInset.top,
+                       min(bottom, scrollView.contentSize.height) - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+        }
+
+        func viewportChanged(in scrollView: UIScrollView) {
+            guard !isUserScrolling, !isUserZooming, !scrollView.isDragging,
+                  !scrollView.isDecelerating, !scrollView.isZooming else { return }
+            if followsLatestOutput && lastCursor?.copyMode != true {
+                scrollToLatest(in: scrollView)
+            } else {
+                let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
+                let maxX = max(0, scrollView.contentSize.width - scrollView.bounds.width)
+                scrollView.contentOffset = CGPoint(x: min(max(0, scrollView.contentOffset.x), maxX),
+                                                   y: min(max(0, scrollView.contentOffset.y), maxY))
+            }
+            publishCursorRect()
+        }
+
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             isUserScrolling = true
         }
@@ -148,8 +207,7 @@ struct ZoomableTextView: UIViewRepresentable {
 
         private func finishUserScroll(_ scrollView: UIScrollView) {
             isUserScrolling = false
-            let bottom = max(-scrollView.adjustedContentInset.top,
-                             scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+            let bottom = latestOffset(in: scrollView)
             followsLatestOutput = bottom - scrollView.contentOffset.y <= 24
         }
 
@@ -167,8 +225,7 @@ struct ZoomableTextView: UIViewRepresentable {
                   !scrollView.isDecelerating, !scrollView.isZooming else { return }
             guard force || followsLatestOutput else { return }
             followsLatestOutput = true
-            let bottom = max(-scrollView.adjustedContentInset.top,
-                             scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+            let bottom = latestOffset(in: scrollView)
             let offset = CGPoint(x: scrollView.contentOffset.x, y: bottom)
             if abs(scrollView.contentOffset.y - bottom) > 0.5 {
                 scrollView.setContentOffset(offset, animated: false)
@@ -429,6 +486,10 @@ struct PaneDetailView: View {
     let pane: Pane
     let windowName: String
     var onTmuxNavigation: ((TmuxNavigationState) -> Void)?
+    var onSelectPane: ((Pane) -> Void)?
+    @AppStorage("show_tmux_window_layout") private var showWindowLayout = false
+    @State private var layoutWindow: Window?
+    @State private var layoutLoadFailed = false
     @State private var configManager = ServerConfigManager.shared
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
@@ -445,7 +506,8 @@ struct PaneDetailView: View {
     @State private var showCommandPicker = false
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
 
-    init(pane: Pane, windowName: String, onTmuxNavigation: ((TmuxNavigationState) -> Void)? = nil) {
+    init(pane: Pane, windowName: String, onSelectPane: ((Pane) -> Void)? = nil, onTmuxNavigation: ((TmuxNavigationState) -> Void)? = nil) {
+        self.onSelectPane = onSelectPane
         self.onTmuxNavigation = onTmuxNavigation
         self.pane = pane
         self.windowName = windowName
@@ -479,6 +541,16 @@ struct PaneDetailView: View {
 
     @ToolbarContentBuilder
     private var paneToolbar: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showWindowLayout.toggle()
+            } label: {
+                Label(showWindowLayout ? String(localized: "Single Pane") : String(localized: "Window Layout"),
+                      systemImage: showWindowLayout ? "rectangle" : "rectangle.split.2x2")
+            }
+            .disabled(isDirectCompositionActive)
+            .accessibilityIdentifier("windowLayoutToggle")
+        }
         ToolbarItem(placement: .primaryAction) {
             if keyboardVisible || hardwareKeyboardConnected {
                 Menu {
@@ -600,84 +672,129 @@ struct PaneDetailView: View {
 
     }
 
-    private var terminalContent: some View {
-        VStack(spacing: 0) {
-            ZoomableTextView(
-                attributedText: viewModel.output,
-                contentVersion: viewModel.contentVersion,
-                cursor: viewModel.cursor,
-                scrollToBottom: $scrollToBottom,
-                zoomRequest: zoomRequest,
-                onCursorRectChanged: { visibleCursorRect = $0 },
-                onZoomChanged: { displayedZoom = $0 }
-            )
-            .overlay(alignment: .topLeading) {
-                if !composeEnabled {
-                    GeometryReader { geometry in
-                        let frame = CompositionPlacement.frame(cursor: visibleCursorRect, viewport: geometry.size)
-                        DirectInputTextViewRepresentable(
-                            onText: { viewModel.queueDirectText($0) },
-                            onKey: { viewModel.queueDirectKey($0, modifiers: $1) },
-                            onCompositionChanged: { isDirectCompositionActive = $0 },
-                            keyboardFocusRequest: keyboardFocusRequest
-                        )
-                        .frame(width: frame.width, height: frame.height)
-                        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
+    private var activeLayoutTarget: String { viewModel.tmuxNavigation?.target ?? pane.target }
+
+    private var usesWindowLayout: Bool {
+        guard showWindowLayout, let window = layoutWindow,
+              let frames = WindowLayout.frames(for: window, in: CGSize(width: 1, height: 1)) else { return false }
+        return frames[activeLayoutTarget] != nil
+    }
+
+    private var selectedTerminal: some View {
+        ZoomableTextView(
+            attributedText: viewModel.output,
+            contentVersion: viewModel.contentVersion,
+            cursor: viewModel.cursor,
+            scrollToBottom: $scrollToBottom,
+            columns: layoutWindow?.panes.first(where: { $0.target == activeLayoutTarget })?.geometry?.width,
+            zoomRequest: zoomRequest,
+            onCursorRectChanged: { visibleCursorRect = $0 },
+            onZoomChanged: { displayedZoom = $0 }
+        )
+        .overlay(alignment: .topLeading) {
+            if viewModel.isReconnecting {
+                Text(String(localized: "Reconnecting…"))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(6)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(8)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("streamReconnectingStatus")
+            } else if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
+                Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
+                    .font(.caption)
+                    .padding(6)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(8)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onChange(of: viewModel.isSending) { _, isSending in
+            if !isSending {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    scrollToBottom = true
+                }
+            }
+        }
+        .overlay {
+            if viewModel.isSending {
+                ZStack {
+                    Color.black.opacity(0.3)
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(.white)
+                        Text(String(localized: "Sending..."))
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(24)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+    }
+
+    // Keep the keyboard responder mounted while pane cells and layout change.
+    private var terminalDisplay: some View {
+        ZStack {
+            if usesWindowLayout, let window = layoutWindow {
+                WindowLayoutView(window: window, selectedTarget: activeLayoutTarget,
+                                 autoRefresh: viewModel.autoRefresh,
+                                 selectionEnabled: !isDirectCompositionActive && !viewModel.isSending,
+                                 onSelect: { selected in
+                    guard selected.target != activeLayoutTarget else { return }
+                    onSelectPane?(selected)
+                }) {
+                    selectedTerminal
+                }
+            } else {
+                selectedTerminal
+                    .overlay(alignment: .bottomLeading) {
+                        if showWindowLayout && (layoutWindow != nil || layoutLoadFailed) {
+                            Text(layoutLoadFailed ? String(localized: "Could not load window layout") : String(localized: "Window layout requires an updated daemon"))
+                                .font(.caption).padding(6).background(.regularMaterial)
                                 .allowsHitTesting(false)
                         }
-                        .opacity(isDirectCompositionActive ? 1 : 0)
-                        .allowsHitTesting(isDirectCompositionActive)
-                        .disabled(!viewModel.isStreamConnected)
-                        .offset(x: frame.minX, y: frame.minY)
                     }
-                }
             }
-            .overlay(alignment: .topLeading) {
-                if viewModel.isReconnecting {
-                    Text(String(localized: "Reconnecting…"))
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .padding(6)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(8)
-                        .allowsHitTesting(false)
-                        .accessibilityIdentifier("streamReconnectingStatus")
-                } else if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
-                    Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
-                        .font(.caption)
-                        .padding(6)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(8)
-                        .allowsHitTesting(false)
-                }
-            }
-            .onChange(of: viewModel.isSending) { _, isSending in
-                if !isSending {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        scrollToBottom = true
+        }
+        .overlay(alignment: .topLeading) {
+            if !composeEnabled {
+                GeometryReader { geometry in
+                    let paneFrame = usesWindowLayout ? layoutWindow.flatMap {
+                        WindowLayout.frames(for: $0, in: geometry.size)?[activeLayoutTarget]
+                    } : nil
+                    let cursor = visibleCursorRect.map {
+                        $0.offsetBy(dx: paneFrame?.minX ?? 0, dy: paneFrame?.minY ?? 0)
                     }
-                }
-            }
-            .overlay {
-                if viewModel.isSending {
-                    ZStack {
-                        Color.black.opacity(0.3)
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                                .tint(.white)
-                            Text(String(localized: "Sending..."))
-                                .font(.subheadline)
-                                .foregroundStyle(.white)
-                        }
-                        .padding(24)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    let frame = CompositionPlacement.frame(cursor: cursor, viewport: geometry.size)
+                    DirectInputTextViewRepresentable(
+                        onText: { viewModel.queueDirectText($0) },
+                        onKey: { viewModel.queueDirectKey($0, modifiers: $1) },
+                        onCompositionChanged: { isDirectCompositionActive = $0 },
+                        keyboardFocusRequest: keyboardFocusRequest,
+                        isInputEnabled: viewModel.isStreamConnected
+                    )
+                    .frame(width: frame.width, height: frame.height)
+                    .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
+                            .allowsHitTesting(false)
                     }
+                    .opacity(isDirectCompositionActive ? 1 : 0)
+                    .allowsHitTesting(isDirectCompositionActive)
+                    .offset(x: frame.minX, y: frame.minY)
                 }
             }
+        }
+    }
+
+    private var terminalContent: some View {
+        VStack(spacing: 0) {
+            terminalDisplay
 
             if isWaitingForPermission {
                 Divider()
@@ -907,6 +1024,24 @@ struct PaneDetailView: View {
             viewModel.setDirectMode(!composeEnabled)
             await viewModel.openPane(pane.target, synchronize: configManager.synchronizesSelection)
             if !Task.isCancelled { scrollToBottom = true }
+        }
+        .task(id: "\(showWindowLayout)|\(scenePhase == .active)|\(activeLayoutTarget)|\(viewModel.autoRefresh)") {
+            guard showWindowLayout, scenePhase == .active else { return }
+            repeat {
+                do {
+                    let sessions = try await ReattachAPI.shared.listSessions()
+                    guard !Task.isCancelled else { return }
+                    layoutWindow = sessions.flatMap(\.windows).first { window in
+                        window.panes.contains { $0.target == activeLayoutTarget }
+                    }
+                    layoutLoadFailed = false
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    layoutLoadFailed = true
+                }
+                guard viewModel.autoRefresh else { return }
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            } while !Task.isCancelled
         }
         .onDisappear {
             viewModel.stopStreaming()

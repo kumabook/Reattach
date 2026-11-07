@@ -21,6 +21,60 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testWindowLayoutSelectionAndRotation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let waiting = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 15))
+        waiting.tap()
+        app.buttons["myproject:0.0"].tap()
+        let left = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.0").firstMatch
+        let upperRight = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.1").firstMatch
+        let lowerRight = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.2").firstMatch
+        if !lowerRight.waitForExistence(timeout: 3) {
+            let toggle = app.buttons["windowLayoutToggle"]
+            if toggle.exists && toggle.isHittable { toggle.tap() }
+            else {
+                app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+                app.buttons["Window Layout"].tap()
+            }
+        }
+        XCTAssertTrue(lowerRight.waitForExistence(timeout: 10))
+        XCTAssertLessThan(left.frame.minX, upperRight.frame.minX)
+        XCTAssertLessThan(upperRight.frame.minY, lowerRight.frame.minY)
+        // Dragging an unselected pane must scroll without changing the input target.
+        upperRight.swipeLeft()
+        upperRight.swipeUp()
+        XCTAssertEqual(left.value as? String, "Selected")
+        XCTAssertNotEqual(upperRight.value as? String, "Selected")
+        lowerRight.tap()
+        let selected = NSPredicate(format: "value == %@", "Selected")
+        expectation(for: selected, evaluatedWith: lowerRight)
+        waitForExpectations(timeout: 10)
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            XCTAssertTrue(left.waitForExistence(timeout: 5))
+            XCTAssertTrue(lowerRight.exists)
+            XCTAssertLessThan(left.frame.minX, upperRight.frame.minX)
+            XCTAssertLessThan(upperRight.frame.minY, lowerRight.frame.minY)
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "tmux mixed layout — \(orientation.rawValue)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+        let toggle = app.buttons["windowLayoutToggle"]
+        if toggle.exists && toggle.isHittable {
+            toggle.tap()
+        } else {
+            app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+            app.buttons["Single Pane"].tap()
+        }
+        XCTAssertTrue(lowerRight.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
     func testPermissionMenuNavigatesBetweenWaitingPanes() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
