@@ -489,7 +489,6 @@ struct PaneDetailView: View {
     var onSelectPane: ((Pane) -> Void)?
     @AppStorage("show_tmux_window_layout") private var showWindowLayout = false
     @State private var layoutWindow: Window?
-    @State private var layoutLoadFailed = false
     @State private var configManager = ServerConfigManager.shared
     @State private var viewModel: PaneDetailViewModel
     @State private var scrollToBottom = false
@@ -751,13 +750,6 @@ struct PaneDetailView: View {
                 }
             } else {
                 selectedTerminal
-                    .overlay(alignment: .bottomLeading) {
-                        if showWindowLayout && (layoutWindow != nil || layoutLoadFailed) {
-                            Text(layoutLoadFailed ? String(localized: "Could not load window layout") : String(localized: "Window layout requires an updated daemon"))
-                                .font(.caption).padding(6).background(.regularMaterial)
-                                .allowsHitTesting(false)
-                        }
-                    }
             }
         }
         .overlay(alignment: .topLeading) {
@@ -1034,10 +1026,9 @@ struct PaneDetailView: View {
                     layoutWindow = sessions.flatMap(\.windows).first { window in
                         window.panes.contains { $0.target == activeLayoutTarget }
                     }
-                    layoutLoadFailed = false
                 } catch {
                     guard !Task.isCancelled else { return }
-                    layoutLoadFailed = true
+                    // Keep the current terminal visible and retry on the next refresh.
                 }
                 guard viewModel.autoRefresh else { return }
                 do { try await Task.sleep(for: .seconds(2)) } catch { return }
