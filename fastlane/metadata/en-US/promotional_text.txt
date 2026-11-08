@@ -1,1 +1,1 @@
-Control tmux from your iPhone. Get push notifications from Claude Code and other AI assistants.
+Bring your tmux workflow to iPhone and iPad: custom key bindings, copy-mode clipboard sync, automatic reconnection, and an English or Japanese interface.

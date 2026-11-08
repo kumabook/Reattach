@@ -25,6 +25,12 @@ With optional coding agent integration, get push notifications when Claude Code 
 - **Coding agent friendly**: Optional hooks for Claude Code / Codex push notifications
 - **Simple architecture**: reattachd is just a thin wrapper around tmux
 
+## Version 2.0 (release preparation)
+
+Version 2.0 adds tmux pane layouts with independent scrolling, native tmux prefix and copy-mode support, automatic clipboard transfer for copies confirmed from the app, terminal links, resilient streaming with slow-response and reconnecting indicators, independent pane navigation, and an English/Japanese interface. Update both the iOS app and `reattachd` to 2.0.0 to use the new tmux and clipboard features.
+
+See [the changelog](CHANGELOG.md) for release details and upgrade notes.
+
 ## Components
 
 | Component | Description |

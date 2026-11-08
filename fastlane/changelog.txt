@@ -1,12 +1,21 @@
-First release! / 初回リリース!
+Reattach 2.0.0 (43)
 
-Please test all features:
-主な機能:
+Reattach 2.0 brings more of your tmux workflow to iPhone and iPad.
 
-- QR code registration / QRコード登録
-- Session list & pane control / セッション一覧・ペイン操作
-- Push notifications / プッシュ通知
-- Quick commands & bookmarks / クイックコマンド・ブックマーク
-- Pro upgrade / Proアップグレード
+• Match the tmux pane layout, scroll each pane independently, and tap to select it.
+• Use your configured tmux prefix and key bindings with direct terminal input.
+• See the cursor and selection in tmux copy mode. Copies confirmed from the app automatically reach your iPhone or iPad clipboard.
+• Open terminal links and paste text into the composer.
+• Recover automatically from interrupted connections, with indicators for slow responses and reconnection.
+• Keep pane selection in sync with other devices, or navigate independently on this device.
+• Compose Japanese text, use hardware keyboard shortcuts, and adjust terminal text size.
+• Find panes waiting for permission and return to your last selected pane.
+• Use the app in English or Japanese, including accessibility descriptions.
 
-Feedback welcome! / フィードバック歓迎!
+Update reattachd on your computer to 2.0.0 to use the new tmux and clipboard features.
+
+Test focus / 確認ポイント
+- Custom prefix and copy bindings / カスタムプレフィックスとコピーキー
+- Disconnect and reconnect, background and resume / 通信断からの復帰・バックグラウンド復帰
+- Japanese composition and external keyboards / 日本語の変換入力・外部キーボード
+- English and Japanese UI on iPhone Duo and iPad / iPhone Duo・iPad での日英表示

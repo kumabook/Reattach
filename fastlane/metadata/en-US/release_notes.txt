@@ -1,1 +1,13 @@
-First release!
+Reattach 2.0 brings more of your tmux workflow to iPhone and iPad.
+
+• See your tmux window layout, including horizontal, vertical, and mixed splits. Scroll each pane independently and tap to select it.
+• Use your configured tmux prefix and key bindings with direct terminal input.
+• See the cursor and selection in tmux copy mode. Copies confirmed from the app automatically reach your iPhone or iPad clipboard.
+• Open terminal links and paste text into the composer.
+• Recover automatically from interrupted connections, with indicators for slow responses and reconnection.
+• Keep pane selection in sync with other devices, or navigate independently on this device.
+• Compose Japanese text, use hardware keyboard shortcuts, and adjust terminal text size.
+• Find panes waiting for permission and return to your last selected pane.
+• Use the app in English or Japanese, including accessibility descriptions.
+
+Update reattachd on your computer to 2.0.0 to use the new tmux and clipboard features.

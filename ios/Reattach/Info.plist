@@ -7,10 +7,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSCameraUsageDescription</key>
-	<string>Camera access is needed to scan the QR code from reattachd setup</string>
 	<key>kMDItemKeywords</key>
 	<array>
 		<string>tmux</string>

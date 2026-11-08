@@ -344,6 +344,14 @@
             }
         }
 
+        /* Upcoming release */
+        .release-preview { padding: 56px 0; background: var(--bg-secondary); }
+        .release-preview h2 { font-size: 2rem; margin-bottom: 12px; }
+        .release-preview p { margin-bottom: 16px; }
+        .release-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin: 24px 0; }
+        .release-grid article { padding: 20px; border: 1px solid var(--border); border-radius: 12px; }
+        .release-grid h3 { margin-bottom: 8px; }
+
         /* Features */
         .features {
             padding: 80px 0;
@@ -772,6 +780,21 @@
             </div>
         </section>
 
+        <section class="release-preview" id="release-2" aria-labelledby="release-title">
+            <div class="container">
+                <h2 id="release-title">Coming in Reattach 2.0</h2>
+                <p>A more complete tmux workflow on iPhone and iPad. Version 2.0 is being prepared for release.</p>
+                <div class="release-grid">
+                    <article><h3>Your tmux layout</h3><p>Match your tmux pane layout, scroll each pane independently, and tap to select it.</p></article>
+                    <article><h3>Your tmux keys</h3><p>Use your configured prefix and key bindings, with direct input, Japanese composition, and hardware keyboard shortcuts.</p></article>
+                    <article><h3>Copy mode on your phone</h3><p>See the copy-mode cursor and selection. Confirm a copy from the app to send it to your device clipboard, or use the selection-copy menu.</p></article>
+                    <article><h3>Stay connected</h3><p>Interrupted connections recover automatically. A red status indicator tells you when Reattach is reconnecting.</p></article>
+                    <article><h3>Your workspace, your language</h3><p>Sync pane selection with other devices or navigate independently. Adjust text size and use the interface in English or Japanese.</p></article>
+                </div>
+                <p>Update reattachd to 2.0.0 alongside the app to use the new tmux and clipboard features.</p>
+            </div>
+        </section>
+
         <section class="features" id="features">
             <div class="container">
                 <h2>Features</h2>
@@ -808,7 +831,7 @@
                     </div>
                     <div class="feature-content">
                         <h3>Push Notifications</h3>
-                        <p>Get notified when your AI coding assistant needs input or when tasks complete. Never miss an important prompt — respond from anywhere without returning to your desk.</p>
+                        <p>Get notified when your AI coding assistant needs your input or permission. Find the waiting pane and respond from anywhere without returning to your desk.</p>
                     </div>
                 </div>
                 <div class="feature-row">

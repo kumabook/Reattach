@@ -344,6 +344,14 @@
             }
         }
 
+        /* Upcoming release */
+        .release-preview { padding: 56px 0; background: var(--bg-secondary); }
+        .release-preview h2 { font-size: 2rem; margin-bottom: 12px; }
+        .release-preview p { margin-bottom: 16px; }
+        .release-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin: 24px 0; }
+        .release-grid article { padding: 20px; border: 1px solid var(--border); border-radius: 12px; }
+        .release-grid h3 { margin-bottom: 8px; }
+
         /* Features */
         .features {
             padding: 80px 0;
@@ -772,6 +780,21 @@
             </div>
         </section>
 
+        <section class="release-preview" id="release-2" aria-labelledby="release-title">
+            <div class="container">
+                <h2 id="release-title">Reattach 2.0 で、もっと使いやすく</h2>
+                <p>iPhone・iPad からの tmux 操作を大きく改善。バージョン 2.0 はリリース準備中です。</p>
+                <div class="release-grid">
+                    <article><h3>tmux の配置をそのまま</h3><p>tmux のペイン配置を再現。各ペインを個別にスクロールし、タップして操作対象を選べます。</p></article>
+                    <article><h3>いつもの tmux キーで操作</h3><p>設定済みのプレフィックスやキーバインドを使った直接入力、日本語の変換入力、外部キーボードのショートカットに対応。</p></article>
+                    <article><h3>スマートフォンでも copy mode</h3><p>カーソルと選択範囲を画面に表示。アプリからコピーを確定すると端末のクリップボードにも反映されます。メニューから選択範囲をコピーすることもできます。</p></article>
+                    <article><h3>接続が切れても自動で復帰</h3><p>通信が途切れたら自動で再接続。再接続中は赤文字の表示で状態がわかります。</p></article>
+                    <article><h3>作業環境と言語を選べる</h3><p>ペイン選択を他の端末と同期するか、この端末だけで切り替えるか選択できます。文字サイズ調整と日本語・英語の表示にも対応。</p></article>
+                </div>
+                <p>新しい tmux 操作・コピー連携を使うには、アプリとあわせて reattachd も 2.0.0 に更新してください。</p>
+            </div>
+        </section>
+
         <section class="features" id="features">
             <div class="container">
                 <h2>機能</h2>
@@ -808,7 +831,7 @@
                     </div>
                     <div class="feature-content">
                         <h3>プッシュ通知</h3>
-                        <p>AIコーディングアシスタントが入力を必要としているとき、またはタスクが完了したときに通知を受け取れます。重要なプロンプトを見逃すことなく、デスクに戻らずにどこからでも対応できます。</p>
+                        <p>AI コーディングアシスタントが入力や許可を必要としているときに通知を受け取れます。許可待ちのペインを見つけて、デスクに戻らずに対応できます。</p>
                     </div>
                 </div>
                 <div class="feature-row">

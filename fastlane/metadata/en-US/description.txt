@@ -1,20 +1,34 @@
 Your terminal, on your phone.
-Control your tmux sessions even when you're away from your PC.
+Control your tmux sessions from iPhone and iPad, even when you are away from your computer.
 
-If you're using AI coding assistants like Claude Code, you can respond to prompts right from your phone with push notifications.
+TERMINAL CONTROL
+• Direct input with your configured tmux prefix and key bindings
+• A composer for longer messages and Japanese text conversion
+• Hardware keyboard shortcuts and adjustable text size
+• tmux copy-mode cursor and selection, with automatic copying to the device clipboard when you confirm a copy from the app
+• Terminal links and text pasting
+• Automatic reconnection with a visible connection status
 
-【Features】
-• View and control tmux sessions
-• Send commands from keyboard
-• Switch between multiple sessions and panes
-• One-tap quick commands for frequent actions
+YOUR WORKSPACE
+• Browse sessions, windows, and panes
+• Match the tmux pane layout, scroll each pane, and tap to select it
+• Sync pane selection with other devices or navigate independently
+• Return to your last selected pane
+• Save frequent commands and reuse command history
 
-【Remote Access】
-Access securely from anywhere using VPN or Cloudflare Tunnel.
+CODING AGENTS
+With optional Claude Code or Codex hooks, receive push notifications when your input is needed. Find panes waiting for permission and respond from your phone.
 
-【Requirements】
-• macOS or Linux
-• tmux
-• reattachd (free, open source)
+ENGLISH AND JAPANESE
+The interface, error messages, and accessibility descriptions follow your app language.
 
-Setup guide: https://github.com/kumabook/Reattach
+REMOTE ACCESS
+Connect using Tailscale or Cloudflare Tunnel, or use your local network.
+
+REQUIREMENTS
+• A Mac or Linux computer with tmux
+• reattachd 2.0.0 or later for the new tmux and clipboard features (free and open source)
+
+Reattach Pro unlocks additional servers, unlimited saved commands, and extended command history.
+
+Setup guide: https://reattach.tmux.kumabook.tokyo/setup.html
