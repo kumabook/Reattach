@@ -541,14 +541,18 @@ struct PaneDetailView: View {
     @ToolbarContentBuilder
     private var paneToolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            Button {
-                showWindowLayout.toggle()
+            Menu {
+                Picker(String(localized: "Display Mode"), selection: $showWindowLayout) {
+                    Label(String(localized: "Selected Pane Only"), systemImage: "rectangle")
+                        .tag(false)
+                    Label(String(localized: "Match tmux Layout"), systemImage: "rectangle.split.2x2")
+                        .tag(true)
+                }
             } label: {
-                Label(showWindowLayout ? String(localized: "Single Pane") : String(localized: "Window Layout"),
-                      systemImage: showWindowLayout ? "rectangle" : "rectangle.split.2x2")
+                Label(String(localized: "Display Mode"), systemImage: "rectangle.split.2x2")
             }
             .disabled(isDirectCompositionActive)
-            .accessibilityIdentifier("windowLayoutToggle")
+            .accessibilityIdentifier("windowLayoutMenu")
         }
         ToolbarItem(placement: .primaryAction) {
             if keyboardVisible || hardwareKeyboardConnected {
@@ -691,24 +695,26 @@ struct PaneDetailView: View {
             onZoomChanged: { displayedZoom = $0 }
         )
         .overlay(alignment: .topLeading) {
-            if viewModel.isReconnecting {
-                Text(String(localized: "Reconnecting…"))
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(6)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(8)
-                    .allowsHitTesting(false)
-                    .accessibilityIdentifier("streamReconnectingStatus")
-            } else if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
-                Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
-                    .font(.caption)
-                    .padding(6)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(8)
-                    .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 4) {
+                if viewModel.isReconnecting || viewModel.isConnectionSlow {
+                    Text(viewModel.isReconnecting ? String(localized: "Reconnecting…") : String(localized: "Server response is slow…"))
+                        .font(.caption)
+                        .foregroundStyle(viewModel.isReconnecting ? .red : .orange)
+                        .padding(6)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier(viewModel.isReconnecting ? "streamReconnectingStatus" : "streamSlowStatus")
+                }
+                if !composeEnabled, let state = viewModel.tmuxNavigation, state.keyTable != "root" {
+                    Text(String(localized: "tmux · Enter the next key (\(state.prefix))"))
+                        .font(.caption)
+                        .padding(6)
+                        .background(.regularMaterial, in: Capsule())
+                }
             }
+            .padding(8)
+            .allowsHitTesting(false)
         }
+
         .onChange(of: viewModel.isSending) { _, isSending in
             if !isSending {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -1124,6 +1130,7 @@ class PaneDetailViewModel {
     var quickAction: QuickAction = .none
     var isStreamConnected = false
     private(set) var isReconnecting = false
+    private(set) var isConnectionSlow = false
     var cursor: PaneCursorState?
 
     var tmuxNavigation: TmuxNavigationState?
@@ -1139,20 +1146,24 @@ class PaneDetailViewModel {
     @ObservationIgnored private var connectionID = UUID()
     @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
     @ObservationIgnored private var awaitingPong = false
+    @ObservationIgnored private var slowResponseTask: Task<Void, Never>?
     @ObservationIgnored private var rawOutput: String = ""
     @ObservationIgnored private var directTextBuffer = ""
     @ObservationIgnored private var directTextFlushTask: Task<Void, Never>?
     @ObservationIgnored private var directSendTail: Task<Void, Never>?
 
     @ObservationIgnored private let socketFactory: ((String, Bool) throws -> any PaneStreamSocket)?
+    private let slowResponseThreshold: Duration
     private let heartbeatInterval: Duration
     private let retryInterval: Duration
 
     init(target: String,
          heartbeatInterval: Duration = .seconds(10),
          retryInterval: Duration = .seconds(2),
+         slowResponseThreshold: Duration = .seconds(2),
          socketFactory: ((String, Bool) throws -> any PaneStreamSocket)? = nil) {
         self.target = target
+        self.slowResponseThreshold = slowResponseThreshold
         self.heartbeatInterval = heartbeatInterval
         self.retryInterval = retryInterval
         self.socketFactory = socketFactory
@@ -1275,6 +1286,9 @@ class PaneDetailViewModel {
         streamingTask = nil
         if let socket = webSocketTask { disconnect(socket) }
         isReconnecting = false
+        isConnectionSlow = false
+        slowResponseTask?.cancel()
+        slowResponseTask = nil
         clearPendingInput()
         cursor = nil
     }
@@ -1300,6 +1314,9 @@ class PaneDetailViewModel {
         heartbeatTask?.cancel()
         heartbeatTask = nil
         awaitingPong = false
+        isConnectionSlow = false
+        slowResponseTask?.cancel()
+        slowResponseTask = nil
         clearPendingInput()
     }
 
@@ -1317,11 +1334,25 @@ class PaneDetailViewModel {
                     return
                 }
                 self.awaitingPong = true
+                let started = ContinuousClock.now
+                let threshold = self.slowResponseThreshold
+                self.slowResponseTask?.cancel()
+                self.slowResponseTask = Task { [weak self] in
+                    do { try await Task.sleep(for: threshold) } catch { return }
+                    guard let self, self.webSocketTask === socket, self.awaitingPong else { return }
+                    self.isConnectionSlow = true
+                }
                 socket.sendPing { [weak self] error in
                     Task { @MainActor [weak self] in
                         guard let self, self.webSocketTask === socket else { return }
                         if error != nil { self.disconnect(socket) }
-                        else { self.awaitingPong = false }
+                        else {
+                            self.awaitingPong = false
+                            self.slowResponseTask?.cancel()
+                            self.slowResponseTask = nil
+                            // Clear the warning only after a prompt reply, not a late pong.
+                            self.isConnectionSlow = started.duration(to: .now) >= threshold
+                        }
                     }
                 }
             }

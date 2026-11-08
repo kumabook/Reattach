@@ -702,8 +702,10 @@ private final class RecoverySocket: PaneStreamSocket {
             try await withCheckedThrowingContinuation { blockedSend = $0 }
         }
     }
+    var pendingPong: (@Sendable (Error?) -> Void)?
     func sendPing(pongReceiveHandler: @escaping @Sendable (Error?) -> Void) {
         if respondsToPing { pongReceiveHandler(nil) }
+        else { pendingPong = pongReceiveHandler }
     }
 }
 
@@ -715,6 +717,39 @@ struct StreamRecoveryTests {
             try await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for stream state")
+    }
+
+    @Test func slowResponseWarningRecoversAndIgnoresOldConnections() async throws {
+        let first = RecoverySocket()
+        first.respondsToPing = false
+        let second = RecoverySocket()
+        var attempts = 0
+        let model = PaneDetailViewModel(target: "probe", heartbeatInterval: .milliseconds(150),
+                                        retryInterval: .milliseconds(5), slowResponseThreshold: .milliseconds(25)) { _, _ in
+            attempts += 1
+            return attempts == 1 ? first : second
+        }
+        defer { model.stopStreaming() }
+        await model.startStreaming()
+        try await waitUntil { model.isConnectionSlow }
+        #expect(model.isStreamConnected)
+        #expect(!model.isReconnecting)
+        let oldPong = try #require(first.pendingPong)
+        first.respondsToPing = true
+        oldPong(nil)
+        try await Task.sleep(for: .milliseconds(5))
+        #expect(model.isConnectionSlow)
+        try await waitUntil { !model.isConnectionSlow }
+        first.respondsToPing = false
+        try await waitUntil { model.isConnectionSlow }
+        try await waitUntil { attempts == 2 && model.isStreamConnected }
+        #expect(!model.isConnectionSlow)
+        oldPong(nil)
+        try await Task.sleep(for: .milliseconds(5))
+        #expect(!model.isConnectionSlow)
+        model.stopStreaming()
+        #expect(!model.isConnectionSlow)
+        #expect(!model.isReconnecting)
     }
 
     @Test func changingSelectedPaneRoutesInputOnlyToTheNewStream() async throws {

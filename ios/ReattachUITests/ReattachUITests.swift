@@ -33,14 +33,18 @@ final class ReattachUITests: XCTestCase {
         let left = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.0").firstMatch
         let upperRight = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.1").firstMatch
         let lowerRight = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.2").firstMatch
-        if !lowerRight.waitForExistence(timeout: 3) {
-            let toggle = app.buttons["windowLayoutToggle"]
-            if toggle.exists && toggle.isHittable { toggle.tap() }
+        func openDisplayMenu() {
+            let menu = app.buttons["windowLayoutMenu"]
+            if menu.exists && menu.isHittable { menu.tap() }
             else {
                 app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
-                app.buttons["Window Layout"].tap()
+                app.buttons["Display Mode"].tap()
             }
         }
+        openDisplayMenu()
+        XCTAssertTrue(app.buttons["Selected Pane Only"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Match tmux Layout"].exists)
+        app.buttons["Match tmux Layout"].tap()
         XCTAssertTrue(lowerRight.waitForExistence(timeout: 10))
         XCTAssertLessThan(left.frame.minX, upperRight.frame.minX)
         XCTAssertLessThan(upperRight.frame.minY, lowerRight.frame.minY)
@@ -64,13 +68,8 @@ final class ReattachUITests: XCTestCase {
             screenshot.lifetime = .keepAlways
             add(screenshot)
         }
-        let toggle = app.buttons["windowLayoutToggle"]
-        if toggle.exists && toggle.isHittable {
-            toggle.tap()
-        } else {
-            app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
-            app.buttons["Single Pane"].tap()
-        }
+        openDisplayMenu()
+        app.buttons["Selected Pane Only"].tap()
         XCTAssertTrue(lowerRight.waitForNonExistence(timeout: 5))
     }
 

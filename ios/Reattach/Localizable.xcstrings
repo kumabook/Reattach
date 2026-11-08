@@ -2886,6 +2886,24 @@
         }
       }
     },
+    "Server response is slow…": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Server response is slow…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "サーバーの応答が遅れています…" } }
+      }
+    },
+    "Display Mode": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Display Mode" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "表示方法" } }
+      }
+    },
+    "Match tmux Layout": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Match tmux Layout" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "tmuxの配置に合わせる" } }
+      }
+    },
     "Window Layout": {
       "localizations": {
         "en": {
@@ -2902,18 +2920,18 @@
         }
       }
     },
-    "Single Pane": {
+    "Selected Pane Only": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Single Pane"
+            "value": "Selected Pane Only"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "1 ペイン表示"
+            "value": "選択ペインのみ"
           }
         }
       }
