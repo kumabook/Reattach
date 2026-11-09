@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 — Unreleased
+## 2.0.0 — Daemon released 2026-11-08; iOS awaiting review
 
 ### iOS
 
