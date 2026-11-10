@@ -265,6 +265,58 @@ struct ReattachTests {
         #expect(textView.subviews.filter { $0.backgroundColor == UIColor.systemBlue.withAlphaComponent(0.3) }.isEmpty)
     }
 
+    @Test func permissionChoicesMatchTheVisibleMenu() {
+        let choices = PermissionChoice.parse("\u{1B}[32m❯ 1. 今回だけ許可\u{1B}[0m\n  2. このセッションでは許可\n  3. 拒否")
+        #expect(choices.map(\.number) == ["1", "2", "3"])
+        #expect(choices.map(\.label) == ["今回だけ許可", "このセッションでは許可", "拒否"])
+        #expect(choices.first?.selected == true)
+        #expect(PermissionChoice.parse("1. Build\n2. Test").isEmpty)
+        #expect(PermissionChoice.parse("❯ 1. Yes\n3. No").isEmpty)
+        #expect(PermissionChoice.parse("❯ 1. Yes\n❯ 2. No").isEmpty)
+        let newer = PermissionChoice.parse("❯ 1. Old\n2. Old deny\nNew request\n1) Allow\n› 2) Deny")
+        #expect(newer.map(\.label) == ["Allow", "Deny"])
+        #expect(newer.last?.selected == true)
+        let wrapped = PermissionChoice.parse("❯ 1. Allow once\n2. Always allow commands\n    starting with swift test\n3. Deny")
+        #expect(wrapped.count == 3)
+        #expect(wrapped[1].label == "Always allow commands starting with swift test")
+    }
+
+    @Test func codexCommandApprovalChoicesIncludeWrappedScopeAndIgnoreEmptyGrid() {
+        let prompt = """
+        Would you like to run the following command?
+        Environment: local
+        Reason: Build the app
+        $ xcodebuild -project App.xcodeproj
+
+        \u{1B}[44m› 1. Yes, proceed (y)\u{1B}[0m
+          2. Yes, and don't ask again for commands that start with `xcodebuild
+          -project App.xcodeproj` (p)
+          3. No, and tell Codex what to do differently (esc)
+
+        Press enter to confirm or esc to cancel
+        """ + String(repeating: " \n", count: 100)
+        let choices = PermissionChoice.parse(prompt)
+        #expect(choices.count == 3)
+        #expect(choices.first?.label == "Yes, proceed (y)")
+        #expect(choices.dropFirst().first?.label.hasSuffix("-project App.xcodeproj` (p)") == true)
+        #expect(choices.last?.label == "No, and tell Codex what to do differently (esc)")
+    }
+
+    @Test func permissionSwipeUsesDistanceAndMomentumWithoutAccidentalPaging() {
+        #expect(PermissionPaging.swipeStep(translation: -130, predicted: -140, height: 700) == 1)
+        #expect(PermissionPaging.swipeStep(translation: 50, predicted: 350, height: 700) == -1)
+        #expect(PermissionPaging.swipeStep(translation: -30, predicted: -60, height: 700) == 0)
+        #expect(PermissionPaging.swipeStep(translation: 5, predicted: 400, height: 700) == 0)
+        #expect(PermissionPaging.swipeStep(translation: -30, predicted: 400, height: 700) == 0)
+    }
+
+    @Test func permissionPagingKeepsSelectionAndAdvancesAfterResolution() {
+        #expect(PermissionPaging.selection(current: "b", old: ["a", "b", "c"], new: ["a", "c"]) == "c")
+        #expect(PermissionPaging.selection(current: "c", old: ["a", "b", "c"], new: ["a", "b"]) == "b")
+        #expect(PermissionPaging.selection(current: "b", old: ["a", "b"], new: ["new", "a", "b"]) == "b")
+        #expect(PermissionPaging.selection(current: "a", old: ["a"], new: []) == nil)
+    }
+
     @Test func permissionStatusTracksOtherPanesAndRejectsOldServerResponses() throws {
         let state = PermissionStatus()
         state.reset(serverID: "one")

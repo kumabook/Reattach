@@ -32,14 +32,15 @@ struct Pending {
 
 #[derive(Clone, Serialize)]
 pub struct Attention {
-    target: String,
-    tool: String,
-    received_at: i64,
+    pub(crate) target: String,
+    pub(crate) tool: String,
+    pub(crate) received_at: i64,
 }
 
 pub struct Service {
     token: String,
     pending: Mutex<HashMap<String, Pending>>,
+    visible_codex: tokio::sync::Mutex<crate::codex_attention::Detector>,
     apns: Option<Arc<ApnsService>>,
 }
 
@@ -62,6 +63,7 @@ impl Service {
         Ok(Arc::new(Self {
             token,
             pending: Mutex::new(HashMap::new()),
+            visible_codex: tokio::sync::Mutex::new(crate::codex_attention::Detector::default()),
             apns,
         }))
     }
@@ -182,6 +184,14 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
                 tool: p.event.tool,
                 received_at: p.received_at,
             });
+        }
+    }
+    // Recover currently visible Codex prompts even when a hook was missed.
+    // This is read-only detection; approval still requires explicit terminal input.
+    let visible = service.visible_codex.lock().await.scan().await;
+    for entry in visible {
+        if !result.iter().any(|p| p.target == entry.target) {
+            result.push(entry);
         }
     }
     result.sort_by_key(|p| p.received_at);

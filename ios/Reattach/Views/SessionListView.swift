@@ -113,6 +113,7 @@ struct SessionListView: View {
             key.hasPrefix(prefix) ? String(key.dropFirst(prefix.count)) : nil
         })
     }
+    @State private var showPermissionInbox = false
     @State private var showServerList = false
     @State private var showServerSettings = false
     @State private var configManager = ServerConfigManager.shared
@@ -143,6 +144,17 @@ struct SessionListView: View {
         .sheet(isPresented: $showingCreateSheet) {
             CreateSessionView { name, cwd in
                 selectedPane = try await viewModel.createSession(name: name, cwd: cwd)
+            }
+        }
+        .fullScreenCover(isPresented: $showPermissionInbox) {
+            PermissionInboxView(sessions: viewModel.sessions) { target in
+                showPermissionInbox = false
+                Task {
+                    let serverID = configManager.activeServer?.id
+                    await viewModel.loadSessions()
+                    guard configManager.activeServer?.id == serverID else { return }
+                    navigateToPaneWithTarget(target)
+                }
             }
         }
         .sheet(isPresented: $showServerList) {
@@ -225,38 +237,16 @@ struct SessionListView: View {
         }
     }
 
-    @ViewBuilder
     private var permissionMenu: some View {
-        if !permissionStatus.entries.isEmpty {
-            Menu {
-                Text(String(localized: "\(permissionStatus.entries.count) pending requests"))
-                ForEach(permissionStatus.entries) { entry in
-                    Button {
-                        Task {
-                            let serverID = configManager.activeServer?.id
-                            await viewModel.loadSessions()
-                            guard configManager.activeServer?.id == serverID else { return }
-                            navigateToPaneWithTarget(entry.target)
-                        }
-                    } label: {
-                        Label(permissionPaneTitle(entry.target), systemImage: "hand.raised.fill")
-                    }
-                    .accessibilityIdentifier(entry.target)
-                }
-            } label: {
-                Label(String(localized: "\(permissionStatus.entries.count) pending requests"), systemImage: "hand.raised.fill")
-            }
-            .tint(.orange)
-            .accessibilityLabel(String(localized: "\(permissionStatus.entries.count) pending requests"))
-            .accessibilityIdentifier("permissionWaitingMenu")
+        Button {
+            showPermissionInbox = true
+        } label: {
+            Label(String(localized: "Pending Requests"), systemImage: "checkmark")
         }
-    }
-
-    private func permissionPaneTitle(_ target: String) -> String {
-        guard let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) else {
-            return String(localized: "Pane \(target)")
-        }
-        return "\(item.windowName)（\(target)）"
+        .badge(permissionStatus.entries.count)
+        .tint(permissionStatus.entries.isEmpty ? .secondary : .orange)
+        .accessibilityLabel(String(localized: "\(permissionStatus.entries.count) pending requests"))
+        .accessibilityIdentifier("permissionWaitingMenu")
     }
 
     // Keep one navigation hierarchy as the display opens, closes, or resizes.
@@ -271,9 +261,7 @@ struct SessionListView: View {
                     ToolbarItem(placement: .primaryAction) {
                         settingsButton
                     }
-                    ToolbarItem(placement: .primaryAction) {
-                        permissionMenu
-                    }
+                    ToolbarItem(placement: .topBarTrailing) { permissionMenu }
                 }
         } detail: {
             if let selected = selectedPane {
@@ -299,7 +287,7 @@ struct SessionListView: View {
                 }
                     .id(detailIdentity)
                     .toolbar {
-                        ToolbarItem(placement: .primaryAction) { permissionMenu }
+                        ToolbarItem(placement: .topBarTrailing) { permissionMenu }
                     }
                     .onAppear {
                         if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
@@ -313,7 +301,7 @@ struct SessionListView: View {
                     description: Text(String(localized: "Choose a pane from the sidebar"))
                 )
                 .toolbar {
-                    ToolbarItem(placement: .primaryAction) { permissionMenu }
+                    ToolbarItem(placement: .topBarTrailing) { permissionMenu }
                 }
             }
         }

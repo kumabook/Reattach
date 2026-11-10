@@ -2,6 +2,7 @@ mod api;
 mod attention;
 mod apns;
 mod auth;
+mod codex_attention;
 mod notification_content;
 mod tmux;
 

@@ -21,6 +21,120 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testPermissionInboxRepliesWithoutOpeningPane() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        XCTAssertTrue(app.navigationBars["Pending Requests"].waitForExistence(timeout: 5))
+        let enter = app.buttons["permissionInboxEnter-myproject:0.0"]
+        XCTAssertTrue(enter.waitForExistence(timeout: 10))
+        expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: enter)
+        waitForExpectations(timeout: 10)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Permission inbox"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        enter.tap()
+        XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
+        XCTAssertFalse(enter.isEnabled)
+        XCTAssertTrue(app.navigationBars["Pending Requests"].exists)
+    }
+
+    @MainActor
+    func testPermissionInboxShowsAndSendsChoices() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-permission-choice-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        let allow = app.buttons["permissionChoice-myproject:0.0-1"]
+        let deny = app.buttons["permissionChoice-myproject:0.0-3"]
+        XCTAssertTrue(deny.waitForExistence(timeout: 10))
+        XCTAssertTrue(allow.label.contains("Yes, proceed (y)"))
+        XCTAssertTrue(deny.label.contains("No, and tell Codex"))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Permission choices"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        deny.tap()
+        XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
+        XCTAssertFalse(allow.isEnabled)
+        XCTAssertTrue(app.navigationBars["Pending Requests"].exists)
+    }
+
+    @MainActor
+    func testPermissionFeedPagesAndExpandsContextInPlace() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-permission-choice-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        let counter = app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch
+        XCTAssertTrue(counter.waitForExistence(timeout: 5))
+        XCTAssertEqual(counter.value as? String, "1 / 2")
+        let preview = app.descendants(matching: .any).matching(identifier: "permissionPreview-myproject:0.0").firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        preview.press(forDuration: 1)
+        let close = app.buttons["closePermissionContext"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let expanded = XCTAttachment(screenshot: app.screenshot())
+        expanded.name = "Expanded permission context"
+        expanded.lifetime = .keepAlways
+        add(expanded)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(counter.value as? String, "1 / 2")
+        app.buttons["permissionChoice-myproject:0.0-1"].swipeUp()
+        XCTAssertEqual(counter.value as? String, "1 / 2")
+        app.buttons["permissionChoice-myproject:0.0-1"].swipeLeft()
+        expectation(for: NSPredicate(format: "value == %@", "2 / 2"), evaluatedWith: counter)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["claude-demo:0.0"].isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Full-screen permission feed"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch.swipeRight()
+        expectation(for: NSPredicate(format: "value == %@", "1 / 2"), evaluatedWith: counter)
+        waitForExpectations(timeout: 5)
+        XCTAssertFalse(app.staticTexts["Sent. Waiting for the agent…"].exists)
+        app.buttons["permissionChoice-myproject:0.0-3"].tap()
+        XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch.swipeLeft()
+        app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch.swipeRight()
+        XCTAssertFalse(app.buttons["permissionChoice-myproject:0.0-1"].isEnabled)
+    }
+
+    @MainActor
+    func testPermissionPreviewScrollsWholeCard() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-permission-scroll-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        let preview = app.descendants(matching: .any).matching(identifier: "permissionPreview-myproject:0.0").firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        let initialY = preview.frame.minY
+        preview.swipeUp()
+        XCTAssertLessThan(preview.frame.minY, initialY - 40)
+        XCTAssertFalse(app.buttons["closePermissionContext"].exists)
+        let pager = app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch
+        XCTAssertEqual(pager.value as? String, "1 / 2")
+        XCTAssertFalse(app.staticTexts["Sent. Waiting for the agent…"].exists)
+    }
+
+    @MainActor
     func testWindowLayoutSelectionAndRotation() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
@@ -84,6 +198,7 @@ final class ReattachUITests: XCTestCase {
         XCTAssertTrue(menuExists)
         XCTAssertTrue(menu.label.contains("2"))
         menu.tap()
+        app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch.swipeLeft()
         let first = app.buttons["claude-demo:0.0"]
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()

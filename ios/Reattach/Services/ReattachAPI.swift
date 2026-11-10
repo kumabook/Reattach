@@ -140,7 +140,30 @@ class ReattachAPI {
 
     func getOutput(target: String, lines: Int = 200) async throws -> String {
         if isDemoMode {
-            let baseOutput = Self.demoOutput(for: target)
+            let baseOutput: String
+            if PermissionStatus.usesUITestFixture,
+               ProcessInfo.processInfo.arguments.contains("-permission-scroll-fixture") {
+                baseOutput = (1...12).map { index in
+                    "\(index == 1 ? "›" : " ") \(index). " + String(repeating: "Long option for testing whole-card scrolling. ", count: 4)
+                }.joined(separator: "\n")
+            } else if PermissionStatus.usesUITestFixture,
+               ProcessInfo.processInfo.arguments.contains("-permission-choice-fixture") {
+                baseOutput = """
+                Would you like to run the following command?
+                Environment: local
+                Reason: Build the app
+                $ xcodebuild -project App.xcodeproj
+
+                › 1. Yes, proceed (y)
+                  2. Yes, and don't ask again for commands that start with `xcodebuild
+                  -project App.xcodeproj` (p)
+                  3. No, and tell Codex what to do differently (esc)
+
+                Press enter to confirm or esc to cancel
+                """
+            } else {
+                baseOutput = Self.demoOutput(for: target)
+            }
             let history = demoInputHistory[target] ?? []
             if history.isEmpty {
                 return baseOutput
