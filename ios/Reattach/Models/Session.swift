@@ -130,12 +130,14 @@ struct PaneStreamResponse: Codable {
     var clipboard: Bool? = nil
     var tmuxKeys: Bool? = nil
     var independentSelection: Bool? = nil
+    var paneSplit: Bool? = nil
     var state: TmuxNavigationState? = nil
 
     enum CodingKeys: String, CodingKey {
         case type, output, error, lines, cursor, state, text, clipboard
         case tmuxKeys = "tmux_keys"
         case independentSelection = "independent_selection"
+        case paneSplit = "pane_split"
         case startLine = "start_line"
         case deleteCount = "delete_count"
     }

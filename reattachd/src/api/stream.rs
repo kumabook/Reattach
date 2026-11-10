@@ -46,6 +46,7 @@ enum ServerMessage {
         tmux_keys: bool,
         clipboard: bool,
         independent_selection: bool,
+        pane_split: bool,
     },
     Clipboard {
         text: Option<String>,
@@ -111,6 +112,7 @@ async fn handle_socket(mut socket: WebSocket, mut target: String, lines: u32, in
             tmux_keys: true,
             clipboard: true,
             independent_selection: true,
+            pane_split: true,
         },
     )
     .await

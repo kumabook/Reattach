@@ -400,6 +400,13 @@ struct ReattachTests {
         #expect(object["target"] as? String == "work:1.0")
     }
 
+    @Test func paneSplitCapability() throws {
+        let legacy = try JSONDecoder().decode(PaneStreamResponse.self, from: Data(#"{"type":"ready","tmux_keys":true,"clipboard":true}"#.utf8))
+        #expect(legacy.paneSplit == nil)
+        let ready = try JSONDecoder().decode(PaneStreamResponse.self, from: Data(#"{"type":"ready","pane_split":true}"#.utf8))
+        #expect(ready.paneSplit == true)
+    }
+
     @Test func liveOutputDoesNotInterruptScrollingOrHistoryReading() {
         let coordinator = ZoomableTextView.Coordinator()
         let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))

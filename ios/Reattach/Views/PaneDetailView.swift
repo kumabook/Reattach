@@ -549,7 +549,7 @@ struct PaneDetailView: View {
                     Label(String(localized: "Match tmux Layout"), systemImage: "rectangle.split.2x2")
                         .tag(true)
                 }
-                if showWindowLayout {
+                if showWindowLayout && (viewModel.supportsPaneSplit || configManager.isDemoMode) {
                     Divider()
                     Button(String(localized: "Split Left and Right"), systemImage: "rectangle.split.2x1") {
                         splitPane(.leftRight)
@@ -1176,6 +1176,7 @@ class PaneDetailViewModel {
     private var synchronizesSelection = true
     private var supportsTmuxKeys = false
     var supportsClipboard = false
+    var supportsPaneSplit = false
     private let api = ReattachAPI.shared
     @ObservationIgnored private var streamGeneration = UUID()
     @ObservationIgnored private var streamingTask: Task<Void, Never>?
@@ -1467,6 +1468,7 @@ class PaneDetailViewModel {
                         }
                         supportsTmuxKeys = response.tmuxKeys == true
                         supportsClipboard = response.clipboard == true
+                        supportsPaneSplit = response.paneSplit == true
                         // Restore mode before accepting user input on this socket.
                         if supportsTmuxKeys {
                             try await sendStreamMessage(.directMode(directMode), over: socket)
