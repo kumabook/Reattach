@@ -58,3 +58,14 @@ Validation before packaging: 43 iOS unit tests; display-mode menu, split selecti
 - iOS 2.0.0 (43): `WAITING_FOR_REVIEW`, manual release. Submission: `a49ad643-eb85-4bb8-b42f-3b7738d6c419`.
 - Completed the newly required `socialMedia` age-rating attribute as false; other rating answers were preserved.
 - Verified public registration, terminal output, pane geometry/borders, and WebSocket tmux/clipboard capabilities using the review-note Cloudflare credentials. Existing QR attachment and store screenshots are complete.
+
+## Resubmission record — 2026-11-10
+
+- Selected Xcode Cloud build 44, source `97a57ddfcdbcbe56e138642ec2ab3e4a4401fd3c`, for 2.0.0. Release mode remains manual.
+- The rejection reports a crash after initial launch. The cause remains unknown; no crash report or device/OS details were included in the message received. The review notes explicitly state that a crash fix has not been confirmed and request those details if it recurs.
+- Local Xcode 27.2 Release builds reached initial setup on a fresh iPhone 17 simulator (iOS 27.2) and on the physical iPhone Duo. The device used temporary launch defaults to display the unconfigured state without deleting user data. These checks do not establish that the App Store-distributed build is free of the reported crash.
+- Reverified public registration, terminal output, and authenticated WebSocket support using the existing review credentials.
+- Added English/Japanese permission card screenshots and release notes. The screenshot UI test passed for both languages. The Japanese iPhone set preserves the five previously inherited English images and adds the Japanese card image; the existing iPad set remains unchanged.
+- Screenshot capture fixtures added locally after build 44 are debug-test-only and are not part of that submitted binary. See `fastlane/screenshot_sources/README.md` for reproduction.
+- Resubmitted at 19:11 JST. Version and submission state are `WAITING_FOR_REVIEW`; selected build is 44 and release mode is `MANUAL`. Submission: `a49ad643-eb85-4bb8-b42f-3b7738d6c419`.
+- All screenshots finished processing: six iPhone images per locale and four existing English iPad images. The review QR attachment remains complete.

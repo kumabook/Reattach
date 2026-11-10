@@ -7,7 +7,8 @@ Reattach 2.0 brings more of your tmux workflow to iPhone and iPad.
 • Recover automatically from interrupted connections, with indicators for slow responses and reconnection.
 • Keep pane selection in sync with other devices, or navigate independently on this device.
 • Compose Japanese text, use hardware keyboard shortcuts, and adjust terminal text size.
-• Find panes waiting for permission and return to your last selected pane.
+• Review pending coding-agent approvals as swipeable cards. Read the terminal context, tap a reply, and pull down to refresh without switching panes.
+• See a pending-approval count badge and return to your last selected pane.
 • Use the app in English or Japanese, including accessibility descriptions.
 
 Update reattachd on your computer to 2.0.0 to use the new tmux and clipboard features.
