@@ -173,17 +173,34 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
         .pending
         .lock()
         .unwrap()
-        .values()
-        .cloned()
+        .iter()
+        .map(|(id, p)| (id.clone(), p.clone()))
         .collect::<Vec<_>>();
+    let now = chrono::Utc::now().timestamp();
     let mut result = Vec::new();
-    for p in pending {
-        if let Some(target) = resolve_target(&p.event).await {
-            result.push(Attention {
-                target,
-                tool: p.event.tool,
-                received_at: p.received_at,
-            });
+    let mut resolved = Vec::new();
+    for (id, p) in pending {
+        let Some(target) = resolve_target(&p.event).await else {
+            continue;
+        };
+        // Agents send no hook when a prompt is denied or interrupted, and none until an
+        // approved tool finishes, so a prompt that left the screen is no longer pending.
+        if now - p.received_at >= PROMPT_RENDER_GRACE_SECS
+            && shows_choice_menu(&p.event.pane_id).await == Some(false)
+        {
+            resolved.push(id);
+            continue;
+        }
+        result.push(Attention {
+            target,
+            tool: p.event.tool,
+            received_at: p.received_at,
+        });
+    }
+    if !resolved.is_empty() {
+        let mut pending = service.pending.lock().unwrap();
+        for id in resolved {
+            pending.remove(&id);
         }
     }
     // Recover currently visible Codex prompts even when a hook was missed.
@@ -198,6 +215,38 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
     let mut seen = std::collections::HashSet::new();
     result.retain(|entry| seen.insert(entry.target.clone()));
     Json(result)
+}
+
+const PROMPT_RENDER_GRACE_SECS: i64 = 3;
+
+async fn shows_choice_menu(pane_id: &str) -> Option<bool> {
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        tokio::process::Command::new("tmux")
+            .args(["capture-pane", "-p", "-t", pane_id, "-S", "0", "-E", "-"])
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .ok()?
+    .ok()?;
+    output
+        .status
+        .success()
+        .then(|| has_selected_choice(&String::from_utf8_lossy(&output.stdout)))
+}
+
+fn has_selected_choice(screen: &str) -> bool {
+    screen.lines().any(|line| {
+        let line = line.trim().trim_matches(['│', '|']).trim();
+        let Some(rest) = line.strip_prefix(['❯', '›', '>', '▶', '▸']) else {
+            return false;
+        };
+        let Some((number, _)) = rest.trim_start().split_once(['.', ')']) else {
+            return false;
+        };
+        !number.is_empty() && number.chars().all(|c| c.is_ascii_digit())
+    })
 }
 
 fn valid_pane(id: &str) -> bool {
@@ -367,6 +416,17 @@ mod tests {
         assert_eq!(pending.len(), 1);
         update(&mut pending, event("PostToolUseFailure", "cmd", "1"));
         assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn detects_visible_choice_menus_only() {
+        let claude = "Bash command\n\n  npm test\n\nDo you want to proceed?\n❯ 1. Yes\n  2. Yes, and don't ask again\n  3. No, and tell Claude what to do differently (esc)\n";
+        assert!(has_selected_choice(claude));
+        assert!(has_selected_choice("│ ❯ 1. Yes                │\n│   2. No                 │"));
+        assert!(has_selected_choice("› 1. Yes, proceed (y)\n  2. No (esc)"));
+        assert!(!has_selected_choice("⏺ Bash(npm test)\n  ⎿  Running…\n> \n"));
+        assert!(!has_selected_choice("> 2026 plans\n"));
+        assert!(!has_selected_choice("  1. Yes\n  2. No\n"));
     }
 
     #[test]
