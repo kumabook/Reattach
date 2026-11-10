@@ -1012,6 +1012,7 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         .route("/windows", post(api::create_window))
         .route("/panes/{target}", delete(api::delete_pane))
         .route("/panes/{target}/select", post(api::select_pane))
+        .route("/panes/{target}/split", post(api::split_pane))
         .route("/panes/{target}/input", post(api::send_input))
         .route("/panes/{target}/escape", post(api::send_escape))
         .route("/panes/{target}/output", get(api::get_output))

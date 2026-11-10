@@ -120,6 +120,25 @@ pub async fn create_window(
     )
 }
 
+#[derive(Deserialize)]
+pub struct SplitPaneRequest {
+    pub direction: tmux::SplitDirection,
+    #[serde(default)]
+    pub independent: bool,
+}
+
+pub async fn split_pane(
+    axum::extract::Path(target): axum::extract::Path<String>,
+    Json(payload): Json<SplitPaneRequest>,
+) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {
+    creation_result(
+        tokio::task::spawn_blocking(move || {
+            tmux::split_pane(&target, payload.direction, payload.independent)
+        })
+        .await,
+    )
+}
+
 fn creation_result(
     result: Result<Result<String, tmux::TmuxError>, tokio::task::JoinError>,
 ) -> Result<(StatusCode, Json<CreatedTarget>), (StatusCode, Json<ErrorResponse>)> {

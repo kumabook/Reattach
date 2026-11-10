@@ -55,6 +55,16 @@ struct CreateWindowRequest: Codable {
     var independent: Bool = false
 }
 
+enum PaneSplitDirection: String, Codable {
+    case leftRight = "left_right"
+    case topBottom = "top_bottom"
+}
+
+struct SplitPaneRequest: Codable {
+    let direction: PaneSplitDirection
+    let independent: Bool
+}
+
 struct CreatedTarget: Codable {
     let target: String
 }

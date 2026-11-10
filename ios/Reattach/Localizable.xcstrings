@@ -3228,6 +3228,40 @@
           }
         }
       }
+    },
+    "Split Left and Right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Left and Right"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左右に分割"
+          }
+        }
+      }
+    },
+    "Split Top and Bottom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Top and Bottom"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上下に分割"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

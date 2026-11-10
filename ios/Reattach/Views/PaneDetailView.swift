@@ -503,6 +503,7 @@ struct PaneDetailView: View {
     @State private var visibleCursorRect: CGRect?
     @State private var showCommandEditor = false
     @State private var showCommandPicker = false
+    @State private var isSplittingPane = false
     @AppStorage("direct_input_compose_enabled") private var composeEnabled = true
 
     init(pane: Pane, windowName: String, onSelectPane: ((Pane) -> Void)? = nil, onTmuxNavigation: ((TmuxNavigationState) -> Void)? = nil) {
@@ -547,6 +548,19 @@ struct PaneDetailView: View {
                         .tag(false)
                     Label(String(localized: "Match tmux Layout"), systemImage: "rectangle.split.2x2")
                         .tag(true)
+                }
+                if showWindowLayout {
+                    Divider()
+                    Button(String(localized: "Split Left and Right"), systemImage: "rectangle.split.2x1") {
+                        splitPane(.leftRight)
+                    }
+                    .accessibilityIdentifier("splitPaneLeftRight")
+                    .disabled(isSplittingPane || configManager.isDemoMode || onSelectPane == nil)
+                    Button(String(localized: "Split Top and Bottom"), systemImage: "rectangle.split.1x2") {
+                        splitPane(.topBottom)
+                    }
+                    .accessibilityIdentifier("splitPaneTopBottom")
+                    .disabled(isSplittingPane || configManager.isDemoMode || onSelectPane == nil)
                 }
             } label: {
                 Label(String(localized: "Display Mode"), systemImage: "rectangle.split.2x2")
@@ -658,6 +672,29 @@ struct PaneDetailView: View {
             .accessibilityIdentifier("textSizeButton")
         }
 
+    }
+
+    private func splitPane(_ direction: PaneSplitDirection) {
+        guard !isSplittingPane else { return }
+        let target = viewModel.tmuxNavigation?.target ?? pane.target
+        let serverID = configManager.activeServer?.id
+        isSplittingPane = true
+        Task {
+            defer { isSplittingPane = false }
+            do {
+                let created = try await ReattachAPI.shared.splitPane(target: target, direction: direction)
+                let sessions = try await ReattachAPI.shared.listSessions()
+                guard configManager.activeServer?.id == serverID else { return }
+                guard let item = PaneNavigationItem.matching(target: created, in: sessions) else {
+                    throw APIError.serverError(String(localized: "Created pane could not be found. Refresh the session list."))
+                }
+                onSelectPane?(item.pane)
+            } catch {
+                guard configManager.activeServer?.id == serverID else { return }
+                viewModel.errorMessage = error.localizedDescription
+                viewModel.showError = true
+            }
+        }
     }
 
     private var zoomShortcuts: some View {

@@ -10,7 +10,7 @@ mod send;
 pub use capture::{capture_pane, capture_pane_snapshot, PaneCursor, PaneSnapshot};
 pub use clipboard::copy_selection;
 pub use control::{ClientState, ControlClient};
-pub use create::{create_session, create_window};
+pub use create::{create_session, create_window, split_pane, SplitDirection};
 pub use kill::kill_pane;
 pub use list::{list_sessions, PaneBorders, PaneGeometry};
 pub use select::select_pane;

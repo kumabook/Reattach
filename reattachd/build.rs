@@ -28,10 +28,18 @@ const APNS_KEY_ID_OBFUSCATED: Option<&str> = {};
 const APNS_TEAM_ID_OBFUSCATED: Option<&str> = {};
 const APNS_BUNDLE_ID_OBFUSCATED: Option<&str> = {};
 "#,
-        key_base64.map(|v| format!("Some(\"{}\")", xor_encode(&v))).unwrap_or_else(|| "None".to_string()),
-        key_id.map(|v| format!("Some(\"{}\")", xor_encode(&v))).unwrap_or_else(|| "None".to_string()),
-        team_id.map(|v| format!("Some(\"{}\")", xor_encode(&v))).unwrap_or_else(|| "None".to_string()),
-        bundle_id.map(|v| format!("Some(\"{}\")", xor_encode(&v))).unwrap_or_else(|| "None".to_string()),
+        key_base64
+            .map(|v| format!("Some(\"{}\")", xor_encode(&v)))
+            .unwrap_or_else(|| "None".to_string()),
+        key_id
+            .map(|v| format!("Some(\"{}\")", xor_encode(&v)))
+            .unwrap_or_else(|| "None".to_string()),
+        team_id
+            .map(|v| format!("Some(\"{}\")", xor_encode(&v)))
+            .unwrap_or_else(|| "None".to_string()),
+        bundle_id
+            .map(|v| format!("Some(\"{}\")", xor_encode(&v)))
+            .unwrap_or_else(|| "None".to_string()),
     );
 
     fs::write(&dest_path, code).unwrap();

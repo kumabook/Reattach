@@ -149,7 +149,7 @@ final class ReattachUITests: XCTestCase {
         let lowerRight = app.descendants(matching: .any).matching(identifier: "layoutPane-myproject:0.2").firstMatch
         func openDisplayMenu() {
             let menu = app.buttons["windowLayoutMenu"]
-            if menu.exists && menu.isHittable { menu.tap() }
+            if menu.waitForExistence(timeout: 5) && menu.isHittable { menu.tap() }
             else {
                 app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
                 app.buttons["Display Mode"].tap()
@@ -158,8 +158,14 @@ final class ReattachUITests: XCTestCase {
         openDisplayMenu()
         XCTAssertTrue(app.buttons["Selected Pane Only"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Match tmux Layout"].exists)
+        XCTAssertFalse(app.buttons["splitPaneLeftRight"].exists)
+        XCTAssertFalse(app.buttons["splitPaneTopBottom"].exists)
         app.buttons["Match tmux Layout"].tap()
         XCTAssertTrue(lowerRight.waitForExistence(timeout: 10))
+        openDisplayMenu()
+        XCTAssertTrue(app.buttons["splitPaneLeftRight"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["splitPaneTopBottom"].exists)
+        app.buttons["Match tmux Layout"].tap()
         XCTAssertLessThan(left.frame.minX, upperRight.frame.minX)
         XCTAssertLessThan(upperRight.frame.minY, lowerRight.frame.minY)
         // Dragging an unselected pane must scroll without changing the input target.

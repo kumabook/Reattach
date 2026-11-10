@@ -114,6 +114,13 @@ class ReattachAPI {
         return try JSONDecoder().decode(CreatedTarget.self, from: data).target
     }
 
+    func splitPane(target: String, direction: PaneSplitDirection) async throws -> String {
+        let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
+        let body = SplitPaneRequest(direction: direction, independent: !ServerConfigManager.shared.synchronizesSelection)
+        let data = try await request(path: "/panes/\(encodedTarget)/split", method: "POST", body: body)
+        return try JSONDecoder().decode(CreatedTarget.self, from: data).target
+    }
+
     func selectPane(target: String) async throws {
         if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
