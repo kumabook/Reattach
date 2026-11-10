@@ -97,6 +97,7 @@ struct SessionListView: View {
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSheet = false
     @State private var isCreatingWindow = false
+    @State private var showingWindowDestinations = false
     @State private var selectedPane: PaneNavigationItem?
     @State private var detailIdentity = UUID()
     @State private var pendingNavigationID: UUID?
@@ -364,21 +365,25 @@ struct SessionListView: View {
                             .disabled(ReattachAPI.shared.isDemoMode)
                     } else {
                         Button {
-                            guard let selected = selectedPane else { return }
-                            isCreatingWindow = true
-                            Task {
-                                defer { isCreatingWindow = false }
-                                do {
-                                    selectedPane = try await viewModel.createWindow(target: selected.pane.target)
-                                } catch {
-                                    viewModel.errorMessage = error.localizedDescription
-                                    viewModel.showError = true
-                                }
+                            if let selected = selectedPane {
+                                createWindow(target: selected.pane.target)
+                            } else {
+                                showingWindowDestinations = true
                             }
                         } label: {
                             Label(String(localized: "New Window"), systemImage: "plus.circle")
                         }
-                        .disabled(selectedPane == nil || isCreatingWindow || ReattachAPI.shared.isDemoMode)
+                        .confirmationDialog(String(localized: "New Window"), isPresented: $showingWindowDestinations, titleVisibility: .visible) {
+                            ForEach(viewModel.sessions) { session in
+                                if let pane = session.windows.first(where: { $0.active })?.panes.first
+                                    ?? session.windows.first?.panes.first {
+                                    Button(session.name) { createWindow(target: pane.target) }
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("newWindow")
+                        .disabled(isCreatingWindow || (ReattachAPI.shared.isDemoMode && !ReattachAPI.usesWindowCreationUITestFixture))
                     }
                 }
             }
@@ -405,6 +410,20 @@ struct SessionListView: View {
                 }
             } message: { pane in
                 Text(String(localized: "Are you sure you want to delete this pane?\n\(pane.shortPath)"))
+            }
+        }
+    }
+
+    private func createWindow(target: String) {
+        guard !isCreatingWindow else { return }
+        isCreatingWindow = true
+        Task {
+            defer { isCreatingWindow = false }
+            do {
+                selectedPane = try await viewModel.createWindow(target: target)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+                viewModel.showError = true
             }
         }
     }

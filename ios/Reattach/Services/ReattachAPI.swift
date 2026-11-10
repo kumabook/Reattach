@@ -76,6 +76,15 @@ class ReattachAPI {
 
     private let session: URLSession
     private var demoInputHistory: [String: [String]] = [:]
+    private var windowCreationFixtureSessions: [Session]?
+
+    static var usesWindowCreationUITestFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-window-create-ui-fixture")
+        #else
+        false
+        #endif
+    }
 
     init() {
         let config = URLSessionConfiguration.default
@@ -91,14 +100,21 @@ class ReattachAPI {
 
     func listSessions() async throws -> [Session] {
         if isDemoMode {
-            return Self.demoSessions
+            return windowCreationFixtureSessions ?? Self.demoSessions
         }
         let data = try await request(path: "/sessions", method: "GET")
         return try JSONDecoder().decode([Session].self, from: data)
     }
 
     func permissionAttention() async throws -> [PermissionAttention] {
-        if isDemoMode { return PermissionStatus.uiTestEntries }
+        if isDemoMode {
+            let entries = PermissionStatus.uiTestEntries
+            if PermissionStatus.usesUITestFixture,
+               ProcessInfo.processInfo.arguments.contains("-permission-complete-fixture") {
+                return entries.filter { demoInputHistory[$0.target, default: []].isEmpty }
+            }
+            return entries
+        }
         let data = try await request(path: "/attention", method: "GET")
         return try JSONDecoder().decode([PermissionAttention].self, from: data)
     }
@@ -110,6 +126,20 @@ class ReattachAPI {
     }
 
     func createWindow(target: String) async throws -> String {
+        if isDemoMode, Self.usesWindowCreationUITestFixture {
+            var sessions = windowCreationFixtureSessions ?? Self.demoSessions
+            guard let index = sessions.firstIndex(where: { $0.windows.contains { $0.panes.contains { $0.target == target } } }) else {
+                throw APIError.serverError("Unknown fixture target")
+            }
+            let session = sessions[index]
+            let windowIndex = (session.windows.map(\.index).max() ?? 0) + 1
+            let createdTarget = "\(session.name):\(windowIndex).0"
+            let pane = Pane(index: 0, active: true, target: createdTarget, currentPath: "/tmp")
+            let window = Window(index: windowIndex, name: "created-window", active: true, panes: [pane])
+            sessions[index] = Session(name: session.name, attached: session.attached, windows: session.windows + [window])
+            windowCreationFixtureSessions = sessions
+            return createdTarget
+        }
         let data = try await request(path: "/windows", method: "POST", body: CreateWindowRequest(target: target, independent: !ServerConfigManager.shared.synchronizesSelection))
         return try JSONDecoder().decode(CreatedTarget.self, from: data).target
     }
@@ -149,6 +179,16 @@ class ReattachAPI {
         if isDemoMode {
             let baseOutput: String
             if PermissionStatus.usesUITestFixture,
+               ProcessInfo.processInfo.arguments.contains("-permission-store-fixture") {
+                baseOutput = """
+                Would you like to run the following command?
+                $ npm test
+
+                › 1. Yes, proceed (y)
+                  2. Yes, allow npm test (p)
+                  3. No, go back (esc)
+                """
+            } else if PermissionStatus.usesUITestFixture,
                ProcessInfo.processInfo.arguments.contains("-permission-scroll-fixture") {
                 baseOutput = (1...12).map { index in
                     "\(index == 1 ? "›" : " ") \(index). " + String(repeating: "Long option for testing whole-card scrolling. ", count: 4)

@@ -29,7 +29,9 @@ class PermissionStatus {
         guard usesUITestFixture else { return [] }
         return [
             PermissionAttention(target: "myproject:0.0", tool: "Bash", receivedAt: 1),
-            PermissionAttention(target: "claude-demo:0.0", tool: "Edit", receivedAt: 2)
+            PermissionAttention(target: "claude-demo:0.0",
+                                tool: ProcessInfo.processInfo.arguments.contains("-permission-store-fixture") ? "Bash" : "Edit",
+                                receivedAt: 2)
         ]
     }
     private(set) var entries: [PermissionAttention] = []

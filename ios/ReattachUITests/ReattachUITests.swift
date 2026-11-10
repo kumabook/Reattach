@@ -21,6 +21,72 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testNewWindowWithoutSelectedPane() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-window-create-ui-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let create = app.buttons["newWindow"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 15))
+        XCTAssertTrue(create.isEnabled)
+        create.tap()
+        let destination = app.buttons["myproject"].firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        destination.tap()
+        XCTAssertTrue(app.navigationBars["created-window"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPermissionInboxCanCloseAfterAllReplies() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-permission-choice-fixture", "-permission-complete-fixture",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        for target in ["myproject:0.0", "claude-demo:0.0"] {
+            let allow = app.buttons["permissionChoice-\(target)-1"]
+            XCTAssertTrue(allow.waitForExistence(timeout: 10))
+            allow.tap()
+        }
+        let close = app.buttons["closeEmptyPermissionInbox"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        inbox.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testPermissionStoreScreenshots() throws {
+        for language in ["en", "ja"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture", "-permission-store-fixture",
+                                   "-AppleLanguages", "(\(language))", "-AppleLocale", language == "ja" ? "ja_JP" : "en_US"]
+            app.launch()
+            let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+            XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+            inbox.tap()
+            let pager = app.descendants(matching: .any).matching(identifier: "permissionPager").firstMatch
+            XCTAssertTrue(pager.waitForExistence(timeout: 5))
+            pager.swipeLeft()
+            let choice = app.buttons["permissionChoice-claude-demo:0.0-3"]
+            XCTAssertTrue(choice.waitForExistence(timeout: 5))
+            XCTAssertTrue(choice.isHittable)
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Permission Store — \(language)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testPermissionInboxRepliesWithoutOpeningPane() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
@@ -151,7 +217,7 @@ final class ReattachUITests: XCTestCase {
             let menu = app.buttons["windowLayoutMenu"]
             if menu.waitForExistence(timeout: 5) && menu.isHittable { menu.tap() }
             else {
-                app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+                app.buttons.matching(NSPredicate(format: "label == %@", "More")).firstMatch.tap()
                 app.buttons["Display Mode"].tap()
             }
         }
@@ -278,7 +344,7 @@ final class ReattachUITests: XCTestCase {
                 XCTAssertEqual(size.label, textSize)
                 XCTAssertEqual(app.buttons["clipboardMenu"].label, copyMenu)
             } else {
-                app.buttons["BottomOverflowBarButtonItem"].firstMatch.tap()
+                app.buttons.matching(NSPredicate(format: "label == %@", "More")).firstMatch.tap()
                 XCTAssertTrue(app.buttons[textSize].exists)
                 XCTAssertTrue(app.buttons[copyMenu].exists)
                 XCTAssertTrue(app.buttons[language == "ja" ? "文章入力" : "Compose"].exists)

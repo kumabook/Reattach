@@ -23,6 +23,19 @@ struct PermissionInboxView: View {
                     if status.entries.isEmpty {
                         ContentUnavailableView(String(localized: "No Pending Requests"),
                                                systemImage: "checkmark.circle")
+                            .overlay(alignment: .topLeading) {
+                                Button { dismiss() } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 19, weight: .medium))
+                                        .frame(width: 44, height: 44)
+                                }
+                                .accessibilityLabel(String(localized: "Close"))
+                                .accessibilityIdentifier("closeEmptyPermissionInbox")
+                                .buttonStyle(.plain)
+                                .tint(.primary)
+                                .modifier(PermissionGlassControl())
+                                .padding(24)
+                            }
                     } else {
                         GeometryReader { geometry in
                             ZStack {
@@ -94,6 +107,7 @@ struct PermissionInboxView: View {
             }
         }
         .onPreferenceChange(PermissionPreviewFrames.self) { previewFrames = $0 }
+        .accessibilityAction(.escape) { dismiss() }
         .onAppear { selectedTarget = targets.first }
         .onChange(of: targets) { old, new in
             dragOffset = 0
