@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.2 — Daemon released 2026-11-11
+
+- Preserve a newly registered permission request when an earlier screen check finishes. Each registration has a unique generation, so repeated requests for the same command in the same second are not removed by a stale check.
+- No iOS app update is required for this fix.
+
 ## 2.0.1 — Daemon released 2026-11-10; iOS 2.0.0 awaiting review
 
 ### Daemon

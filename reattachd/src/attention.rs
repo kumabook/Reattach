@@ -28,6 +28,7 @@ pub struct Event {
 struct Pending {
     event: Event,
     received_at: i64,
+    generation: uuid::Uuid,
 }
 
 #[derive(Clone, Serialize)]
@@ -108,6 +109,7 @@ fn update(pending: &mut HashMap<String, Pending>, event: Event) -> bool {
             Pending {
                 event,
                 received_at: chrono::Utc::now().timestamp(),
+                generation: uuid::Uuid::new_v4(),
             },
         );
         return new && !duplicate_prompt;
@@ -188,7 +190,7 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
         if now - p.received_at >= PROMPT_RENDER_GRACE_SECS
             && shows_choice_menu(&p.event.pane_id).await == Some(false)
         {
-            resolved.push(id);
+            resolved.push((id, p.generation));
             continue;
         }
         result.push(Attention {
@@ -199,9 +201,7 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
     }
     if !resolved.is_empty() {
         let mut pending = service.pending.lock().unwrap();
-        for id in resolved {
-            pending.remove(&id);
-        }
+        remove_resolved(&mut pending, resolved);
     }
     // Recover currently visible Codex prompts even when a hook was missed.
     // This is read-only detection; approval still requires explicit terminal input.
@@ -218,6 +218,16 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
 }
 
 const PROMPT_RENDER_GRACE_SECS: i64 = 3;
+
+fn remove_resolved(pending: &mut HashMap<String, Pending>, resolved: Vec<(String, uuid::Uuid)>) {
+    for (id, generation) in resolved {
+        // Screen capture awaits outside the lock. A hook may have replaced this
+        // entry meanwhile, even with identical contents and in the same second.
+        if pending.get(&id).is_some_and(|p| p.generation == generation) {
+            pending.remove(&id);
+        }
+    }
+}
 
 async fn shows_choice_menu(pane_id: &str) -> Option<bool> {
     let output = tokio::time::timeout(
@@ -407,6 +417,46 @@ mod tests {
     }
 
     #[test]
+    fn stale_screen_check_preserves_reregistered_request_in_same_second() {
+        for remove_before_registering in [false, true] {
+            let mut pending = HashMap::new();
+            let request = event("PermissionRequest", "same", "1");
+            let id = key(&request);
+            update(&mut pending, request.clone());
+            let checked = pending[&id].clone();
+            if remove_before_registering {
+                pending.remove(&id);
+            }
+            update(&mut pending, request);
+            // Deliberately use identical timestamps: timestamp equality alone
+            // must not allow an old scan to remove the replacement.
+            pending.get_mut(&id).unwrap().received_at = checked.received_at;
+            let replacement = pending[&id].generation;
+            assert_ne!(replacement, checked.generation);
+            remove_resolved(&mut pending, vec![(id.clone(), checked.generation)]);
+            assert_eq!(pending[&id].generation, replacement);
+        }
+    }
+
+    #[test]
+    fn screen_check_removes_only_unchanged_requests() {
+        let mut pending = HashMap::new();
+        let request = event("PermissionRequest", "finished", "1");
+        let id = key(&request);
+        update(&mut pending, request);
+        let generation = pending[&id].generation;
+        let other = event("PermissionRequest", "still waiting", "1");
+        let other_id = key(&other);
+        update(&mut pending, other);
+        remove_resolved(&mut pending, vec![(id.clone(), generation)]);
+        assert!(!pending.contains_key(&id));
+        assert!(pending.contains_key(&other_id));
+        // A simultaneous completion hook may already have removed the entry.
+        remove_resolved(&mut pending, vec![(id, generation)]);
+        assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
     fn delayed_permission_notification_does_not_duplicate_prompt() {
         let mut pending = HashMap::new();
         assert!(update(&mut pending, event("PermissionRequest", "cmd", "1")));
@@ -422,9 +472,13 @@ mod tests {
     fn detects_visible_choice_menus_only() {
         let claude = "Bash command\n\n  npm test\n\nDo you want to proceed?\n❯ 1. Yes\n  2. Yes, and don't ask again\n  3. No, and tell Claude what to do differently (esc)\n";
         assert!(has_selected_choice(claude));
-        assert!(has_selected_choice("│ ❯ 1. Yes                │\n│   2. No                 │"));
+        assert!(has_selected_choice(
+            "│ ❯ 1. Yes                │\n│   2. No                 │"
+        ));
         assert!(has_selected_choice("› 1. Yes, proceed (y)\n  2. No (esc)"));
-        assert!(!has_selected_choice("⏺ Bash(npm test)\n  ⎿  Running…\n> \n"));
+        assert!(!has_selected_choice(
+            "⏺ Bash(npm test)\n  ⎿  Running…\n> \n"
+        ));
         assert!(!has_selected_choice("> 2026 plans\n"));
         assert!(!has_selected_choice("  1. Yes\n  2. No\n"));
     }
