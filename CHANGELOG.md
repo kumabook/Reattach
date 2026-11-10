@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.1 — Daemon released 2026-11-10; iOS 2.0.0 awaiting review
+
+### Daemon
+
+- Add an API to split a pane left and right or top and bottom, and advertise it on pane streams so the app shows split actions only when the daemon supports them.
+- Clear a pending coding-agent request once its prompt has left the pane, such as after a denial, an interruption, or an approved tool that is still running.
+- Detect visible Codex command approvals even when a lifecycle hook was missed.
+
+### iOS
+
+- Split the selected pane from the display-mode menu while the tmux layout is shown.
+- Create a window without a selected pane, and close the permission inbox once every request has been answered.
+
 ## 2.0.0 — Daemon released 2026-11-08; iOS awaiting review
 
 ### iOS

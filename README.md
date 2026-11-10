@@ -27,7 +27,7 @@ With optional coding agent integration, get push notifications when Claude Code 
 
 ## Version 2.0 (release preparation)
 
-Version 2.0 adds tmux pane layouts with independent scrolling, native tmux prefix and copy-mode support, automatic clipboard transfer for copies confirmed from the app, terminal links, resilient streaming with slow-response and reconnecting indicators, independent pane navigation, and an English/Japanese interface. Update both the iOS app and `reattachd` to 2.0.0 to use the new tmux and clipboard features.
+Version 2.0 adds tmux pane layouts with independent scrolling, native tmux prefix and copy-mode support, automatic clipboard transfer for copies confirmed from the app, terminal links, resilient streaming with slow-response and reconnecting indicators, independent pane navigation, and an English/Japanese interface. Update both the iOS app and `reattachd` to 2.0.1 to use the new tmux and clipboard features.
 
 See [the changelog](CHANGELOG.md) for release details and upgrade notes.
 
