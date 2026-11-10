@@ -69,3 +69,12 @@ Validation before packaging: 43 iOS unit tests; display-mode menu, split selecti
 - Screenshot capture fixtures added locally after build 44 are debug-test-only and are not part of that submitted binary. See `fastlane/screenshot_sources/README.md` for reproduction.
 - Resubmitted at 19:11 JST. Version and submission state are `WAITING_FOR_REVIEW`; selected build is 44 and release mode is `MANUAL`. Submission: `a49ad643-eb85-4bb8-b42f-3b7738d6c419`.
 - All screenshots finished processing: six iPhone images per locale and four existing English iPad images. The review QR attachment remains complete.
+
+## Resubmission record — 2026-11-10 (build 45)
+
+- Withdrew the build 44 submission and selected Xcode Cloud build 45, source `bdf5efe`, for 2.0.0. Release mode remains manual.
+- Build 45 adds pane splitting from the tmux layout display mode, shown only when the daemon advertises `pane_split`, and window creation without a selected pane.
+- Published daemon `v2.0.1`; all five builds and the Homebrew tap update succeeded. The review server now runs the 2.0.1 Linux musl artifact (previous binary kept as `/usr/local/bin/reattachd.2.0.0`). Verified its pane stream advertises `pane_split` and that Cloudflare Access forwards authenticated requests.
+- Reduced the iPhone screenshots to five per locale (the one-tap command image was removed), aligned the permission card with the shared device frame, and localized the Japanese headlines. Generation: `fastlane/screenshot_sources/render_iphone.py`. Three uploads stalled in processing and were re-uploaded; all 14 images are complete and ordered.
+- Updated the release notes for pane splitting and reattachd 2.0.1, and the review notes for build 45.
+- Submitted for review. State `WAITING_FOR_REVIEW`; submission `9e8e5428-830e-4a23-ae6e-ce8bc49757f9`.
