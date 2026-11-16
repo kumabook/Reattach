@@ -16,25 +16,20 @@ final class PaneActivityStore {
                    uniquingKeysWith: { first, _ in first })
     }
 
-    func refresh(servers: [ServerConfig]) async {
+    func configure(servers: [ServerConfig]) {
         let unchanged = Set(servers.filter { configurations.contains($0) }.map(\.id))
         byServer = byServer.filter { unchanged.contains($0.key) }
         unavailable.formIntersection(unchanged)
         configurations = servers
-        await withTaskGroup(of: (ServerConfig, [PaneActivity]?).self) { group in
-            for server in servers {
-                group.addTask { @MainActor in
-                    (server, try? await ReattachAPI(server: server).paneActivity())
-                }
-            }
-            for await (server, entries) in group {
-                guard !Task.isCancelled, configurations.contains(server) else { continue }
-                if let entries { byServer[server.id] = entries; unavailable.remove(server.id) }
-                else { unavailable.insert(server.id) }
-                await acknowledgeViewing(server: server)
-                publish(server)
-            }
-        }
+    }
+
+    func refresh(server: ServerConfig) async {
+        let entries = try? await ReattachAPI(server: server).paneActivity()
+        guard !Task.isCancelled, configurations.contains(server) else { return }
+        if let entries { byServer[server.id] = entries; unavailable.remove(server.id) }
+        else { unavailable.insert(server.id) }
+        await acknowledgeViewing(server: server)
+        publish(server)
     }
 
     func beginViewing(server: ServerConfig, target: String) {

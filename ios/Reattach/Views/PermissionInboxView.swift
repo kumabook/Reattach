@@ -7,6 +7,7 @@ struct PermissionInboxView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var status = PermissionStatus.shared
+    @State private var route = PermissionWidgetRoute.shared
     @State private var config = ServerConfigManager.shared
     @State private var selectedTarget: String?
     @State private var context: PermissionContext?
@@ -126,13 +127,20 @@ struct PermissionInboxView: View {
         .accessibilityAction(.escape) { dismiss() }
         .onAppear {
             hadRequests = !targets.isEmpty
-            selectedTarget = targets.first
+            if let focus = route.focus, targets.contains(focus) { route.focus = nil; selectedTarget = focus }
+            else { selectedTarget = targets.first }
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+        .onChange(of: route.focus) { _, focus in
+            guard let focus, targets.contains(focus) else { return }
+            route.focus = nil
+            selectedTarget = focus
         }
         .onChange(of: targets) { old, new in
             if !new.isEmpty { hadRequests = true }
             dragOffset = 0
-            selectedTarget = PermissionPaging.selection(current: selectedTarget, old: old, new: new)
+            if let focus = route.focus, new.contains(focus) { route.focus = nil; selectedTarget = focus }
+            else { selectedTarget = PermissionPaging.selection(current: selectedTarget, old: old, new: new) }
         }
         .task(id: autoClose && hadRequests && targets.isEmpty && status.unavailableServers.isEmpty) {
             guard autoClose, hadRequests, targets.isEmpty, status.unavailableServers.isEmpty else { return }

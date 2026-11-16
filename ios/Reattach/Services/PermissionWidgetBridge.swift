@@ -37,6 +37,8 @@ enum PermissionWidgetBridge {
 final class PermissionWidgetRoute {
     static let shared = PermissionWidgetRoute()
     var pending = false
+    /// The request to show first, as `PermissionAttention.id`.
+    var focus: String?
 
     @discardableResult func open(_ url: URL) -> Bool {
         guard let destination = PermissionWidgetDestination(url: url) else { return false }

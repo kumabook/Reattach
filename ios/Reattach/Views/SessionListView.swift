@@ -187,17 +187,28 @@ struct SessionListView: View {
             let servers = configManager.servers
             if configManager.isDemoMode { permissionStatus.reset(serverID: nil) }
             else { permissionStatus.configure(servers: servers) }
-            while !Task.isCancelled {
-                if configManager.isDemoMode {
+            if configManager.isDemoMode {
+                while !Task.isCancelled {
                     let entries = (try? await ReattachAPI.shared.permissionAttention()) ?? []
                     guard !Task.isCancelled else { return }
                     permissionStatus.update(entries, serverID: nil)
-                } else {
-                    await permissionStatus.refreshAll(servers: servers)
+                    presentPermissionInboxIfNeeded()
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
                 }
-                guard !Task.isCancelled else { return }
-                presentPermissionInboxIfNeeded()
-                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                return
+            }
+            PaneActivityStore.shared.configure(servers: servers)
+            await withTaskGroup(of: Void.self) { group in
+                for server in servers {
+                    group.addTask { @MainActor in
+                        while !Task.isCancelled {
+                            await permissionStatus.refresh(server: server)
+                            guard !Task.isCancelled else { return }
+                            presentPermissionInboxIfNeeded()
+                            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                        }
+                    }
+                }
             }
         }
         .onChange(of: permissionStatus.entries) { _, _ in presentPermissionInboxIfNeeded() }
@@ -221,7 +232,8 @@ struct SessionListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .navigateToPane)) { notification in
             guard let deviceId = notification.userInfo?["deviceId"] as? String,
                   let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
-            navigateToPaneWithKey("\(deviceId):\(paneTarget)")
+            AppDelegate.shared?.pendingNavigationTarget = nil
+            openNotification(deviceID: deviceId, target: paneTarget)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
@@ -468,7 +480,27 @@ struct SessionListView: View {
         guard let key = AppDelegate.shared?.pendingNavigationTarget,
               !viewModel.sessions.isEmpty else { return }
         AppDelegate.shared?.pendingNavigationTarget = nil
-        navigateToPaneWithKey(key)
+        let components = key.split(separator: ":", maxSplits: 1).map(String.init)
+        guard components.count == 2 else { return }
+        openNotification(deviceID: components[0], target: components[1])
+    }
+
+    /// A tapped notification for a request that is still pending opens the
+    /// permission inbox on that request; otherwise it opens the pane.
+    private func openNotification(deviceID: String, target: String) {
+        guard let server = configManager.servers.first(where: { $0.id == deviceID }) else { return }
+        Task {
+            let pending = (try? await ReattachAPI(server: server).permissionAttention())?
+                .contains { $0.target == target } ?? false
+            guard pending else {
+                navigateToPaneWithKey("\(deviceID):\(target)")
+                return
+            }
+            PermissionWidgetRoute.shared.focus = deviceID + "|" + target
+            PermissionWidgetRoute.shared.pending = true
+            await permissionStatus.refresh(server: server)
+            presentPermissionInboxIfNeeded()
+        }
     }
 
     private func navigateToPaneWithKey(_ key: String) {

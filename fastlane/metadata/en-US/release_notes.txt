@@ -4,6 +4,7 @@
 • A pulsing purple dot shows panes where Claude Code or Codex is still working.
 • Choose all notifications, permission requests only, or none in App Settings.
 • Added an option to open new permission requests automatically while using the app. The same requests stay dismissed after you close the inbox.
+• Opening a permission notification now shows that request in the permission inbox.
 • Improved parsing of Codex tool-permission choices, and fixed pulling to refresh the session list unexpectedly reopening the last pane.
 
 Update reattachd on your computer to 2.0.4 to use widgets, unread and running indicators, and notification settings.

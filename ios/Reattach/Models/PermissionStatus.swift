@@ -79,24 +79,28 @@ class PermissionStatus {
     }
 
     func refreshAll(servers: [ServerConfig]) async {
-        async let activity: () = PaneActivityStore.shared.refresh(servers: servers)
-        await withTaskGroup(of: (ServerConfig, [PermissionAttention]?, [Session]).self) { group in
+        PaneActivityStore.shared.configure(servers: servers)
+        await withTaskGroup(of: Void.self) { group in
             for server in servers {
-                group.addTask { @MainActor in
-                    let api = ReattachAPI(server: server)
-                    do {
-                        let requests = try await api.permissionAttention()
-                        let sessions = requests.isEmpty ? [] : (try? await api.listSessions()) ?? []
-                        return (server, requests, sessions)
-                    } catch { return (server, nil, []) }
-                }
+                group.addTask { @MainActor in await self.refresh(server: server) }
             }
-            for await (server, requests, sessions) in group {
-                guard !Task.isCancelled, configuredServers.contains(server) else { continue }
-                apply(requests, server: server, sessions: sessions)
-                if let requests { PermissionWidgetBridge.publish(entries: requests, sessions: sessions, serverID: server.id) }
-                else { PermissionWidgetBridge.failed(serverID: server.id) }
-            }
+        }
+    }
+
+    /// Servers are refreshed independently so a slow or unreachable one cannot delay the others.
+    func refresh(server: ServerConfig) async {
+        async let activity: () = PaneActivityStore.shared.refresh(server: server)
+        let api = ReattachAPI(server: server)
+        var requests: [PermissionAttention]?
+        var sessions: [Session] = []
+        if let latest = try? await api.permissionAttention() {
+            requests = latest
+            sessions = latest.isEmpty ? [] : (try? await api.listSessions()) ?? []
+        }
+        if !Task.isCancelled, configuredServers.contains(server) {
+            apply(requests, server: server, sessions: sessions)
+            if let requests { PermissionWidgetBridge.publish(entries: requests, sessions: sessions, serverID: server.id) }
+            else { PermissionWidgetBridge.failed(serverID: server.id) }
         }
         await activity
     }
