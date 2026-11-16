@@ -1,0 +1,99 @@
+import Foundation
+import Security
+
+struct Connection {
+    var address: String
+    var port: Int
+    var token: String
+    var session: URLSession = .shared
+
+    var baseURL: URL {
+        get throws {
+            guard var parts = URLComponents(string: address),
+                  ["http", "https"].contains(parts.scheme),
+                  let host = parts.host, !host.isEmpty,
+                  parts.user == nil, parts.password == nil,
+                  parts.query == nil, parts.fragment == nil,
+                  parts.path.isEmpty || parts.path == "/", (1...65535).contains(port) else {
+                throw ClientError.message(String(localized: "Enter an address such as http://127.0.0.1 and a port from 1 to 65535."))
+            }
+            parts.port = port
+            parts.path = ""
+            guard let url = parts.url else { throw ClientError.message(String(localized: "Invalid server address.")) }
+            return url
+        }
+    }
+
+    func request(_ path: [String], method: String = "GET", body: [String: String]? = nil) async throws -> Data {
+        var url = try baseURL
+        for component in path { url.appendPathComponent(component) }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.httpMethod = method
+        if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if let body {
+            request.httpBody = try JSONEncoder().encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw ClientError.message(String(localized: "Invalid server response.")) }
+        guard (200..<300).contains(http.statusCode) else {
+            throw ClientError.message(http.statusCode == 401
+                ? String(localized: "Authentication failed. Register with a setup token in Settings.")
+                : String(localized: "Server error (\(http.statusCode))"))
+        }
+        return data
+    }
+
+    func entries() async throws -> [PermissionAttention] {
+        try JSONDecoder().decode([PermissionAttention].self, from: await request(["attention"]))
+    }
+
+    func output(_ target: String) async throws -> String {
+        struct Output: Decodable { let output: String }
+        return try JSONDecoder().decode(Output.self, from: await request(["panes", target, "output"])).output
+    }
+}
+
+enum ClientError: LocalizedError {
+    case message(String)
+    var errorDescription: String? { if case let .message(text) = self { return text }; return nil }
+}
+
+enum CredentialStore {
+    static func query(_ account: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: "tokyo.kumabook.reattach.mac.connection",
+         kSecAttrAccount as String: account]
+    }
+
+    static func read(_ account: String) throws -> String {
+        var query = query(account)
+        query[kSecReturnData as String] = true
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return "" }
+        guard status == errSecSuccess, let data = item as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            throw ClientError.message(String(localized: "Could not read Keychain (\(status))."))
+        }
+        return value
+    }
+
+    static func save(_ token: String, account: String) throws {
+        let query = query(account)
+        let values = [kSecValueData as String: Data(token.utf8)]
+        var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
+        if status == errSecItemNotFound {
+            status = SecItemAdd(query.merging(values) { _, new in new } as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw ClientError.message(String(localized: "Could not save to Keychain (\(status)).")) }
+    }
+}
+
+// The shared permission parser only needs plain terminal text on macOS.
+enum TerminalTextRenderer {
+    static func render(_ text: String) -> NSAttributedString {
+        let pattern = "\u{1B}\\][^\u{7}\u{1B}]*(?:\u{7}|\u{1B}\\\\)|\u{1B}\\[[0-?]*[ -/]*[@-~]"
+        return NSAttributedString(string: text.replacingOccurrences(of: pattern, with: "", options: .regularExpression))
+    }
+}

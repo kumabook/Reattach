@@ -1,0 +1,13 @@
+DRAFT — supply and verify the review server connection details before submission.
+
+Reattach is a native macOS menu bar companion for the open-source reattachd server and tmux. It runs without a Dock icon. Click the terminal/phone icon in the menu bar or press Control-Shift-Space to open the panel. Right-click the menu bar icon for Settings and Quit.
+
+The initial guide includes connection setup and a local practice permission card. The practice card does not send a real terminal command. To review the full work overview and live permission flow, use the dedicated review server details supplied separately in App Review Information; do not use a developer's personal server.
+
+The panel shows permission requests when present and the work overview otherwise. Command-Shift-A opens All Work from the permission view. Arrow keys select work, Control-Tab and Control-Shift-Tab cycle cards, Space opens a read-only preview, and Return reviews a request or selects a pane in tmux. The terminal app integration requires a locally running terminal and is optional for reviewing the work overview.
+
+On-device summaries are optional and disabled by default. They require macOS 26 or later and an available Apple Intelligence model. No external AI service is used. The core work overview and permission features work without Apple Intelligence and on macOS 14 and later.
+
+No purchase is required for the Mac features in this build. Login launch and local notifications are optional. Settings and UI timing remain on device; the app communicates with the user's configured reattachd server.
+
+Before submission: attach Mac screenshots; verify review server availability and credentials; confirm the privacy answers, content rights, age rating, availability, and release mode in App Store Connect.

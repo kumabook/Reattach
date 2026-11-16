@@ -1,0 +1,30 @@
+Keep an eye on your tmux work without losing your place.
+
+Reattach for Mac brings your work overview and coding-agent permission requests into one keyboard-friendly panel. Open it from the menu bar or with a customizable global shortcut.
+
+WORK OVERVIEW
+• See your tmux panes together, with recent output and new-output indicators
+• Search your work and move between cards with the keyboard
+• Open a read-only preview to check the original terminal output
+• Select a pane in tmux and return to your terminal app
+
+PERMISSION REQUESTS
+• Review supported Claude Code and Codex permission requests
+• Choose an option or type a reply without switching to the terminal
+• Choose automatic panel display, local notifications, or manual opening
+• Optionally close the panel when all requests are handled
+
+OPTIONAL ON-DEVICE SUMMARIES
+Summarize recent terminal output with Apple Intelligence on supported Macs running macOS 26 or later. Customize the summary prompt in Settings. Summaries run on your Mac and may be inaccurate; you can always check the original output. Recent output remains available when the model is unavailable.
+
+MAKE IT YOURS
+Customize the shortcut, panel size and position, display, transparency, and startup behavior. The interface supports English and Japanese.
+
+REQUIREMENTS
+• macOS 14 or later
+• A Mac or Linux computer running tmux and the free, open-source reattachd companion server
+• Coding-agent notification hooks for permission-request integration
+
+Reattach for Mac is a work overview and permission companion. Use your terminal app for full terminal interaction. Server installation and connection setup are required.
+
+Setup guide: https://reattach.tmux.kumabook.tokyo/setup.html

@@ -1,0 +1,23 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to your reattachd server to review and answer pending requests."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reattachdサーバーに接続して、許可待ちの確認と返答を行います。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

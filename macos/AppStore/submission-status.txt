@@ -1,0 +1,28 @@
+Mac release preparation — 2026-11-13
+
+Version: 2.0.0 (2)
+Bundle identifier: tokyo.kumabook.tmux.reattach
+Minimum system: macOS 14
+Architectures: arm64, x86_64
+
+Completed:
+- Mac regression suite passed.
+- Release archive succeeded.
+- Privacy manifest included in the archive.
+- Apple distribution validation succeeded with no errors.
+- App Store Connect upload succeeded at 15:49 JST; package processing started.
+- English and Japanese Mac descriptions and promotional text prepared locally.
+
+Artifacts:
+/tmp/reattach-mac-submission/Reattach.xcarchive
+/tmp/reattach-mac-submission/Export/Reattach.pkg
+/tmp/reattach-submission-upload.log
+/tmp/reattach-submission-validation.log
+/tmp/reattach-submission-tests.log
+
+Not yet completed:
+- Verify processed build and macOS version record in App Store Connect (Chrome requires sign-in).
+- Upload Mac metadata and screenshots; existing iOS screenshots are not Mac screenshots.
+- Verify a dedicated review server and supply its connection details privately in App Review Information.
+- Confirm privacy answers, age rating, availability and release mode.
+- Send the version to App Review. No review submission or public release has been performed.

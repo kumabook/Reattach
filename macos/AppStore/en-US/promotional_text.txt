@@ -1,0 +1,1 @@
+Your tmux work and coding-agent permission requests, together in one Mac panel. Navigate with the keyboard and optionally summarize recent output on device.
