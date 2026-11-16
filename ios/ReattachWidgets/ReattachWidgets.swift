@@ -48,9 +48,6 @@ struct PermissionWidgetView: View {
     let entry: PermissionEntry
     @Environment(\.widgetFamily) private var family
     private var snapshot: PermissionWidgetSnapshot { entry.snapshot }
-    private var outdated: Bool {
-        snapshot.unavailable || snapshot.updatedAt.map { entry.date.timeIntervalSince($0) > 20 * 60 } == true
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -61,8 +58,7 @@ struct PermissionWidgetView: View {
             }
             if snapshot.updatedAt == nil {
                 Spacer(minLength: 0)
-                Text("Open Reattach to update").font(.headline)
-                Text(snapshot.unavailable ? "Unable to update servers" : "Add a server in the app.").font(.caption).foregroundStyle(.secondary)
+                Text("No data yet").font(.headline)
                 Spacer(minLength: 0)
             } else {
                 HStack(alignment: .top, spacing: 16) {
@@ -83,23 +79,21 @@ struct PermissionWidgetView: View {
                 if let panes = snapshot.updatedPanes {
                     Text("\(panes.count) unread panes").font(.caption.weight(.medium))
                 } else {
-                    Text("Unread count unavailable").font(.caption2).foregroundStyle(.secondary)
-                }
-                if snapshot.updatesUnavailable == true {
-                    Image(systemName: "exclamationmark.arrow.triangle.2.circlepath").font(.caption2).foregroundStyle(.secondary)
+                    Text("Unread panes: —").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            if snapshot.unavailable {
-                Text("Some servers could not be updated").font(.caption2).foregroundStyle(.orange).lineLimit(1)
+            Group {
+                if snapshot.updatedAt == nil {
+                    Text("Open the app to connect")
+                } else if snapshot.unavailable || snapshot.updatesUnavailable == true {
+                    Text("Could not update")
+                } else if let date = snapshot.updatedAt {
+                    Text("Updated \(Text(date, style: .relative)) ago")
+                }
             }
-            HStack(spacing: 4) {
-                Image(systemName: outdated ? "exclamationmark.arrow.triangle.2.circlepath" : "clock")
-                if let date = snapshot.updatedAt {
-                    Text(date, style: .relative).lineLimit(1)
-                } else { Text("Not updated") }
-                Spacer(minLength: 0)
-                if family == .systemMedium { Text("All Servers").lineLimit(1) }
-            }.font(.caption2).foregroundStyle(outdated ? .orange : .secondary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
         .containerBackground(.background, for: .widget)
         .widgetURL(snapshot.url)

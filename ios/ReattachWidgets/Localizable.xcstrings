@@ -202,6 +202,62 @@
           }
         }
       }
+    },
+    "Unread panes: —": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread panes: —"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未読 —件"
+          }
+        }
+      }
+    },
+    "No data yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだ情報がありません"
+          }
+        }
+      }
+    },
+    "Open the app to connect": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリを開いて接続"
+          }
+        }
+      }
+    },
+    "Could not update": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新できませんでした"
+          }
+        }
+      }
+    },
+    "Updated %@ ago": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@前に更新"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -102,6 +102,20 @@ struct PermissionWidgetTests {
         let combined = PermissionWidgetStore.aggregate([loaded, other])
         #expect(combined.updatedPanes?.count == 2)
         #expect(Set(combined.updatedPanes ?? []).count == 2)
+        var missing = other
+        missing.updatedPanes = nil
+        missing.updatesUnavailable = true
+        let partial = PermissionWidgetStore.aggregate([loaded, missing])
+        #expect(partial.updatedPanes?.count == 1)
+        #expect(partial.updatesUnavailable == true)
+        let unknown = PermissionWidgetStore.aggregate([missing])
+        #expect(unknown.updatedPanes == nil)
+        #expect(unknown.updatesUnavailable == true)
+        var read = loaded
+        read.updatedPanes = []
+        let reduced = PermissionWidgetStore.aggregate([read, missing])
+        #expect(reduced.updatedPanes == [])
+        #expect(reduced.updatesUnavailable == true)
     }
 
     private func session() -> URLSession {

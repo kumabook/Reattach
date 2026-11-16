@@ -149,7 +149,7 @@ nonisolated enum PermissionWidgetStore {
         return .init(serverID: nil, serverName: "", requests: requests,
                      updatedAt: snapshots.compactMap(\.updatedAt).min(), unavailable: !unavailable.isEmpty,
                      unavailableServers: unavailable,
-                     updatedPanes: snapshots.allSatisfy { $0.updatedPanes != nil } ? snapshots.flatMap { snapshot in (snapshot.updatedPanes ?? []).map { (snapshot.serverID ?? "") + "|" + $0 } } : nil,
+                     updatedPanes: snapshots.contains { $0.updatedPanes != nil } ? snapshots.flatMap { snapshot in (snapshot.updatedPanes ?? []).map { (snapshot.serverID ?? "") + "|" + $0 } } : nil,
                      updatesUnavailable: snapshots.contains { $0.updatesUnavailable == true || $0.updatedPanes == nil })
     }
 
