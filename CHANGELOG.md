@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.0.3 — Daemon release in preparation; iOS 2.0.1 in preparation
+
+### Daemon
+
+- Track unread pane output per paired device with `GET /activity` and `POST /activity/read`. Read receipts are persisted, and an older acknowledgement cannot clear newer output.
+- Send silent WidgetKit push updates when permission requests or unread counts change, using tokens registered through `/widget-devices`. Visible notification banners are not affected.
+- Apply each device's notification preference (all notifications, permission requests only, or off) to both APNs environments.
+- Detect Codex tool-permission prompts that end with "enter to submit | esc to cancel".
+
+### iOS
+
+- Add Home Screen widgets showing pending permission requests and unread panes across all configured servers.
+- Show permission requests from every server in one inbox; replies use the request's own server.
+- Mark panes with unread output in blue, separately from orange permission requests.
+- Choose all notifications, permission requests only, or none in App Settings.
+- Optionally open new permission requests automatically while using the app, and close the inbox when no requests remain.
+- Improve Codex tool-permission option parsing and fix pull-to-refresh reopening the last pane.
+- Update reattachd to 2.0.3 for widgets, unread indicators, and notification preferences.
+
 ## 2.0.2 — Daemon released 2026-11-11
 
 - Preserve a newly registered permission request when an earlier screen check finishes. Each registration has a unique generation, so repeated requests for the same command in the same second are not removed by a stale check.
