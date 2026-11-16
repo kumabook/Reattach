@@ -1,0 +1,97 @@
+iOS release preparation — 2026-11-13
+
+Public version checked with Apple's lookup API: 2.0.0.
+Prepared version: 2.0.1 (44).
+Bundle identifier: tokyo.kumabook.tmux.reattach.
+
+Changes:
+- Optional automatic presentation of new permission requests (default off).
+- Pull-to-refresh reloads the session list without reopening the last pane.
+- Codex tool-permission menu parsing stops at the submit/cancel footer.
+- Privacy manifest declares local preferences and in-app elapsed-time measurements.
+- English and Japanese release notes updated.
+
+Verification:
+- 50 unit tests passed, including automatic-presentation policy and Codex parsing.
+- UI checks passed for automatic presentation and staying dismissed, all replies
+  completing and closing, sending a choice, and replying without opening a pane.
+- The initial UI run failed a stale assertion for a now-hidden navigation bar;
+  both affected reply tests passed after asserting the current close control.
+- Composition test now waits for the send callback rather than assuming 20 ms.
+  UIKit/stream test suites run serially within each suite to avoid timing contention.
+- App input behavior was not changed to address the test timing failures.
+- Release archive and Apple distribution validation succeeded.
+
+Artifacts:
+/tmp/reattach-ios-submission/Reattach.xcarchive
+/tmp/reattach-ios-release-tests.xcresult
+/tmp/reattach-ios-reply-ui-tests.xcresult
+/tmp/reattach-ios-submission-validation.log
+/tmp/reattach-ios-submission-upload.log
+
+Upload: succeeded at 16:30 JST on 2026-11-13; Apple package processing started.
+Review submission: not performed. App Store Connect browser sign-in is pending;
+verify build processing and the iOS 2.0.1 record, apply release notes, select build 44,
+check review information and release mode, then send for review.
+
+Build 45 development update (not uploaded):
+- Added Home Screen widgets.
+- File browsing, preview, sharing, and daemon file endpoints were withdrawn after device testing at the user's request.
+- Widget tests previously passed (5 tests).
+- Widget-only Release build succeeded and was installed on kumaphone duo.
+- Daemon rebuilt/restarted; removed file endpoint returns 404, existing sessions endpoint requires authentication (401).
+- Daemon tests after removal: 44 passed, 8 ignored.
+
+Build 46 development update (not uploaded):
+- Added iOS 26+ WidgetKit push refresh with periodic timeline fallback.
+- Signed Release build installed and launched on kumaphone duo; local daemon rebuilt/restarted.
+- Real device registered a sandbox widget token; APNs accepted a widget update.
+- Daemon tests: 49 passed, 8 ignored, including APNs signature/payload and registration authentication.
+- Widget iOS tests: 7 passed. Log: /tmp/reattach-widget-push-swift-tests.log.
+- Push accepted by APNs; actual Home Screen redraw timing remains controlled by iOS and has not been visually verified.
+
+Build 47 development update (not uploaded):
+- Prevent underlying terminal editors from acquiring keyboard focus while the permission inbox is presented.
+- Clear inherited keyboard focus when opening the inbox; manual reply fields remain tappable.
+- Preserve drafts and cancel queued direct-input focus requests while covered.
+- Tests: 44 unit tests passed; UI regression passed for Compose and Direct Input, including explicit reply keyboard presentation.
+- Signed Release build installed and launched on kumaphone duo.
+- Log: /tmp/reattach-permission-keyboard-tests.log
+
+Build 48 development update (not uploaded):
+- Permission inbox and Home Screen widgets aggregate all configured servers; same pane targets are scoped by server identity.
+- Replies use immutable source-server clients; opening a pane explicitly switches servers.
+- Connection failures retain cached requests and identify unavailable servers instead of reporting a confirmed empty inbox.
+- Global auto-presentation moved to Servers → App Settings. Current-server settings use a server-rack icon.
+- Fixed normal APNs environment selection: signed development Release builds had been registered as production and rejected as BadDeviceToken. Normal alerts now share the signing-profile environment resolver with widgets, and register with all configured servers.
+- Installed/launched on kumaphone duo. Confirmed a new normal APNs registration with sandbox=true on the local server.
+- Validation: 62 unit tests and 3 permission UI tests passed; follow-up 12 unit tests and global-settings UI test passed. Mac shared-model build passed.
+- Additional normal APNs registration regression passed (6 tests in GlobalPermissionTests): /tmp/reattach-normal-push-regression.log.
+- Actual normal notification display on the phone remains for user confirmation.
+
+Build 48 local notification verification (2026-11-14, not uploaded):
+- Device reboot and explicit unregister/register did not recover sandbox APNs (410 Unregistered for the freshly returned token). Removed the ineffective reset launch option.
+- Added ios/scripts/install-device.sh with development (Debug/sandbox) and notification (Release/Ad Hoc/production APNs) modes, plus usage and incident notes.
+- Verified notification mode end to end: archive/export/install/launch on kumaphone duo; signed aps-environment=production; app registered sandbox=false; targeted alert using the exact launch token fingerprint returned APNs HTTP 200. Device banner confirmation pending.
+- Distribution-signed local testing does not support debugger attachment. Sandbox token failure remains unresolved.
+- GlobalPermissionTests: 6 passed. Shell syntax and git diff checks passed.
+- Logs: /tmp/reattach-local-notification-install.log, /tmp/reattach-local-production-console.log, /tmp/reattach-push-recovery-tests.log.
+
+Sandbox APNs recovery confirmed (2026-11-14):
+- Backed up app/shared containers under /tmp/reattach-before-clean-install (restricted directory; contains credentials, do not commit).
+- Fully uninstalled, installed the current Debug build, restored main app preferences before first launch. Verified both server configs and active server exactly matched the backup.
+- After notification permission was granted, a new sandbox token was issued; targeted sandbox APNs alert returned HTTP 200 and user confirmed receipt.
+- Device remains on development-signed Debug build; debugger-supported notification testing works again. Prior 410 incident is resolved for this phone.
+- Log: /tmp/reattach-clean-install-console.log. No App Store upload performed.
+
+Local development checkpoint (2026-11-16, not uploaded):
+- Added persistent per-device unread activity, blue unread/orange permission indicators,
+  widget unread counts, and global push modes (all / permission only / off).
+- Added iOS automatic dismissal after a confirmed empty permission inbox.
+- Recreate toolbar menus when selection changes to refresh native checkmarks.
+- Debug build installed and launched on kumaphone duo. Menu UI test could not complete
+  because the simulator stalled at launch; actual checkmark behavior remains unverified.
+- Updated local reattachd; fixed tmux field separators for the launchd C locale.
+- Validation: 56 daemon tests passed, plus the live tmux collector test in LC_ALL=C.
+  Authenticated /activity returned HTTP 200; widget update pushes were accepted by APNs.
+- User confirmed the widget fix. No App Store upload performed for this checkpoint.
