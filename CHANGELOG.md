@@ -1,6 +1,19 @@
 # Changelog
 
-## 2.0.3 — Daemon release in preparation; iOS 2.0.1 in preparation
+## 2.0.4 — Daemon release in preparation; iOS 2.0.1 in preparation
+
+### Daemon
+
+- Report whether Claude Code or Codex is working in each pane, detected from "esc to interrupt" on its screen, as `agent` in `GET /activity`.
+- Use tmux's window activity flag as the unread state for windows with `monitor-activity` enabled, so unread matches the tmux status line.
+
+### iOS and Mac
+
+- Show a pulsing purple dot for panes where a coding agent is working; running panes are not counted as unread, and the widget shows a separate running count.
+- Follow tmux's activity flag for unread panes; a pane is marked read when opened, including after moving between panes.
+- Update reattachd to 2.0.4 for these indicators.
+
+## 2.0.3 — Daemon released 2026-11-16
 
 ### Daemon
 
@@ -17,7 +30,7 @@
 - Choose all notifications, permission requests only, or none in App Settings.
 - Optionally open new permission requests automatically while using the app, and close the inbox when no requests remain.
 - Improve Codex tool-permission option parsing and fix pull-to-refresh reopening the last pane.
-- Update reattachd to 2.0.3 for widgets, unread indicators, and notification preferences.
+- Requires reattachd 2.0.3 or later for widgets, unread indicators, and notification preferences.
 
 ## 2.0.2 — Daemon released 2026-11-11
 
