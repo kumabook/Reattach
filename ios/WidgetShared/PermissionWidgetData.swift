@@ -32,6 +32,7 @@ nonisolated struct PermissionWidgetSnapshot: Codable, Equatable, Sendable {
     var unavailableServers: [String]? = nil
     var updatedPanes: [String]? = nil
     var updatesUnavailable: Bool? = nil
+    var runningPanes: [String]? = nil
 
     static let empty = Self(serverID: nil, serverName: "Reattach", requests: [], updatedAt: nil, unavailable: false)
 
@@ -150,7 +151,8 @@ nonisolated enum PermissionWidgetStore {
                      updatedAt: snapshots.compactMap(\.updatedAt).min(), unavailable: !unavailable.isEmpty,
                      unavailableServers: unavailable,
                      updatedPanes: snapshots.contains { $0.updatedPanes != nil } ? snapshots.flatMap { snapshot in (snapshot.updatedPanes ?? []).map { (snapshot.serverID ?? "") + "|" + $0 } } : nil,
-                     updatesUnavailable: snapshots.contains { $0.updatesUnavailable == true || $0.updatedPanes == nil })
+                     updatesUnavailable: snapshots.contains { $0.updatesUnavailable == true || $0.updatedPanes == nil },
+                     runningPanes: snapshots.contains { $0.runningPanes != nil } ? snapshots.flatMap { snapshot in (snapshot.runningPanes ?? []).map { (snapshot.serverID ?? "") + "|" + $0 } } : nil)
     }
 
     static func read() -> PermissionWidgetSnapshot { aggregate(connections().map { read(for: $0) }) }
@@ -160,10 +162,14 @@ nonisolated enum PermissionWidgetStore {
         defaults?.set(data, forKey: snapshotKey + "." + serverID)
     }
 
-    static func publishActivity(targets: [String]?, unavailable: Bool, for connection: PermissionWidgetConnection) {
+    static func publishActivity(targets: [String]?, running: [String]? = nil,
+                                unavailable: Bool, for connection: PermissionWidgetConnection) {
         guard connections().contains(connection) else { return }
         var snapshot = read(for: connection)
-        if let targets { snapshot.updatedPanes = targets.sorted() }
+        if let targets {
+            snapshot.updatedPanes = targets.sorted()
+            snapshot.runningPanes = running?.sorted()
+        }
         snapshot.updatesUnavailable = unavailable
         publish(snapshot, for: connection, reload: true)
     }
@@ -176,7 +182,7 @@ nonisolated enum PermissionWidgetStore {
         if reload {
             let now = Date().timeIntervalSince1970
             let lastReload = defaults?.double(forKey: "permissionWidgetReloadTime") ?? 0
-            if previous.requests != snapshot.requests || previous.unavailable != snapshot.unavailable || previous.updatedPanes != snapshot.updatedPanes || previous.updatesUnavailable != snapshot.updatesUnavailable || now - lastReload >= 60 {
+            if previous.requests != snapshot.requests || previous.unavailable != snapshot.unavailable || previous.updatedPanes != snapshot.updatedPanes || previous.updatesUnavailable != snapshot.updatesUnavailable || previous.runningPanes != snapshot.runningPanes || now - lastReload >= 60 {
                 defaults?.set(now, forKey: "permissionWidgetReloadTime")
                 WidgetCenter.shared.reloadTimelines(ofKind: kind)
             }
@@ -221,18 +227,22 @@ nonisolated enum PermissionWidgetLoader {
         let requests = attention.filter { seen.insert($0.target).inserted }.map {
             PermissionWidgetRequest(target: $0.target, title: titles[$0.target] ?? $0.target, tool: $0.tool)
         }
-        struct Activity: Decodable { let target: String; let unread: Bool }
+        struct Agent: Decodable { let state: String }
+        struct Activity: Decodable { let target: String; let unread: Bool; let agent: Agent? }
         var updated = previous.updatedPanes
+        var running = previous.runningPanes
         var updatesUnavailable = true
         if let (activityData, activityResponse) = try? await session.data(for: connection.request(path: "activity")),
            (activityResponse as? HTTPURLResponse)?.statusCode == 200,
            let activity = try? JSONDecoder().decode([Activity].self, from: activityData) {
-            updated = activity.filter(\.unread).map(\.target).sorted()
+            updated = activity.filter { $0.unread && $0.agent?.state != "running" }.map(\.target).sorted()
+            running = activity.filter { $0.agent?.state == "running" }.map(\.target).sorted()
             updatesUnavailable = false
         }
         return PermissionWidgetSnapshot(serverID: connection.serverID, serverName: connection.serverName,
                                         requests: requests, updatedAt: Date(), unavailable: false,
-                                        updatedPanes: updated, updatesUnavailable: updatesUnavailable)
+                                        updatedPanes: updated, updatesUnavailable: updatesUnavailable,
+                                        runningPanes: running)
     }
 }
 

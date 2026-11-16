@@ -3566,6 +3566,23 @@
           }
         }
       }
+    },
+    "Agent running": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェント実行中"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

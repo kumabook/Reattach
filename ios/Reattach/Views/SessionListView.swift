@@ -105,8 +105,8 @@ struct SessionListView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var paneActivity = PaneActivityStore.shared
 
-    private var unreadPanes: Set<String> {
-        paneActivity.unreadTargets(serverID: ServerConfigManager.shared.activeServer?.id)
+    private var paneStatuses: [String: PaneStatus] {
+        paneActivity.statuses(serverID: ServerConfigManager.shared.activeServer?.id)
     }
     @State private var showPermissionInbox = false
     @AppStorage("autoOpenPermissionInbox") private var autoOpenPermissionInbox = false
@@ -299,9 +299,13 @@ struct SessionListView: View {
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) { permissionMenu }
                     }
-                    .onAppear {
+                    // The detail keeps its identity when moving between panes.
+                    .onChange(of: selected.pane.target, initial: true) { previous, target in
+                        if previous != target, let serverID = paneActivity.viewingServer {
+                            paneActivity.endViewing(serverID: serverID, target: previous)
+                        }
                         if let server = ServerConfigManager.shared.activeServer {
-                            paneActivity.beginViewing(server: server, target: selected.pane.target)
+                            paneActivity.beginViewing(server: server, target: target)
                         }
                     }
                     .onDisappear {
@@ -364,7 +368,7 @@ struct SessionListView: View {
                 ForEach(viewModel.sessions) { session in
                     SessionSection(
                         session: session,
-                        unreadPanes: unreadPanes,
+                        paneStatuses: paneStatuses,
                         onRequestDelete: { pane in
                             paneToDelete = pane
                         },
@@ -607,7 +611,7 @@ struct PaneNavigationItem: Hashable {
 
 struct SessionSection: View {
     let session: Session
-    let unreadPanes: Set<String>
+    let paneStatuses: [String: PaneStatus]
     var onRequestDelete: (Pane) -> Void
     var onDeletePane: (String) async -> Void
 
@@ -617,7 +621,7 @@ struct SessionSection: View {
                 WindowRow(
                     window: window,
                     sessionName: session.name,
-                    unreadPanes: unreadPanes,
+                    paneStatuses: paneStatuses,
                     onRequestDelete: onRequestDelete
                 )
                 .listRowSeparator(.visible)
@@ -648,18 +652,18 @@ struct SessionSection: View {
 struct WindowRow: View {
     let window: Window
     let sessionName: String
-    let unreadPanes: Set<String>
+    let paneStatuses: [String: PaneStatus]
     var onRequestDelete: (Pane) -> Void
 
-    private var hasUnreadPane: Bool {
-        window.panes.contains { unreadPanes.contains($0.target) }
+    private var windowStatus: PaneStatus {
+        window.panes.map { paneStatuses[$0.target] ?? .none }.max() ?? .none
     }
 
     var body: some View {
         Group {
             if window.panes.count == 1, let pane = window.panes.first {
                 NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                    WindowLabel(window: window, isUnread: unreadPanes.contains(pane.target))
+                    WindowLabel(window: window, status: paneStatuses[pane.target] ?? .none)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     deleteButton(for: pane)
@@ -668,7 +672,7 @@ struct WindowRow: View {
                 DisclosureGroup {
                     ForEach(window.panes) { pane in
                         NavigationLink(value: PaneNavigationItem(pane: pane, windowName: window.name)) {
-                            PaneRow(pane: pane, windowName: window.name, isUnread: unreadPanes.contains(pane.target))
+                            PaneRow(pane: pane, windowName: window.name, status: paneStatuses[pane.target] ?? .none)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             deleteButton(for: pane)
@@ -676,7 +680,7 @@ struct WindowRow: View {
                         .listRowSeparator(.visible)
                     }
                 } label: {
-                    WindowLabel(window: window, isUnread: hasUnreadPane)
+                    WindowLabel(window: window, status: windowStatus)
                 }
             }
         }
@@ -696,7 +700,7 @@ struct WindowRow: View {
 struct WindowLabel: View {
     @State private var permissionStatus = PermissionStatus.shared
     let window: Window
-    var isUnread: Bool = false
+    var status: PaneStatus = .none
 
     private var isWaiting: Bool {
         window.panes.contains { permissionStatus.isWaiting($0.target) }
@@ -722,13 +726,49 @@ struct WindowLabel: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            if isUnread {
+            if status != .none {
                 Spacer()
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 10, height: 10)
+                PaneStatusBadge(status: status)
             }
         }
+    }
+}
+
+// MARK: - PaneStatusBadge
+
+/// Purple marks a coding agent that is still working; blue marks output not yet seen.
+struct PaneStatusBadge: View {
+    let status: PaneStatus
+
+    var body: some View {
+        switch status {
+        case .none:
+            EmptyView()
+        case .running:
+            RunningDot()
+        case .unread:
+            Circle()
+                .fill(.blue)
+                .frame(width: 10, height: 10)
+                .accessibilityLabel(String(localized: "New output"))
+        }
+    }
+}
+
+private struct RunningDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dimmed = false
+
+    var body: some View {
+        Circle()
+            .fill(.purple)
+            .frame(width: 10, height: 10)
+            .opacity(dimmed ? 0.25 : 1)
+            .accessibilityLabel(String(localized: "Agent running"))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { dimmed = true }
+            }
     }
 }
 
@@ -738,7 +778,7 @@ struct PaneRow: View {
     @State private var permissionStatus = PermissionStatus.shared
     let pane: Pane
     var windowName: String = ""
-    var isUnread: Bool = false
+    var status: PaneStatus = .none
 
     private var isWaiting: Bool {
         permissionStatus.isWaiting(pane.target)
@@ -759,11 +799,7 @@ struct PaneRow: View {
                     .lineLimit(1)
             }
             Spacer()
-            if isUnread {
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 10, height: 10)
-            }
+            PaneStatusBadge(status: status)
             if pane.active {
                 Text(String(localized: "active"))
                     .font(.caption2)

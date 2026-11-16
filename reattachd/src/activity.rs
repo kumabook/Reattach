@@ -1,4 +1,7 @@
 //! Persist output revisions and per-authenticated-device read receipts, independently of alerts.
+//! Whether a coding agent is working is read from its screen on every sample.
+//! Windows with tmux's `monitor-activity` use tmux's own activity flag as unread,
+//! so the app matches the terminal's status line.
 use crate::auth::SharedAuthService;
 use axum::{
     extract::State,
@@ -30,9 +33,43 @@ struct Ledger {
 }
 #[derive(Clone, Serialize)]
 pub struct Entry {
+    #[serde(skip)]
+    id: String,
     target: String,
     revision: String,
     unread: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent: Option<AgentStatus>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct AgentStatus {
+    state: &'static str,
+    since: i64,
+}
+struct Sample {
+    id: String,
+    target: String,
+    output: String,
+    running: bool,
+    tmux_unread: Option<bool>,
+}
+const AGENT_WORKING: &str = "esc to interrupt";
+/// Claude Code and Codex show "esc to interrupt" just above or in their footer
+/// only while a turn is in progress. Claude Code's process title is its version.
+fn agent_working(command: &str, output: &str) -> bool {
+    let agent = command == "codex"
+        || command == "claude"
+        || (command.split('.').count() == 3
+            && command
+                .split('.')
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())));
+    agent
+        && output
+            .lines()
+            .rev()
+            .filter(|line| !line.trim().is_empty())
+            .take(6)
+            .any(|line| line.contains(AGENT_WORKING))
 }
 #[derive(Deserialize)]
 pub struct Receipt {
@@ -44,6 +81,8 @@ pub struct Service {
     file: PathBuf,
     pub generation: AtomicU64,
     initialized: AtomicBool,
+    running: std::sync::Mutex<BTreeMap<String, i64>>,
+    tmux_unread: std::sync::Mutex<BTreeMap<String, bool>>,
 }
 impl Service {
     pub fn new(dir: &std::path::Path) -> std::io::Result<Arc<Self>> {
@@ -58,6 +97,8 @@ impl Service {
             file,
             generation: AtomicU64::new(0),
             initialized: AtomicBool::new(false),
+            running: std::sync::Mutex::new(BTreeMap::new()),
+            tmux_unread: std::sync::Mutex::new(BTreeMap::new()),
         }))
     }
     fn save(&self, ledger: &Ledger) -> std::io::Result<()> {
@@ -81,6 +122,16 @@ impl Service {
                     tracing::warn!(error, "Failed to collect pane activity");
                 }
                 if let Ok(samples) = samples {
+                    let flags_changed = self.observe_tmux_unread(&samples);
+                    if self.observe_running(&samples, chrono::Utc::now().timestamp())
+                        || flags_changed
+                    {
+                        self.generation.fetch_add(1, Ordering::Relaxed);
+                    }
+                    let samples = samples
+                        .into_iter()
+                        .map(|s| (s.id, s.target, s.output))
+                        .collect();
                     let mut ledger = self.ledger.lock().await;
                     let mut next = ledger.clone();
                     if next.observe(samples) {
@@ -102,6 +153,27 @@ impl Service {
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         });
+    }
+}
+impl Service {
+    fn observe_tmux_unread(&self, samples: &[Sample]) -> bool {
+        let next: BTreeMap<String, bool> = samples
+            .iter()
+            .filter_map(|s| s.tmux_unread.map(|unread| (s.id.clone(), unread)))
+            .collect();
+        let mut current = self.tmux_unread.lock().unwrap();
+        let changed = *current != next;
+        *current = next;
+        changed
+    }
+    fn observe_running(&self, samples: &[Sample], now: i64) -> bool {
+        let mut running = self.running.lock().unwrap();
+        let before: Vec<String> = running.keys().cloned().collect();
+        running.retain(|id, _| samples.iter().any(|s| s.running && &s.id == id));
+        for sample in samples.iter().filter(|s| s.running) {
+            running.entry(sample.id.clone()).or_insert(now);
+        }
+        before != running.keys().cloned().collect::<Vec<_>>()
     }
 }
 impl Ledger {
@@ -170,9 +242,11 @@ impl Ledger {
         self.panes
             .iter()
             .map(|(id, p)| Entry {
+                id: id.clone(),
                 target: p.target.clone(),
                 revision: p.revision.clone(),
                 unread: seen.get(id) != Some(&p.revision),
+                agent: None,
             })
             .collect()
     }
@@ -207,7 +281,7 @@ async fn command(args: &[&str]) -> Result<String, &'static str> {
     }
     Ok(String::from_utf8_lossy(&result.stdout).into_owned())
 }
-async fn collect() -> Result<Vec<(String, String, String)>, &'static str> {
+async fn collect() -> Result<Vec<Sample>, &'static str> {
     let result = tokio::time::timeout(
         Duration::from_secs(3),
         tokio::process::Command::new("tmux")
@@ -215,7 +289,7 @@ async fn collect() -> Result<Vec<(String, String, String)>, &'static str> {
                 "list-panes",
                 "-a",
                 "-F",
-                "#{pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}",
+                "#{pid}|#{pane_id}|#{pane_current_command}|#{monitor-activity}|#{window_activity_flag}|#{session_name}:#{window_index}.#{pane_index}",
             ])
             .kill_on_drop(true)
             .output(),
@@ -233,17 +307,19 @@ async fn collect() -> Result<Vec<(String, String, String)>, &'static str> {
     let list = String::from_utf8_lossy(&result.stdout);
     let mut samples = Vec::new();
     for line in list.lines() {
-        let fields: Vec<_> = line.splitn(3, '|').collect();
-        if fields.len() != 3 || !fields[1].starts_with('%') {
+        let fields: Vec<_> = line.splitn(6, '|').collect();
+        if fields.len() != 6 || !fields[1].starts_with('%') {
             return Err("invalid pane list format");
         }
         // Join wrapped lines and exclude styling/cursor movement from unread detection.
         let output = command(&["capture-pane", "-p", "-J", "-S", "-80", "-t", fields[1]]).await?;
-        samples.push((
-            format!("{}:{}", fields[0], fields[1]),
-            fields[2].into(),
+        samples.push(Sample {
+            id: format!("{}:{}", fields[0], fields[1]),
+            target: fields[5].into(),
+            running: agent_working(fields[2], &output),
+            tmux_unread: (fields[3] == "1").then(|| fields[4] == "1"),
             output,
-        ));
+        });
     }
     Ok(samples)
 }
@@ -268,12 +344,23 @@ pub async fn list(
     }
     let mut ledger = service.ledger.lock().await;
     let mut next = ledger.clone();
-    let entries = next.entries(&device);
+    let mut entries = next.entries(&device);
     if !ledger.readers.contains_key(&device) {
         service
             .save(&next)
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         *ledger = next;
+    }
+    let running = service.running.lock().unwrap();
+    let tmux_unread = service.tmux_unread.lock().unwrap();
+    for entry in &mut entries {
+        if let Some(&unread) = tmux_unread.get(&entry.id) {
+            entry.unread = unread;
+        }
+        entry.agent = running.get(&entry.id).map(|&since| AgentStatus {
+            state: "running",
+            since,
+        });
     }
     Ok(Json(entries))
 }
@@ -379,6 +466,68 @@ mod tests {
         l.observe(vec![]);
         assert!(l.entries("a").is_empty());
     }
+    #[test]
+    fn detects_working_agents_from_their_screen() {
+        let claude = "⏺ Done\n✽ Symbioting… (11s)\n────\n❯ \n────\n  ⏵⏵ auto mode on · esc to interrupt · ← 1 agent\n\n";
+        let claude_idle = "⏺ Done\n────\n❯ \n────\n  ⏵⏵ auto mode on (shift+tab to cycle)\n";
+        let codex = "• Ran gh run view\n• Working (6m 23s • esc to interrupt)\n  └ Tip: Use /agents\n› Ask Codex to do anything\n  GPT medium · ~/src\n  ← for agents · ? for shortcuts\n";
+        let codex_idle = "• lint passed\n› Ask Codex to do anything\n  GPT medium · ~/src\n  ← for agents · ? for shortcuts\n";
+        assert!(agent_working("2.1.322", claude));
+        assert!(!agent_working("2.1.322", claude_idle));
+        assert!(agent_working("codex", codex));
+        assert!(!agent_working("codex", codex_idle));
+        // Old text scrolled above the input area, or other programs, do not count.
+        let scrolled = format!("{codex}{}", "line\n".repeat(10));
+        assert!(!agent_working("codex", &scrolled));
+        assert!(!agent_working("zsh", codex));
+        assert!(!agent_working("vim", "esc to interrupt"));
+    }
+
+    #[tokio::test]
+    async fn running_since_is_kept_while_working_and_cleared_afterwards() {
+        let dir = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+        let service = Service::new(&dir).unwrap();
+        let sample = |running| Sample {
+            id: "1:%1".into(),
+            target: "s:0.0".into(),
+            output: String::new(),
+            running,
+            tmux_unread: None,
+        };
+        assert!(service.observe_running(&[sample(true)], 10));
+        assert!(!service.observe_running(&[sample(true)], 20));
+        assert_eq!(service.running.lock().unwrap().get("1:%1"), Some(&10));
+        assert!(service.observe_running(&[sample(false)], 30));
+        assert!(service.running.lock().unwrap().is_empty());
+        assert!(service.observe_running(&[sample(true)], 40));
+        assert!(service.observe_running(&[], 50));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn monitored_windows_follow_tmux_activity_flag() {
+        let dir = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+        let service = Service::new(&dir).unwrap();
+        let sample = |id: &str, tmux_unread| Sample {
+            id: id.into(),
+            target: "s:0.0".into(),
+            output: String::new(),
+            running: false,
+            tmux_unread,
+        };
+        assert!(service.observe_tmux_unread(&[sample("1:%1", Some(true)), sample("1:%2", None)]));
+        assert!(!service.observe_tmux_unread(&[sample("1:%1", Some(true)), sample("1:%2", None)]));
+        assert_eq!(
+            *service.tmux_unread.lock().unwrap(),
+            BTreeMap::from([("1:%1".to_string(), true)])
+        );
+        // Viewing the window in tmux clears the flag.
+        assert!(service.observe_tmux_unread(&[sample("1:%1", Some(false))]));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[tokio::test]
     async fn missing_or_invalid_credentials_cannot_read_or_acknowledge() {
         let dir = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());

@@ -48,6 +48,7 @@ struct PermissionWidgetView: View {
     let entry: PermissionEntry
     @Environment(\.widgetFamily) private var family
     private var snapshot: PermissionWidgetSnapshot { entry.snapshot }
+    private var running: Int { snapshot.runningPanes?.count ?? 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -81,6 +82,13 @@ struct PermissionWidgetView: View {
                 } else {
                     Text("Unread panes: —").font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            if running > 0 {
+                Label("\(running) running", systemImage: "circle.fill")
+                    .font(.caption.weight(.medium))
+                    .imageScale(.small)
+                    .foregroundStyle(.purple)
+                    .lineLimit(1)
             }
             Group {
                 if snapshot.updatedAt == nil {

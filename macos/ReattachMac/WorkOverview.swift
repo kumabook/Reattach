@@ -230,6 +230,15 @@ enum WorkInitialSelection {
     }
 }
 
+struct AgentRunningBadge: View {
+    var body: some View {
+        Label(String(localized: "Agent running"), systemImage: "circle.fill")
+            .font(.caption2.weight(.semibold)).foregroundStyle(.purple)
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(.purple.opacity(0.12), in: Capsule()).fixedSize()
+    }
+}
+
 struct WorkPaneObservation {
     let firstSeen: Date
     var lastChangeDetected: Date?
@@ -360,9 +369,8 @@ final class WorkOverviewStore {
         guard matches(connection), let entry = activity[target], entry.unread else { return }
         do {
             _ = try await connection.request(["activity", "read"], method: "POST", body: ["target": target, "revision": entry.revision])
-            guard matches(connection), activity[target]?.revision == entry.revision else { return }
-            activity[target]?.unread = false
-            observations[target]?.unread = false
+            // Windows monitored by tmux stay unread until viewed there; ask reattachd instead of assuming.
+            await refreshActivity(connection: connection)
         } catch { /* Leave unread if output changed during review or the receipt could not be saved. */ }
     }
 
@@ -614,7 +622,7 @@ struct WorkOverviewView: View {
     private func paneTile(_ pane: Pane) -> some View {
         let selected = model.selected == pane.target
         let pending = waiting.contains(pane.target)
-        let unread = model.observations[pane.target]?.unread == true
+        let unread = model.observations[pane.target]?.unread == true && model.activity[pane.target]?.agent?.phase != .running
         return Button { model.selected = pane.target; searching = false; overviewFocused = true } label: {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -636,11 +644,9 @@ struct WorkOverviewView: View {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 8) {
                             Text(pane.target).font(.caption2.monospaced()).foregroundStyle(.secondary)
-                            if pending { pendingBadge }
-                            else if unread { newOutputBadge }
+                            statusBadge(pending: pending, unread: unread, target: pane.target)
                         }
-                        if pending { pendingBadge }
-                        else if unread { newOutputBadge }
+                        statusBadge(pending: pending, unread: unread, target: pane.target)
                         Text(pane.target).font(.caption2.monospaced()).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
@@ -706,6 +712,12 @@ struct WorkOverviewView: View {
             .lineLimit(compact ? 1 : nil)
             .help(String(localized: "Observation times during this app run, not pane creation times. Output changes are detected only while All Work is open."))
         }
+    }
+
+    @ViewBuilder private func statusBadge(pending: Bool, unread: Bool, target: String) -> some View {
+        if pending { pendingBadge }
+        else if model.activity[target]?.agent?.phase == .running { AgentRunningBadge() }
+        else if unread { newOutputBadge }
     }
 
     private var newOutputBadge: some View {
@@ -1086,14 +1098,16 @@ struct UnifiedWorkPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 16)], spacing: 16) {
             ForEach(items, id: \.self) { target in
                 let pending = waiting.contains(target)
-                let unread = model.observations[target]?.unread == true
+                let unread = model.observations[target]?.unread == true && model.activity[target]?.agent?.phase != .running
                 Button { model.selected = target; searching = false; keyboardFocused = true } label: {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: pending ? "hand.raised.fill" : "terminal").foregroundStyle(pending ? .orange : .secondary)
                             Text(title(target)).font(.headline).lineLimit(1)
                             Spacer()
-                            if unread {
+                            if !pending, model.activity[target]?.agent?.phase == .running {
+                                AgentRunningBadge()
+                            } else if unread {
                                 Image(systemName: "circle.fill")
                                     .font(.system(size: 8)).foregroundStyle(.blue)
                                     .help(String(localized: "New output"))

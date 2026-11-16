@@ -11,8 +11,9 @@ final class PaneActivityStore {
     private var viewingReady = false
     private var configurations: [ServerConfig] = []
 
-    func unreadTargets(serverID: String?) -> Set<String> {
-        Set(byServer[serverID ?? "", default: []].filter(\.unread).map(\.target))
+    func statuses(serverID: String?) -> [String: PaneStatus] {
+        Dictionary(byServer[serverID ?? "", default: []].map { ($0.target, PaneStatus($0)) },
+                   uniquingKeysWith: { first, _ in first })
     }
 
     func refresh(servers: [ServerConfig]) async {
@@ -63,7 +64,10 @@ final class PaneActivityStore {
 
     private func publish(_ server: ServerConfig) {
         guard configurations.contains(server) else { return }
-        PermissionWidgetStore.publishActivity(targets: byServer[server.id]?.filter(\.unread).map(\.target),
+        let entries = byServer[server.id]
+        // A running agent keeps producing output; count it as running, not unread.
+        PermissionWidgetStore.publishActivity(targets: entries?.filter { $0.unread && $0.agent?.phase != .running }.map(\.target),
+            running: entries?.filter { $0.agent?.phase == .running }.map(\.target),
             unavailable: unavailable.contains(server.id), for: PermissionWidgetBridge.connection(server))
     }
 }

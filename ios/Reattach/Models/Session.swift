@@ -213,4 +213,26 @@ struct PaneActivity: Codable, Equatable, Sendable {
     let target: String
     let revision: String
     var unread: Bool
+    var agent: AgentActivity? = nil
+}
+
+/// Coding-agent turn state reported by reattachd's lifecycle hooks.
+struct AgentActivity: Codable, Equatable, Sendable {
+    enum Phase: String { case running, done, interrupted }
+    let state: String
+    let since: Int64
+    var phase: Phase? { Phase(rawValue: state) }
+}
+
+/// Ordered by how much attention a pane needs; a window shows its highest pane.
+enum PaneStatus: Int, Comparable, Sendable {
+    case none, unread, running
+
+    init(_ activity: PaneActivity?) {
+        guard let activity else { self = .none; return }
+        if activity.agent?.phase == .running { self = .running }
+        else { self = activity.unread ? .unread : .none }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }

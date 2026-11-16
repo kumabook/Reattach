@@ -25,11 +25,19 @@ Normal notification registration also follows the app's signed provisioning prof
 ## Unread activity and notification preferences
 
 Blue indicators and the widget count represent panes with output that has not been
-confirmed on this device. Permission requests remain orange. The daemon persists
-read receipts per paired device; notification delivery does not determine read state.
-The app acknowledges the displayed revision so an older acknowledgement cannot clear
-newer output. Each configured server must support `GET /activity` and
-`POST /activity/read` (authenticated even in open mode).
+seen. Permission requests remain orange. When tmux's `monitor-activity` option is on
+for a window, its activity flag is the unread state, so the app matches the tmux status
+line: viewing the window in tmux (or opening it in the app with synchronized selection)
+clears it. Unread is per window in this case. For windows without `monitor-activity`,
+the daemon persists read receipts per paired device and the app acknowledges the
+displayed revision so an older acknowledgement cannot clear newer output. Each
+configured server must support `GET /activity` and `POST /activity/read`
+(authenticated even in open mode).
+
+A pulsing purple dot marks a pane whose coding agent is working. reattachd detects
+this from the screen: Claude Code or Codex in the foreground showing "esc to
+interrupt" near the bottom. No hooks are required. Running panes are not counted as
+unread; the widget shows them as a separate running count.
 
 App Settings offers all notifications, permission requests only, or off. This preference
 applies to all configured servers for this device and to both APNs environments.
