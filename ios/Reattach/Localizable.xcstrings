@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Open permission requests automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open permission requests automatically"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい許可待ちを自動で開く"
+          }
+        }
+      }
+    },
+    "Permission Requests": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission Requests"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ち"
+          }
+        }
+      }
+    },
+    "While using Reattach, new requests open the inbox automatically. After you close it, the same requests will not reopen it. Presentation waits while typing or changing settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While using Reattach, new requests open the inbox automatically. After you close it, the same requests will not reopen it. Presentation waits while typing or changing settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattachの使用中に新しい許可待ちが届くと、一覧を自動で開きます。一度閉じた同じ依頼では開き直しません。文字入力中や設定中は表示を待ちます。"
+          }
+        }
+      }
+    },
     "Servers": {
       "extractionState": "manual",
       "localizations": {
@@ -2042,14 +2093,7 @@
       }
     },
     "Server Settings": {
-      "extractionState": "manual",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Server Settings"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2888,20 +2932,50 @@
     },
     "Server response is slow…": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Server response is slow…" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "サーバーの応答が遅れています…" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server response is slow…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーの応答が遅れています…"
+          }
+        }
       }
     },
     "Display Mode": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Display Mode" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "表示方法" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Mode"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示方法"
+          }
+        }
       }
     },
     "Match tmux Layout": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Match tmux Layout" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "tmuxの配置に合わせる" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match tmux Layout"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tmuxの配置に合わせる"
+          }
+        }
       }
     },
     "Window Layout": {
@@ -3106,8 +3180,18 @@
     "Other Controls": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Other Controls" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "その他の操作" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other Controls"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他の操作"
+          }
+        }
       }
     },
     "Previous Request": {
@@ -3259,6 +3343,256 @@
           "stringUnit": {
             "state": "translated",
             "value": "上下に分割"
+          }
+        }
+      }
+    },
+    "App Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリ設定"
+          }
+        }
+      }
+    },
+    "Applies to all servers on this device. While using Reattach, new requests open the inbox automatically. Requests you dismiss stay dismissed.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末のすべてのサーバーに適用します。アプリ使用中に新しい許可待ちが届くと一覧を開きます。一度閉じた依頼では開き直しません。"
+          }
+        }
+      }
+    },
+    "Some servers could not be updated": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のサーバーを更新できませんでした"
+          }
+        }
+      }
+    },
+    "Showing last known requests. Open Server Settings to check the connection.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最後に取得した依頼を表示しています。接続はサーバー設定で確認できます。"
+          }
+        }
+      }
+    },
+    "Unable to check all servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバーを確認できません"
+          }
+        }
+      }
+    },
+    "All Servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバー"
+          }
+        }
+      }
+    },
+    "Unable to update servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを更新できません"
+          }
+        }
+      }
+    },
+    "Add a server in the app.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリでサーバーを追加してください。"
+          }
+        }
+      }
+    },
+    "See requests from all your servers. Tap to review them in Reattach.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバーの許可待ちを表示します。タップしてReattachで確認できます。"
+          }
+        }
+      }
+    },
+    "All notifications": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All notifications"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべての通知"
+          }
+        }
+      }
+    },
+    "Permission requests only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission requests only"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ちのみ"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフ"
+          }
+        }
+      }
+    },
+    "Push notifications": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Push notifications"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プッシュ通知"
+          }
+        }
+      }
+    },
+    "Notifications": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        }
+      }
+    },
+    "Close when no requests remain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close when no requests remain"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ちがなくなったら閉じる"
+          }
+        }
+      }
+    },
+    "Notification settings could not be applied to all servers. They will be retried when the app opens.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification settings could not be applied to all servers. They will be retried when the app opens."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のサーバーに通知設定を反映できませんでした。アプリを開いたときに再試行します。"
+          }
+        }
+      }
+    },
+    "Applies to all servers on this device. Unread indicators and widgets update independently of push notification settings. Servers must run the latest reattachd.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to all servers on this device. Unread indicators and widgets update independently of push notification settings. Servers must run the latest reattachd."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末のすべてのサーバーに適用します。未読表示とウィジェットはプッシュ通知の設定にかかわらず更新されます。サーバーには最新のreattachdが必要です。"
+          }
+        }
+      }
+    },
+    "Allow notifications in iOS Settings, then reopen Reattach.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow notifications in iOS Settings, then reopen Reattach."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOSの設定で通知を許可し、Reattachを開き直してください。"
+          }
+        }
+      }
+    },
+    "Update reattachd to apply notification settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update reattachd to apply notification settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知設定を反映するにはreattachdを更新してください。"
           }
         }
       }

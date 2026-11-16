@@ -103,25 +103,33 @@ struct SessionListView: View {
     @State private var pendingNavigationID: UUID?
     private let paneSelectionStore = PaneSelectionStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var unreadPaneKeys: Set<String> = []
+    @State private var paneActivity = PaneActivityStore.shared
 
     private var unreadPanes: Set<String> {
-        guard let deviceId = ServerConfigManager.shared.activeServer?.deviceId else {
-            return []
-        }
-        let prefix = "\(deviceId):"
-        return Set(unreadPaneKeys.compactMap { key in
-            key.hasPrefix(prefix) ? String(key.dropFirst(prefix.count)) : nil
-        })
+        paneActivity.unreadTargets(serverID: ServerConfigManager.shared.activeServer?.id)
     }
     @State private var showPermissionInbox = false
+    @AppStorage("autoOpenPermissionInbox") private var autoOpenPermissionInbox = false
+    @State private var automaticInbox = PermissionInboxAutoPresentation()
+    @State private var keyboardVisible = false
     @State private var showServerList = false
     @State private var showServerSettings = false
     @State private var configManager = ServerConfigManager.shared
     @State private var paneToDelete: Pane?
 
+    private var hasPresentedModal: Bool {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else { return false }
+        func hasPresentation(_ controller: UIViewController) -> Bool {
+            controller.presentedViewController != nil || controller.children.contains(where: hasPresentation)
+        }
+        return hasPresentation(root)
+    }
+
     var body: some View {
         adaptiveLayout
+        .environment(\.terminalKeyboardFocusAllowed, !showPermissionInbox)
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
                 Button(String(localized: "New Session"), systemImage: "plus.rectangle.on.folder") {
@@ -148,16 +156,14 @@ struct SessionListView: View {
             }
         }
         .fullScreenCover(isPresented: $showPermissionInbox) {
-            PermissionInboxView(sessions: viewModel.sessions) { target in
+            PermissionInboxView(sessions: viewModel.sessions) { entry in
                 showPermissionInbox = false
-                Task {
-                    let serverID = configManager.activeServer?.id
-                    await viewModel.loadSessions()
-                    guard configManager.activeServer?.id == serverID else { return }
-                    navigateToPaneWithTarget(target)
-                }
+                if let serverID = entry.serverID {
+                    navigateToPaneWithKey("\(serverID):\(entry.target)")
+                } else { navigateToPaneWithTarget(entry.target) }
             }
         }
+
         .sheet(isPresented: $showServerList) {
             ServerListView()
         }
@@ -175,26 +181,26 @@ struct SessionListView: View {
         }
         .task {
             await loadAndRestorePane()
-            unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
         }
-        .task(id: "\(configManager.activeServer?.id ?? "none")|\(scenePhase == .active)|\(configManager.isDemoMode)") {
+        .task(id: PermissionPollingIdentity(servers: configManager.servers, active: scenePhase == .active, demo: configManager.isDemoMode)) {
             guard scenePhase == .active else { return }
-            let serverID = configManager.activeServer?.id
-            permissionStatus.reset(serverID: serverID)
+            let servers = configManager.servers
+            if configManager.isDemoMode { permissionStatus.reset(serverID: nil) }
+            else { permissionStatus.configure(servers: servers) }
             while !Task.isCancelled {
-                if scenePhase == .active, !configManager.isDemoMode || PermissionStatus.usesUITestFixture {
-                    do {
-                        let entries = try await ReattachAPI.shared.permissionAttention()
-                        guard !Task.isCancelled else { return }
-                        permissionStatus.update(entries, serverID: serverID)
-                    } catch {
-                        guard !Task.isCancelled else { return }
-                        permissionStatus.update([], serverID: serverID)
-                    }
+                if configManager.isDemoMode {
+                    let entries = (try? await ReattachAPI.shared.permissionAttention()) ?? []
+                    guard !Task.isCancelled else { return }
+                    permissionStatus.update(entries, serverID: nil)
+                } else {
+                    await permissionStatus.refreshAll(servers: servers)
                 }
+                guard !Task.isCancelled else { return }
+                presentPermissionInboxIfNeeded()
                 do { try await Task.sleep(for: .seconds(3)) } catch { return }
             }
         }
+        .onChange(of: permissionStatus.entries) { _, _ in presentPermissionInboxIfNeeded() }
         .task(id: "list|\(configManager.activeServer?.id ?? "none")|\(scenePhase == .active)|\(configManager.isDemoMode)") {
             guard scenePhase == .active, !configManager.isDemoMode else { return }
             await viewModel.observeSessionChanges()
@@ -217,8 +223,11 @@ struct SessionListView: View {
                   let paneTarget = notification.userInfo?["paneTarget"] as? String else { return }
             navigateToPaneWithKey("\(deviceId):\(paneTarget)")
         }
-        .onReceive(NotificationCenter.default.publisher(for: .unreadPanesChanged)) { _ in
-            unreadPaneKeys = AppDelegate.shared?.unreadPanes ?? []
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .authenticationRestored)) { _ in
             Task {
@@ -291,8 +300,13 @@ struct SessionListView: View {
                         ToolbarItem(placement: .topBarTrailing) { permissionMenu }
                     }
                     .onAppear {
-                        if let deviceId = ServerConfigManager.shared.activeServer?.deviceId {
-                            AppDelegate.shared?.markPaneAsRead(deviceId: deviceId, paneTarget: selected.pane.target)
+                        if let server = ServerConfigManager.shared.activeServer {
+                            paneActivity.beginViewing(server: server, target: selected.pane.target)
+                        }
+                    }
+                    .onDisappear {
+                        if let serverID = paneActivity.viewingServer {
+                            paneActivity.endViewing(serverID: serverID, target: selected.pane.target)
                         }
                     }
             } else {
@@ -389,7 +403,8 @@ struct SessionListView: View {
             }
             .listStyle(.sidebar)
             .refreshable {
-                await loadAndRestorePane()
+                // Refreshing the list must not reopen the last visited pane.
+                await viewModel.loadSessions()
             }
             .confirmationDialog(
                 String(localized: "Delete Pane"),
@@ -479,12 +494,29 @@ struct SessionListView: View {
         }
     }
 
+    private func presentPermissionInboxIfNeeded() {
+        guard scenePhase == .active else { return }
+        let blocked = showingCreateSheet || isCreatingWindow || showingWindowDestinations
+            || showServerList || showServerSettings || paneToDelete != nil
+            || viewModel.showError || pendingNavigationID != nil || keyboardVisible || hasPresentedModal
+        if PermissionWidgetRoute.shared.pending, !blocked {
+            PermissionWidgetRoute.shared.pending = false
+            showPermissionInbox = true
+        } else if automaticInbox.update(entries: permissionStatus.entries, serverID: "all",
+                                        enabled: autoOpenPermissionInbox,
+                                        visible: showPermissionInbox, blocked: blocked) {
+            showPermissionInbox = true
+        }
+    }
+
     private var serverListButton: some View {
         Button {
             showServerList = true
         } label: {
-            Image(systemName: "list.bullet")
+            Label(String(localized: "Servers"), systemImage: "list.bullet")
+                .labelStyle(.iconOnly)
         }
+        .accessibilityIdentifier("serverList")
     }
 
     private var currentServerName: String {
@@ -502,8 +534,10 @@ struct SessionListView: View {
             Button {
                 showServerSettings = true
             } label: {
-                Image(systemName: "gearshape")
+                Label(String(localized: "Server Settings"), systemImage: "server.rack")
+                    .labelStyle(.iconOnly)
             }
+            .accessibilityIdentifier("currentServerSettings")
         }
     }
 }
@@ -691,7 +725,7 @@ struct WindowLabel: View {
             if isUnread {
                 Spacer()
                 Circle()
-                    .fill(.orange)
+                    .fill(.blue)
                     .frame(width: 10, height: 10)
             }
         }
@@ -727,7 +761,7 @@ struct PaneRow: View {
             Spacer()
             if isUnread {
                 Circle()
-                    .fill(.orange)
+                    .fill(.blue)
                     .frame(width: 10, height: 10)
             }
             if pane.active {
@@ -877,4 +911,10 @@ class SessionListViewModel {
 
 #Preview {
     SessionListView()
+}
+
+private struct PermissionPollingIdentity: Equatable {
+    let servers: [ServerConfig]
+    let active: Bool
+    let demo: Bool
 }

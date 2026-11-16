@@ -1,0 +1,208 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Pending Requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ち"
+          }
+        }
+      }
+    },
+    "Open Reattach to update": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattachを開いて更新"
+          }
+        }
+      }
+    },
+    "Select a server in the app.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリでサーバーを選択してください。"
+          }
+        }
+      }
+    },
+    "Not updated": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未更新"
+          }
+        }
+      }
+    },
+    "Open permission requests in Reattach": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattachで許可待ちを開く"
+          }
+        }
+      }
+    },
+    "No pending requests at last update": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最終更新時の許可待ちはありません"
+          }
+        }
+      }
+    },
+    "See requests from your selected server. Tap to review them in Reattach.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択中のサーバーの許可待ちを表示します。タップしてReattachで確認できます。"
+          }
+        }
+      }
+    },
+    "App Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリ設定"
+          }
+        }
+      }
+    },
+    "Server Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー設定"
+          }
+        }
+      }
+    },
+    "Applies to all servers on this device. While using Reattach, new requests open the inbox automatically. Requests you dismiss stay dismissed.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末のすべてのサーバーに適用します。アプリ使用中に新しい許可待ちが届くと一覧を開きます。一度閉じた依頼では開き直しません。"
+          }
+        }
+      }
+    },
+    "Some servers could not be updated": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のサーバーを更新できませんでした"
+          }
+        }
+      }
+    },
+    "Showing last known requests. Open Server Settings to check the connection.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最後に取得した依頼を表示しています。接続はサーバー設定で確認できます。"
+          }
+        }
+      }
+    },
+    "Unable to check all servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバーを確認できません"
+          }
+        }
+      }
+    },
+    "All Servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバー"
+          }
+        }
+      }
+    },
+    "Unable to update servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを更新できません"
+          }
+        }
+      }
+    },
+    "Add a server in the app.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリでサーバーを追加してください。"
+          }
+        }
+      }
+    },
+    "See requests from all your servers. Tap to review them in Reattach.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのサーバーの許可待ちを表示します。タップしてReattachで確認できます。"
+          }
+        }
+      }
+    },
+    "Unread count unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread count unavailable"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未読件数を取得できません"
+          }
+        }
+      }
+    },
+    "%lld unread panes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld unread panes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未読 %lld ペイン"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

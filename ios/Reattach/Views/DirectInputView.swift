@@ -6,6 +6,17 @@
 import SwiftUI
 import UIKit
 
+private struct TerminalKeyboardFocusAllowedKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var terminalKeyboardFocusAllowed: Bool {
+        get { self[TerminalKeyboardFocusAllowedKey.self] }
+        set { self[TerminalKeyboardFocusAllowedKey.self] = newValue }
+    }
+}
+
 struct DirectInputView: View {
     var isConnected = true
     let onText: (String) -> Void
@@ -126,6 +137,7 @@ struct DirectInputView: View {
 // A regular editor owns the IME transaction. Return only edits the draft;
 // sending requires the send button or the explicit Command-Return shortcut.
 struct DirectInputDraftEditor: UIViewRepresentable {
+    @Environment(\.terminalKeyboardFocusAllowed) private var keyboardFocusAllowed
     @Binding var text: String
     var onSendAndEnter: (String) -> Bool = { _ in false }
     var keyboardFocusRequest: UUID? = nil
@@ -136,6 +148,7 @@ struct DirectInputDraftEditor: UIViewRepresentable {
 
     func makeUIView(context: Context) -> DirectInputDraftTextView {
         let view = DirectInputDraftTextView()
+        view.keyboardFocusAllowed = keyboardFocusAllowed
         view.onSendAndEnter = onSendAndEnter
         view.delegate = context.coordinator
         view.text = text
@@ -149,6 +162,7 @@ struct DirectInputDraftEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ view: DirectInputDraftTextView, context: Context) {
+        view.keyboardFocusAllowed = keyboardFocusAllowed
         view.onSendAndEnter = onSendAndEnter
         if let request = keyboardFocusRequest, context.coordinator.lastFocusRequest != request {
             context.coordinator.lastFocusRequest = request
@@ -185,6 +199,11 @@ struct DirectInputDraftEditor: UIViewRepresentable {
 }
 
 final class DirectInputDraftTextView: UITextView {
+    var keyboardFocusAllowed = true {
+        didSet { if !keyboardFocusAllowed && isFirstResponder { resignFirstResponder() } }
+    }
+    override var canBecomeFirstResponder: Bool { keyboardFocusAllowed && super.canBecomeFirstResponder }
+
     var onSendAndEnter: ((String) -> Bool)?
 
     override var keyCommands: [UIKeyCommand]? {
@@ -202,6 +221,7 @@ final class DirectInputDraftTextView: UITextView {
 }
 
 struct DirectInputTextViewRepresentable: UIViewRepresentable {
+    @Environment(\.terminalKeyboardFocusAllowed) private var keyboardFocusAllowed
     let onText: (String) -> Void
     let onKey: (_ key: String, _ modifiers: [String]) -> Void
     let onCompositionChanged: (Bool) -> Void
@@ -218,6 +238,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TerminalInputTextView {
         let textView = TerminalInputTextView()
+        textView.keyboardFocusAllowed = keyboardFocusAllowed
         textView.delegate = context.coordinator
         textView.onKey = { [weak coordinator = context.coordinator, weak textView] key, modifiers in
             guard let textView else { return }
@@ -247,6 +268,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: TerminalInputTextView, context: Context) {
+        textView.keyboardFocusAllowed = keyboardFocusAllowed
         let wasEnabled = textView.isEditable
         textView.isEditable = isInputEnabled
         if isInputEnabled && !wasEnabled { textView.requestKeyboardFocus() }
@@ -422,8 +444,18 @@ final class TerminalInputTextView: UITextView {
     var onCompositionEnded: (() -> Void)?
 
     private var pendingKeyboardFocus = false
+    var keyboardFocusAllowed = true {
+        didSet {
+            if !keyboardFocusAllowed {
+                pendingKeyboardFocus = false
+                if isFirstResponder { resignFirstResponder() }
+            }
+        }
+    }
+    override var canBecomeFirstResponder: Bool { keyboardFocusAllowed && super.canBecomeFirstResponder }
 
     func requestKeyboardFocus() {
+        guard keyboardFocusAllowed else { return }
         pendingKeyboardFocus = true
         acquirePendingKeyboardFocus()
     }
@@ -435,7 +467,7 @@ final class TerminalInputTextView: UITextView {
 
     private func acquirePendingKeyboardFocus() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.pendingKeyboardFocus, self.window != nil, self.isEditable else { return }
+            guard let self, self.keyboardFocusAllowed, self.pendingKeyboardFocus, self.window != nil, self.isEditable else { return }
             if self.becomeFirstResponder() { self.pendingKeyboardFocus = false }
         }
     }

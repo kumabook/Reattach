@@ -50,20 +50,21 @@ class ReattachAPI {
     var isAuthenticated: Bool = false
     var authErrorType: AuthErrorType?
 
-    var baseURL: String {
-        ServerConfigManager.shared.activeServer?.serverURL ?? ""
-    }
+    private let configuredServer: ServerConfig?
+    private var server: ServerConfig? { configuredServer ?? ServerConfigManager.shared.activeServer }
+
+    var baseURL: String { server?.serverURL ?? "" }
 
     var deviceToken: String? {
-        ServerConfigManager.shared.activeServer?.deviceToken
+        server?.deviceToken
     }
 
     var cfAccessClientId: String? {
-        ServerConfigManager.shared.activeServer?.cfAccessClientId
+        server?.cfAccessClientId
     }
 
     var cfAccessClientSecret: String? {
-        ServerConfigManager.shared.activeServer?.cfAccessClientSecret
+        server?.cfAccessClientSecret
     }
 
     var isConfigured: Bool {
@@ -71,7 +72,7 @@ class ReattachAPI {
     }
 
     var isDemoMode: Bool {
-        ServerConfigManager.shared.isDemoMode
+        configuredServer == nil && ServerConfigManager.shared.isDemoMode
     }
 
     private let session: URLSession
@@ -86,12 +87,17 @@ class ReattachAPI {
         #endif
     }
 
-    init() {
+    init(server: ServerConfig? = nil, session: URLSession? = nil) {
+        configuredServer = server
         let config = URLSessionConfiguration.default
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         config.httpCookieStorage = .shared
-        self.session = URLSession(configuration: config)
+        if server != nil {
+            config.timeoutIntervalForRequest = 8
+            config.timeoutIntervalForResource = 12
+        }
+        self.session = session ?? URLSession(configuration: config)
     }
 
     func clearAuthError() {
@@ -265,21 +271,29 @@ class ReattachAPI {
         _ = try await request(path: "/panes/\(encodedTarget)", method: "DELETE")
     }
 
-    func registerDevice(token: String, sandbox: Bool, deviceId: String, serverName: String) async throws {
-        let body = RegisterDeviceRequest(token: token, sandbox: sandbox, deviceId: deviceId, serverName: serverName)
-        _ = try await request(path: "/devices", method: "POST", body: body)
+    func paneActivity() async throws -> [PaneActivity] {
+        try JSONDecoder().decode([PaneActivity].self, from: await request(path: "/activity", method: "GET"))
+    }
+
+    func markActivityRead(_ entry: PaneActivity) async throws {
+        _ = try await request(path: "/activity/read", method: "POST", body: ["target": entry.target, "revision": entry.revision])
+    }
+
+    func registerDevice(token: String, sandbox: Bool, deviceId: String, serverName: String, notificationMode: String? = nil) async throws {
+        let body = RegisterDeviceRequest(token: token, sandbox: sandbox, deviceId: deviceId, serverName: serverName, notificationMode: notificationMode)
+        let data = try await request(path: "/devices", method: "POST", body: body)
+        if let notificationMode {
+            let response = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+            guard response?["notification_mode"] == notificationMode else {
+                throw APIError.serverError(String(localized: "Update reattachd to apply notification settings."))
+            }
+        }
     }
 
     func registerAPNsDevice(token: String) async throws {
-        guard let server = ServerConfigManager.shared.activeServer else {
-            return
-        }
-        #if DEBUG
-        let sandbox = true
-        #else
-        let sandbox = false
-        #endif
-        try await registerDevice(token: token, sandbox: sandbox, deviceId: server.deviceId, serverName: server.serverName)
+        guard let server else { return }
+        try await registerDevice(token: token, sandbox: PushNotificationEnvironment.currentSandbox,
+                                 deviceId: server.deviceId, serverName: server.serverName, notificationMode: PushNotificationPreference.current.rawValue)
     }
 
     private func request<T: Encodable>(path: String, method: String, body: T? = nil) async throws -> Data {

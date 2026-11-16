@@ -21,6 +21,56 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testGlobalSettingsAreSeparateFromServerDetails() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-autoOpenPermissionInbox", "NO",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let servers = app.buttons["serverList"]
+        XCTAssertTrue(servers.waitForExistence(timeout: 10))
+        servers.tap()
+        let settings = app.buttons["appSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.switches["autoOpenPermissionInbox"].exists)
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["App Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["autoOpenPermissionInbox"].exists)
+    }
+
+    @MainActor
+    func testPermissionInboxKeyboardOnlyAppearsForExplicitReply() throws {
+        for compose in ["YES", "NO"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                                   "-autoOpenPermissionInbox", "NO", "-direct_input_compose_enabled", compose,
+                                   "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+            app.launch()
+            let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+            XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+            inbox.tap()
+            let pane = app.buttons["myproject:0.0"]
+            XCTAssertTrue(pane.waitForExistence(timeout: 5))
+            pane.tap()
+            let introduction = app.buttons["Continue"]
+            if introduction.waitForExistence(timeout: 3) && introduction.isHittable { introduction.tap() }
+            XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+            inbox.tap()
+            let reply = app.textFields["permissionReply-myproject:0.0"]
+            XCTAssertTrue(reply.waitForExistence(timeout: 5))
+            let hidden = NSPredicate(format: "count == 0")
+            expectation(for: hidden, evaluatedWith: app.keyboards)
+            waitForExpectations(timeout: 5)
+            let unexpectedKeyboard = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count > 0"), object: app.keyboards)
+            unexpectedKeyboard.isInverted = true
+            wait(for: [unexpectedKeyboard], timeout: 3)
+            if !reply.isHittable { app.swipeUp() }
+            reply.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testNewWindowWithoutSelectedPane() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-window-create-ui-fixture",
@@ -37,10 +87,45 @@ final class ReattachUITests: XCTestCase {
     }
 
     @MainActor
+    func testPermissionInboxAutomaticallyOpensOnlyOnce() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-permission-choice-fixture", "-autoOpenPermissionInbox", "YES",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let close = app.buttons["closePermissionInbox-myproject:0.0"]
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        close.tap()
+        XCTAssertTrue(app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch.waitForExistence(timeout: 5))
+        let reopened = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: close)
+        reopened.isInverted = true
+        wait(for: [reopened], timeout: 5)
+    }
+
+    @MainActor
+    func testPermissionInboxAutomaticallyClosesWhenEmpty() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-permission-choice-fixture", "-permission-complete-fixture", "-autoClosePermissionInbox", "YES",
+                               "-autoOpenPermissionInbox", "NO", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15))
+        inbox.tap()
+        for target in ["myproject:0.0", "claude-demo:0.0"] {
+            let allow = app.buttons["permissionChoice-\(target)-1"]
+            XCTAssertTrue(allow.waitForExistence(timeout: 10))
+            allow.tap()
+        }
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["closeEmptyPermissionInbox"].exists)
+    }
+
+    @MainActor
     func testPermissionInboxCanCloseAfterAllReplies() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
-                               "-permission-choice-fixture", "-permission-complete-fixture",
+                               "-permission-choice-fixture", "-permission-complete-fixture", "-autoClosePermissionInbox", "NO",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
@@ -95,7 +180,7 @@ final class ReattachUITests: XCTestCase {
         let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 15))
         inbox.tap()
-        XCTAssertTrue(app.navigationBars["Pending Requests"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].waitForExistence(timeout: 5))
         let enter = app.buttons["permissionInboxEnter-myproject:0.0"]
         XCTAssertTrue(enter.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: enter)
@@ -107,7 +192,7 @@ final class ReattachUITests: XCTestCase {
         enter.tap()
         XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
         XCTAssertFalse(enter.isEnabled)
-        XCTAssertTrue(app.navigationBars["Pending Requests"].exists)
+        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].exists)
     }
 
     @MainActor
@@ -131,7 +216,7 @@ final class ReattachUITests: XCTestCase {
         deny.tap()
         XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
         XCTAssertFalse(allow.isEnabled)
-        XCTAssertTrue(app.navigationBars["Pending Requests"].exists)
+        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].exists)
     }
 
     @MainActor
@@ -204,6 +289,7 @@ final class ReattachUITests: XCTestCase {
     func testWindowLayoutSelectionAndRotation() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demo_mode", "YES", "-permission-ui-fixture",
+                               "-show_tmux_window_layout", "NO",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         let waiting = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
@@ -224,12 +310,16 @@ final class ReattachUITests: XCTestCase {
         openDisplayMenu()
         XCTAssertTrue(app.buttons["Selected Pane Only"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Match tmux Layout"].exists)
+        XCTAssertTrue(app.buttons["Selected Pane Only"].isSelected)
+        XCTAssertFalse(app.buttons["Match tmux Layout"].isSelected)
         XCTAssertFalse(app.buttons["splitPaneLeftRight"].exists)
         XCTAssertFalse(app.buttons["splitPaneTopBottom"].exists)
         app.buttons["Match tmux Layout"].tap()
         XCTAssertTrue(lowerRight.waitForExistence(timeout: 10))
         openDisplayMenu()
         XCTAssertTrue(app.buttons["splitPaneLeftRight"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Match tmux Layout"].isSelected)
+        XCTAssertFalse(app.buttons["Selected Pane Only"].isSelected)
         XCTAssertTrue(app.buttons["splitPaneTopBottom"].exists)
         app.buttons["Match tmux Layout"].tap()
         XCTAssertLessThan(left.frame.minX, upperRight.frame.minX)

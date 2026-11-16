@@ -7,7 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0111409A440A51CDCCDED382 /* PermissionWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554AB86800AFF361081148E5 /* PermissionWidgetData.swift */; };
+		4D11B35FA6235DB4C6207D82 /* ReattachWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA5CCA18E5B0CF9AAED816C /* ReattachWidgets.swift */; };
+		4E9FC2373170B40D40EF356C /* PermissionWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554AB86800AFF361081148E5 /* PermissionWidgetData.swift */; };
 		67BA10B52F24E24E00C2E0DD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67BA10B42F24E24E00C2E0DD /* StoreKit.framework */; };
+		7479A6D9701212EDBAF1F53A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ABFF76B9728C0C9E10C27771 /* Localizable.xcstrings */; };
+		769D3C0D9C78CDE21BE94E0A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D84CDDE5BF7572D0BA70E1CA /* PrivacyInfo.xcprivacy */; };
+		9E6D549C1BBB676F21032EC1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2229689DC107DFD83BE4E178 /* Foundation.framework */; };
+		C25790F00A58C5E3BCB1C920 /* ReattachWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DAA9A1B1112375A6CA33F74D /* ReattachWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,14 +32,43 @@
 			remoteGlobalIDString = 670759282EEDBDE1004D3434;
 			remoteInfo = Reattach;
 		};
+		AA9FBC60FD7F65920A67A0FA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 670759212EEDBDE1004D3434 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B2F71DE4E7D049774E19BEA0;
+			remoteInfo = ReattachWidgets;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		2B2087F29DD84C7068C9B35E /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C25790F00A58C5E3BCB1C920 /* ReattachWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		2229689DC107DFD83BE4E178 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		554AB86800AFF361081148E5 /* PermissionWidgetData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PermissionWidgetData.swift; sourceTree = "<group>"; };
+		5CA5CCA18E5B0CF9AAED816C /* ReattachWidgets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReattachWidgets.swift; sourceTree = "<group>"; };
 		670759292EEDBDE1004D3434 /* Reattach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reattach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		670759362EEDBDE3004D3434 /* ReattachTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReattachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		670759402EEDBDE3004D3434 /* ReattachUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReattachUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		670759602EEE6AD0004D3434 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		67BA10B42F24E24E00C2E0DD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		9555B221F00CD30D44FB6752 /* ReattachWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ReattachWidgets.entitlements; sourceTree = "<group>"; };
+		98AD6C8553BA190901F89221 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ABFF76B9728C0C9E10C27771 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		D84CDDE5BF7572D0BA70E1CA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		DAA9A1B1112375A6CA33F74D /* ReattachWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReattachWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,11 +92,15 @@
 		};
 		670759392EEDBDE3004D3434 /* ReattachTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ReattachTests;
 			sourceTree = "<group>";
 		};
 		670759432EEDBDE3004D3434 /* ReattachUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ReattachUITests;
 			sourceTree = "<group>";
 		};
@@ -89,9 +129,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9CD48F74CF35BAFF6F393B95 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9E6D549C1BBB676F21032EC1 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		29E776925E32E8B19797D983 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				2229689DC107DFD83BE4E178 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		2CC64EDF65DE246B3A755E3E /* WidgetShared */ = {
+			isa = PBXGroup;
+			children = (
+				554AB86800AFF361081148E5 /* PermissionWidgetData.swift */,
+			);
+			name = WidgetShared;
+			path = WidgetShared;
+			sourceTree = "<group>";
+		};
 		670759202EEDBDE1004D3434 = {
 			isa = PBXGroup;
 			children = (
@@ -101,6 +166,8 @@
 				6707592A2EEDBDE1004D3434 /* Products */,
 				67075A3D2EEED34C004D3434 /* Recovered References */,
 				67BA10B32F24E24E00C2E0DD /* Frameworks */,
+				D85D2978B2D5B13367622F26 /* ReattachWidgets */,
+				2CC64EDF65DE246B3A755E3E /* WidgetShared */,
 			);
 			sourceTree = "<group>";
 		};
@@ -110,6 +177,7 @@
 				670759292EEDBDE1004D3434 /* Reattach.app */,
 				670759362EEDBDE3004D3434 /* ReattachTests.xctest */,
 				670759402EEDBDE3004D3434 /* ReattachUITests.xctest */,
+				DAA9A1B1112375A6CA33F74D /* ReattachWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -126,8 +194,22 @@
 			isa = PBXGroup;
 			children = (
 				67BA10B42F24E24E00C2E0DD /* StoreKit.framework */,
+				29E776925E32E8B19797D983 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D85D2978B2D5B13367622F26 /* ReattachWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				5CA5CCA18E5B0CF9AAED816C /* ReattachWidgets.swift */,
+				ABFF76B9728C0C9E10C27771 /* Localizable.xcstrings */,
+				D84CDDE5BF7572D0BA70E1CA /* PrivacyInfo.xcprivacy */,
+				98AD6C8553BA190901F89221 /* Info.plist */,
+				9555B221F00CD30D44FB6752 /* ReattachWidgets.entitlements */,
+			);
+			name = ReattachWidgets;
+			path = ReattachWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,17 +222,17 @@
 				670759252EEDBDE1004D3434 /* Sources */,
 				670759262EEDBDE1004D3434 /* Frameworks */,
 				670759272EEDBDE1004D3434 /* Resources */,
+				2B2087F29DD84C7068C9B35E /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EC0AAC5E59BA5604FE4BB8E6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6707592B2EEDBDE1004D3434 /* Reattach */,
 			);
 			name = Reattach;
-			packageProductDependencies = (
-			);
 			productName = Reattach;
 			productReference = 670759292EEDBDE1004D3434 /* Reattach.app */;
 			productType = "com.apple.product-type.application";
@@ -172,8 +254,6 @@
 				670759392EEDBDE3004D3434 /* ReattachTests */,
 			);
 			name = ReattachTests;
-			packageProductDependencies = (
-			);
 			productName = ReattachTests;
 			productReference = 670759362EEDBDE3004D3434 /* ReattachTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -195,11 +275,26 @@
 				670759432EEDBDE3004D3434 /* ReattachUITests */,
 			);
 			name = ReattachUITests;
-			packageProductDependencies = (
-			);
 			productName = ReattachUITests;
 			productReference = 670759402EEDBDE3004D3434 /* ReattachUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		B2F71DE4E7D049774E19BEA0 /* ReattachWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F21DDBEF24652FE5002771A1 /* Build configuration list for PBXNativeTarget "ReattachWidgets" */;
+			buildPhases = (
+				2D92443ED9838A525A62AD99 /* Sources */,
+				9CD48F74CF35BAFF6F393B95 /* Frameworks */,
+				3F961F1D147DEB5391B9F41F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ReattachWidgets;
+			productName = ReattachWidgets;
+			productReference = DAA9A1B1112375A6CA33F74D /* ReattachWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -242,11 +337,21 @@
 				670759282EEDBDE1004D3434 /* Reattach */,
 				670759352EEDBDE3004D3434 /* ReattachTests */,
 				6707593F2EEDBDE3004D3434 /* ReattachUITests */,
+				B2F71DE4E7D049774E19BEA0 /* ReattachWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		3F961F1D147DEB5391B9F41F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7479A6D9701212EDBAF1F53A /* Localizable.xcstrings in Resources */,
+				769D3C0D9C78CDE21BE94E0A /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		670759272EEDBDE1004D3434 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -271,10 +376,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2D92443ED9838A525A62AD99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D11B35FA6235DB4C6207D82 /* ReattachWidgets.swift in Sources */,
+				4E9FC2373170B40D40EF356C /* PermissionWidgetData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		670759252EEDBDE1004D3434 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0111409A440A51CDCCDED382 /* PermissionWidgetData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -305,9 +420,64 @@
 			target = 670759282EEDBDE1004D3434 /* Reattach */;
 			targetProxy = 670759412EEDBDE3004D3434 /* PBXContainerItemProxy */;
 		};
+		EC0AAC5E59BA5604FE4BB8E6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = ReattachWidgets;
+			target = B2F71DE4E7D049774E19BEA0 /* ReattachWidgets */;
+			targetProxy = AA9FBC60FD7F65920A67A0FA /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		018436ADC33F314DB5FD511B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ReattachWidgets/ReattachWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 48;
+				DEVELOPMENT_TEAM = 7AK92UN63W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReattachWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Reattach;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4747639B33061C71BEEFA5A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ReattachWidgets/ReattachWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 48;
+				DEVELOPMENT_TEAM = 7AK92UN63W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReattachWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Reattach;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		670759482EEDBDE3004D3434 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -439,7 +609,7 @@
 				CODE_SIGN_ENTITLEMENTS = Reattach/ReattachDebug.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 48;
 				DEVELOPMENT_TEAM = 7AK92UN63W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -457,7 +627,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -481,7 +651,7 @@
 				CODE_SIGN_ENTITLEMENTS = Reattach/ReattachRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 48;
 				DEVELOPMENT_TEAM = 7AK92UN63W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -499,7 +669,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -634,6 +804,15 @@
 			buildConfigurations = (
 				670759512EEDBDE3004D3434 /* Debug */,
 				670759522EEDBDE3004D3434 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F21DDBEF24652FE5002771A1 /* Build configuration list for PBXNativeTarget "ReattachWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4747639B33061C71BEEFA5A5 /* Release */,
+				018436ADC33F314DB5FD511B /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

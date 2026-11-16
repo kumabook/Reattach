@@ -5,13 +5,20 @@ struct PermissionAttention: Decodable, Equatable, Identifiable {
     let target: String
     let tool: String
     let receivedAt: Int64
-    var id: String { target }
+    var serverID: String? = nil
+    var serverName: String? = nil
+    var title: String? = nil
+    var id: String { serverID.map { $0 + "|" + target } ?? target }
+    func isSameRequest(as other: Self) -> Bool {
+        target == other.target && tool == other.tool && receivedAt == other.receivedAt
+    }
     enum CodingKeys: String, CodingKey {
         case target, tool
         case receivedAt = "received_at"
     }
 }
 
+#if os(iOS)
 @MainActor
 @Observable
 class PermissionStatus {
@@ -36,10 +43,69 @@ class PermissionStatus {
     }
     private(set) var entries: [PermissionAttention] = []
     private var serverID: String?
+    private var configuredServers: [ServerConfig] = []
+    private var byServer: [String: [PermissionAttention]] = [:]
+    private(set) var unavailableServers: [String: String] = [:]
+
+    func configure(servers: [ServerConfig]) {
+        let unchanged = servers.filter { configuredServers.contains($0) }.map(\.id)
+        byServer = byServer.filter { unchanged.contains($0.key) }
+        unavailableServers = unavailableServers.filter { unchanged.contains($0.key) }
+        configuredServers = servers
+        rebuild()
+    }
+
+    private func rebuild() {
+        entries = configuredServers.flatMap { byServer[$0.id] ?? [] }
+            .sorted { $0.receivedAt == $1.receivedAt ? $0.id < $1.id : $0.receivedAt < $1.receivedAt }
+    }
+
+    func apply(_ requests: [PermissionAttention]?, server: ServerConfig, sessions: [Session] = []) {
+        guard configuredServers.contains(server) else { return }
+        if let requests {
+            let titles = Dictionary(sessions.flatMap(\.windows).flatMap { window in
+                window.panes.map { ($0.target, $0.shortPath.isEmpty ? window.name : $0.shortPath) }
+            }, uniquingKeysWith: { first, _ in first })
+            byServer[server.id] = requests.map {
+                var request = $0
+                request.serverID = server.id
+                request.serverName = server.serverName
+                request.title = titles[request.target] ?? byServer[server.id]?.first(where: { $0.target == request.target })?.title
+                return request
+            }
+            unavailableServers.removeValue(forKey: server.id)
+        } else { unavailableServers[server.id] = server.serverName }
+        rebuild()
+    }
+
+    func refreshAll(servers: [ServerConfig]) async {
+        async let activity: () = PaneActivityStore.shared.refresh(servers: servers)
+        await withTaskGroup(of: (ServerConfig, [PermissionAttention]?, [Session]).self) { group in
+            for server in servers {
+                group.addTask { @MainActor in
+                    let api = ReattachAPI(server: server)
+                    do {
+                        let requests = try await api.permissionAttention()
+                        let sessions = requests.isEmpty ? [] : (try? await api.listSessions()) ?? []
+                        return (server, requests, sessions)
+                    } catch { return (server, nil, []) }
+                }
+            }
+            for await (server, requests, sessions) in group {
+                guard !Task.isCancelled, configuredServers.contains(server) else { continue }
+                apply(requests, server: server, sessions: sessions)
+                if let requests { PermissionWidgetBridge.publish(entries: requests, sessions: sessions, serverID: server.id) }
+                else { PermissionWidgetBridge.failed(serverID: server.id) }
+            }
+        }
+        await activity
+    }
 
     func reset(serverID: String?) {
         self.serverID = serverID
         entries = []
+        byServer = [:]
+        unavailableServers = [:]
     }
 
     func update(_ entries: [PermissionAttention], serverID: String?) {
@@ -48,9 +114,11 @@ class PermissionStatus {
     }
 
     func isWaiting(_ target: String) -> Bool {
-        entries.contains { $0.target == target }
+        entries.contains { $0.target == target && ($0.serverID == nil || $0.serverID == ServerConfigManager.shared.activeServer?.id) }
     }
 }
+
+#endif
 
 /// Only offer numbered choices actually shown by a terminal selection menu.
 struct PermissionChoice: Equatable, Identifiable {
@@ -67,7 +135,8 @@ struct PermissionChoice: Equatable, Identifiable {
         var groups: [[Self]] = []
         var current: [Self] = []
         for line in text.components(separatedBy: .newlines).suffix(80) {
-            if line.trimmingCharacters(in: .whitespaces) == "Press enter to confirm or esc to cancel" {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == "Press enter to confirm or esc to cancel" || trimmed == "enter to submit | esc to cancel" {
                 break
             }
             let range = NSRange(line.startIndex..., in: line)
@@ -118,5 +187,24 @@ enum PermissionPaging {
         if let current, new.contains(current) { return current }
         let index = current.flatMap { old.firstIndex(of: $0) } ?? 0
         return new[min(index, new.count - 1)]
+    }
+}
+
+
+/// Only successful foreground polls update this state. Blocked presentations
+/// remain pending; requests seen while the inbox is open are already handled.
+struct PermissionInboxAutoPresentation {
+    private var observed: [String: [PermissionAttention]] = [:]
+
+    mutating func update(entries: [PermissionAttention], serverID: String?, enabled: Bool,
+                         visible: Bool, blocked: Bool) -> Bool {
+        let key = serverID ?? "demo"
+        guard !blocked || visible || !enabled else { return false }
+        let previous = observed[key] ?? []
+        let hasNewRequest = entries.contains { entry in
+            !previous.contains { $0.id == entry.id && $0.isSameRequest(as: entry) }
+        }
+        observed[key] = entries
+        return enabled && !visible && hasNewRequest
     }
 }

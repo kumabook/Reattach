@@ -51,11 +51,13 @@ class ServerConfigManager {
     func enableDemoMode() {
         isDemoMode = true
         userDefaults.set(true, forKey: demoModeKey)
+        PermissionWidgetBridge.synchronize(self)
     }
 
     func disableDemoMode() {
         isDemoMode = false
         userDefaults.removeObject(forKey: demoModeKey)
+        PermissionWidgetBridge.synchronize(self)
     }
 
     private let userDefaults = UserDefaults.standard
@@ -74,6 +76,7 @@ class ServerConfigManager {
         }
         self.activeServerId = userDefaults.string(forKey: activeServerKey)
         self.isDemoMode = userDefaults.bool(forKey: demoModeKey)
+        PermissionWidgetBridge.synchronize(self)
     }
 
     private func save() {
@@ -81,6 +84,7 @@ class ServerConfigManager {
             userDefaults.set(data, forKey: serversKey)
         }
         userDefaults.set(activeServerId, forKey: activeServerKey)
+        PermissionWidgetBridge.synchronize(self)
     }
 
     var canAddServer: Bool {
@@ -132,5 +136,6 @@ class ServerConfigManager {
         activeServerId = nil
         userDefaults.removeObject(forKey: serversKey)
         userDefaults.removeObject(forKey: activeServerKey)
+        PermissionWidgetBridge.synchronize(self)
     }
 }

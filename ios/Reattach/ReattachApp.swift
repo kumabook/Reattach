@@ -3,6 +3,7 @@
 //  Reattach
 //
 
+import CryptoKit
 import SwiftUI
 import UserNotifications
 
@@ -13,6 +14,7 @@ struct ReattachApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { PermissionWidgetRoute.shared.open($0) }
         }
     }
 }
@@ -69,28 +71,31 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         self.deviceToken = token
-        print("Device token: \(token)")
+        let fingerprint = SHA256.hash(data: deviceToken).prefix(6).map { String(format: "%02x", $0) }.joined()
+        print("APNs device token received (fingerprint: \(fingerprint), sandbox: \(PushNotificationEnvironment.currentSandbox))")
         registerDeviceTokenWithServer()
     }
 
     func registerDeviceTokenWithServer() {
-        guard let token = deviceToken else {
-            print("No device token available")
-            return
-        }
+        Task { _ = await synchronizeNotificationPreferences() }
+    }
 
-        guard ReattachAPI.shared.isConfigured else {
-            print("Server not configured, skipping APNs registration")
-            return
-        }
-
-        Task {
-            do {
-                try await ReattachAPI.shared.registerAPNsDevice(token: token)
-                print("APNs device registered successfully")
-            } catch {
-                print("Failed to register APNs device: \(error)")
+    func synchronizeNotificationPreferences() async -> [String] {
+        guard !ServerConfigManager.shared.isDemoMode else { return [] }
+        guard let token = deviceToken else { return [String(localized: "Allow notifications in iOS Settings, then reopen Reattach.")] }
+        let servers = ServerConfigManager.shared.servers
+        return await withTaskGroup(of: String?.self, returning: [String].self) { group in
+            for server in servers {
+                group.addTask { @MainActor in
+                    do {
+                        try await ReattachAPI(server: server).registerAPNsDevice(token: token)
+                        return nil
+                    } catch { return server.serverName }
+                }
             }
+            var failures: [String] = []
+            for await failure in group { if let failure { failures.append(failure) } }
+            return failures.sorted()
         }
     }
 

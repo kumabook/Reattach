@@ -2,6 +2,8 @@ import SwiftUI
 
 /// One request per screen; paging never submits a reply or selects a tmux pane.
 struct PermissionInboxView: View {
+    @AppStorage("autoClosePermissionInbox") private var autoClose = true
+    @State private var hadRequests = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var status = PermissionStatus.shared
@@ -11,18 +13,31 @@ struct PermissionInboxView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var previewFrames: [String: CGRect] = [:]
     let sessions: [Session]
-    let openPane: (String) -> Void
+    let openPane: (PermissionAttention) -> Void
 
-    private var targets: [String] { status.entries.map(\.target) }
+    private var targets: [String] { status.entries.map(\.id) }
     private var selectedIndex: Int { targets.firstIndex(of: selectedTarget ?? "") ?? 0 }
 
     var body: some View {
         ZStack {
             NavigationStack {
-                Group {
+                VStack(spacing: 0) {
+                    if !status.unavailableServers.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(String(localized: "Some servers could not be updated"), systemImage: "exclamationmark.triangle")
+                                .font(.subheadline.weight(.medium))
+                            Text(status.unavailableServers.values.sorted().joined(separator: ", "))
+                                .font(.caption)
+                            Text("Showing last known requests. Open Server Settings to check the connection.")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).background(.orange.opacity(0.12))
+                        .accessibilityIdentifier("permissionServerFailures")
+                    }
                     if status.entries.isEmpty {
-                        ContentUnavailableView(String(localized: "No Pending Requests"),
-                                               systemImage: "checkmark.circle")
+                        ContentUnavailableView(status.unavailableServers.isEmpty ? String(localized: "No Pending Requests") : String(localized: "Unable to check all servers"),
+                                               systemImage: status.unavailableServers.isEmpty ? "checkmark.circle" : "wifi.exclamationmark")
                             .overlay(alignment: .topLeading) {
                                 Button { dismiss() } label: {
                                     Image(systemName: "xmark")
@@ -43,12 +58,13 @@ struct PermissionInboxView: View {
                                     PermissionRequestCard(
                                         entry: entry,
                                         minimumHeight: max(0, geometry.size.height - 48),
-                                        title: PaneNavigationItem.matching(target: entry.target, in: sessions)?.windowName ?? entry.target,
-                                        isActive: entry.target == (selectedTarget ?? targets.first),
+                                        title: entry.title ?? (entry.serverID == nil || entry.serverID == config.activeServer?.id
+                                            ? PaneNavigationItem.matching(target: entry.target, in: sessions)?.windowName : nil) ?? entry.target,
+                                        isActive: entry.id == (selectedTarget ?? targets.first),
                                         openPane: openPane,
                                         close: { dismiss() },
                                         onDrag: { translation in
-                                            guard entry.target == selectedTarget, context == nil else { return }
+                                            guard entry.id == selectedTarget, context == nil else { return }
                                             let atEdge = (selectedIndex == 0 && translation > 0)
                                                 || (selectedIndex == targets.count - 1 && translation < 0)
                                             dragOffset = atEdge ? translation * 0.2 : translation
@@ -63,15 +79,15 @@ struct PermissionInboxView: View {
                                             dragOffset = 0
                                             context = PermissionContext(target: entry.target,
                                                                         output: TerminalTextRenderer.render(output).string.trimmingCharacters(in: .whitespacesAndNewlines),
-                                                                        origin: previewFrames[entry.target] ?? .zero)
+                                                                        origin: previewFrames[entry.id] ?? .zero)
                                             UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                                         }
                                     )
                                     .frame(width: max(0, geometry.size.width - 52), height: geometry.size.height)
-                                    .id("\(config.activeServer?.id ?? "demo")|\(entry.target)|\(entry.receivedAt)")
-                                    .offset(x: CGFloat((targets.firstIndex(of: entry.target) ?? 0) - selectedIndex) * (geometry.size.width - 40) + dragOffset)
-                                    .allowsHitTesting(entry.target == (selectedTarget ?? targets.first))
-                                    .accessibilityHidden(entry.target != (selectedTarget ?? targets.first))
+                                    .id("\(entry.id)|\(entry.receivedAt)")
+                                    .offset(x: CGFloat((targets.firstIndex(of: entry.id) ?? 0) - selectedIndex) * (geometry.size.width - 40) + dragOffset)
+                                    .allowsHitTesting(entry.id == (selectedTarget ?? targets.first))
+                                    .accessibilityHidden(entry.id != (selectedTarget ?? targets.first))
                                 }
                             }
                             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -108,12 +124,23 @@ struct PermissionInboxView: View {
         }
         .onPreferenceChange(PermissionPreviewFrames.self) { previewFrames = $0 }
         .accessibilityAction(.escape) { dismiss() }
-        .onAppear { selectedTarget = targets.first }
+        .onAppear {
+            hadRequests = !targets.isEmpty
+            selectedTarget = targets.first
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
         .onChange(of: targets) { old, new in
+            if !new.isEmpty { hadRequests = true }
             dragOffset = 0
             selectedTarget = PermissionPaging.selection(current: selectedTarget, old: old, new: new)
         }
-        .onChange(of: config.activeServer?.id) { _, _ in dismiss() }
+        .task(id: autoClose && hadRequests && targets.isEmpty && status.unavailableServers.isEmpty) {
+            guard autoClose, hadRequests, targets.isEmpty, status.unavailableServers.isEmpty else { return }
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard autoClose, targets.isEmpty, status.unavailableServers.isEmpty else { return }
+            dismiss()
+        }
+        .onChange(of: config.servers) { _, _ in dismiss() }
     }
 
     private var settleAnimation: Animation {
@@ -247,7 +274,7 @@ private struct PermissionRequestCard: View {
     let minimumHeight: CGFloat
     let title: String
     let isActive: Bool
-    let openPane: (String) -> Void
+    let openPane: (PermissionAttention) -> Void
     let close: () -> Void
     let onDrag: (CGFloat) -> Void
     let onDragEnd: (CGFloat, CGFloat) -> Void
@@ -263,8 +290,19 @@ private struct PermissionRequestCard: View {
     @State private var busy = false
     @State private var sent = false
     @State private var message: String?
-    @State private var serverID: String?
+    @State private var requestServer: ServerConfig?
+
+    private var serverIsCurrent: Bool {
+        if entry.serverID == nil { return ServerConfigManager.shared.isDemoMode }
+        guard let requestServer else { return false }
+        return ServerConfigManager.shared.servers.contains(requestServer)
+    }
+
+    private var requestAPI: ReattachAPI {
+        requestServer.map { ReattachAPI(server: $0) } ?? ReattachAPI.shared
+    }
     @State private var showManualReply = false
+    @FocusState private var replyFocused: Bool
     @State private var lastDragTime = -Double.infinity
 
     private var choices: [PermissionChoice] { detectedChoices }
@@ -290,9 +328,15 @@ private struct PermissionRequestCard: View {
                     .components(separatedBy: .newlines).suffix(14).joined(separator: "\n")
             } ?? ""
         }
+        .onChange(of: isActive) { _, active in
+            if !active { replyFocused = false }
+        }
+        .onChange(of: showManualReply) { _, expanded in
+            if !expanded { replyFocused = false }
+        }
         .task(id: isActive) {
             guard isActive, output == nil else { return }
-            serverID = ServerConfigManager.shared.activeServer?.id
+            requestServer = ServerConfigManager.shared.servers.first { $0.id == entry.serverID }
             await refresh()
         }
     }
@@ -306,22 +350,26 @@ private struct PermissionRequestCard: View {
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel(String(localized: "Close"))
-                    .accessibilityIdentifier("closePermissionInbox-\(entry.target)")
+                    .accessibilityIdentifier("closePermissionInbox-\(entry.id)")
                     .modifier(PermissionGlassControl())
                     Spacer()
                     Button {
-                        openPane(entry.target)
+                        openPane(entry)
                     } label: {
                         Image(systemName: "arrow.up.right.square")
                             .font(.system(size: 19, weight: .medium))
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel(String(localized: "Open Pane"))
-                    .accessibilityIdentifier(entry.target)
+                    .accessibilityIdentifier(entry.id)
                     .modifier(PermissionGlassControl())
                 }
                 .tint(.primary)
                 .buttonStyle(.plain)
+                if let serverName = entry.serverName {
+                    Label(serverName, systemImage: "server.rack")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Label(entry.tool.isEmpty ? String(localized: "Permission Required") : entry.tool,
@@ -365,7 +413,7 @@ private struct PermissionRequestCard: View {
                 .contentShape(RoundedRectangle(cornerRadius: 18))
                 .background(GeometryReader { proxy in
                     Color.clear.preference(key: PermissionPreviewFrames.self,
-                                           value: [entry.target: proxy.frame(in: .global)])
+                                           value: [entry.id: proxy.frame(in: .global)])
                 })
                 .scaleEffect(pressing && !dragging && !reduceMotion ? 0.975 : 1)
                 .animation(.easeOut(duration: 0.12), value: pressing)
@@ -373,7 +421,7 @@ private struct PermissionRequestCard: View {
                     if let output { showContext(output) }
                 })
                 .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("permissionPreview-\(entry.target)")
+                .accessibilityIdentifier("permissionPreview-\(entry.id)")
                 .accessibilityAction(named: String(localized: "Expand Pane Context")) {
                     if let output { showContext(output) }
                 }
@@ -399,7 +447,7 @@ private struct PermissionRequestCard: View {
                             .buttonStyle(.bordered)
                             .buttonBorderShape(.roundedRectangle(radius: 16))
                             .disabled(busy || sent)
-                            .accessibilityIdentifier("permissionChoice-\(entry.target)-\(choice.number)")
+                            .accessibilityIdentifier("permissionChoice-\(entry.id)-\(choice.number)")
                         }
                         if choices.isEmpty {
                             manualReply
@@ -440,15 +488,17 @@ private struct PermissionRequestCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button("Enter", systemImage: "return") { respond(escape: false) }
-                    .accessibilityIdentifier("permissionInboxEnter-\(entry.target)")
+                    .accessibilityIdentifier("permissionInboxEnter-\(entry.id)")
                 Button("Esc", systemImage: "escape") { respond(escape: true) }
-                    .accessibilityIdentifier("permissionInboxEscape-\(entry.target)")
+                    .accessibilityIdentifier("permissionInboxEscape-\(entry.id)")
                 Spacer()
             }
             .buttonStyle(.bordered)
             .disabled(busy || output == nil || sent)
             HStack {
                 TextField(String(localized: "Reply or option number"), text: $reply)
+                    .focused($replyFocused)
+                    .accessibilityIdentifier("permissionReply-\(entry.id)")
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)
@@ -466,8 +516,9 @@ private struct PermissionRequestCard: View {
         busy = true
         defer { busy = false }
         do {
-            let latest = try await ReattachAPI.shared.getOutput(target: entry.target, lines: 200)
-            guard !Task.isCancelled, serverID == ServerConfigManager.shared.activeServer?.id else { return }
+            guard serverIsCurrent else { return }
+            let latest = try await requestAPI.getOutput(target: entry.target, lines: 200)
+            guard !Task.isCancelled, serverIsCurrent else { return }
             output = latest
             sent = false
             message = nil
@@ -481,21 +532,21 @@ private struct PermissionRequestCard: View {
         // A horizontal drag over a button must never submit its choice on release.
         guard !dragging, ProcessInfo.processInfo.systemUptime - lastDragTime > 0.3 else { return }
         guard !busy, !sent, let reviewedOutput = output,
-              serverID == ServerConfigManager.shared.activeServer?.id else { return }
+              serverIsCurrent else { return }
         busy = true
         Task { @MainActor in
             defer { busy = false }
             do {
-                let api = ReattachAPI.shared
+                let api = requestAPI
                 let entries = try await api.permissionAttention()
-                guard serverID == ServerConfigManager.shared.activeServer?.id else { return }
-                guard entries.contains(entry) else {
+                guard serverIsCurrent else { return }
+                guard entries.contains(where: { $0.isSameRequest(as: entry) }) else {
                     output = nil
                     message = String(localized: "This request is no longer pending.")
                     return
                 }
                 let latest = try await api.getOutput(target: entry.target, lines: 200)
-                guard serverID == ServerConfigManager.shared.activeServer?.id else { return }
+                guard serverIsCurrent else { return }
                 guard latest == reviewedOutput else {
                     output = latest
                     message = String(localized: "The request changed. Review it before replying.")

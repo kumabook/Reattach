@@ -78,11 +78,13 @@ struct RegisterDeviceRequest: Codable {
     let sandbox: Bool
     let deviceId: String
     let serverName: String
+    var notificationMode: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case token, sandbox
         case deviceId = "device_id"
         case serverName = "server_name"
+        case notificationMode = "notification_mode"
     }
 }
 
@@ -205,4 +207,10 @@ struct PaneBorders: Codable, Hashable {
         case style, indicators
         case activeStyle = "active_style"
     }
+}
+
+struct PaneActivity: Codable, Equatable, Sendable {
+    let target: String
+    let revision: String
+    var unread: Bool
 }

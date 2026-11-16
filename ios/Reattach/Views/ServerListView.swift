@@ -12,6 +12,7 @@ struct ServerListView: View {
     @State private var showQRScanner = false
     @State private var showUpgrade = false
     @State private var serverCountOnOpen = 0
+    @State private var showAppSettings = false
 
     var body: some View {
         NavigationStack {
@@ -29,12 +30,17 @@ struct ServerListView: View {
             .navigationTitle(String(localized: "Servers"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(String(localized: "App Settings"), systemImage: "gearshape") { showAppSettings = true }
+                        .accessibilityIdentifier("appSettings")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "Done")) {
                         dismiss()
                     }
                 }
             }
+            .sheet(isPresented: $showAppSettings) { AppSettingsView() }
             .sheet(isPresented: $showQRScanner) {
                 QRScannerView()
                     .onDisappear {

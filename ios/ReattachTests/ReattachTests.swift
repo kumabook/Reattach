@@ -7,10 +7,36 @@ import Foundation
 import Testing
 import UIKit
 import SwiftUI
+import XCTest
 @testable import Reattach
 
 @MainActor
+@Suite(.serialized)
 struct ReattachTests {
+
+    @Test func permissionInboxOnlyOpensForNewUnblockedRequests() {
+        var policy = PermissionInboxAutoPresentation()
+        let first = PermissionAttention(target: "work:0.0", tool: "Codex", receivedAt: 1)
+        let second = PermissionAttention(target: first.target, tool: first.tool, receivedAt: 2)
+        let presentationResult0 = policy.update(entries: [first], serverID: "A", enabled: false, visible: false, blocked: false)
+        #expect(presentationResult0 == false)
+        let presentationResult1 = policy.update(entries: [first], serverID: "A", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult1 == false)
+        let presentationResult2 = policy.update(entries: [second], serverID: "A", enabled: true, visible: false, blocked: true)
+        #expect(presentationResult2 == false)
+        let presentationResult3 = policy.update(entries: [second], serverID: "A", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult3 == true)
+        let presentationResult4 = policy.update(entries: [second], serverID: "A", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult4 == false)
+        let presentationResult5 = policy.update(entries: [first, second], serverID: "A", enabled: true, visible: true, blocked: true)
+        #expect(presentationResult5 == false)
+        let presentationResult6 = policy.update(entries: [first, second], serverID: "A", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult6 == false)
+        let presentationResult7 = policy.update(entries: [first], serverID: "B", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult7 == true)
+        let presentationResult8 = policy.update(entries: [first, second], serverID: "A", enabled: true, visible: false, blocked: false)
+        #expect(presentationResult8 == false)
+    }
 
     @Test func literalTmuxBorderStylesAndIndicators() throws {
         let style = try #require(PaneBorderStyle.parse("fg=#123456,bg=colour220"))
@@ -206,6 +232,28 @@ struct ReattachTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(input.isFirstResponder)
+        // A permission overlay cancels queued focus, including reconnect requests.
+        input.keyboardFocusAllowed = false
+        input.requestKeyboardFocus()
+        #expect(!input.isFirstResponder)
+        #expect(!input.canBecomeFirstResponder)
+        input.keyboardFocusAllowed = true
+        await Task.yield()
+        #expect(!input.isFirstResponder)
+        input.requestKeyboardFocus()
+        for _ in 0..<100 {
+            if input.isFirstResponder { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(input.isFirstResponder)
+        let draft = DirectInputDraftTextView(frame: input.frame)
+        draft.text = "unfinished draft"
+        controller.view.addSubview(draft)
+        draft.becomeFirstResponder()
+        draft.keyboardFocusAllowed = false
+        #expect(!draft.isFirstResponder)
+        #expect(!draft.canBecomeFirstResponder)
+        #expect(draft.text == "unfinished draft")
     }
 
     @Test func terminalDefaultTextContrastsWithExplicitBackgrounds() throws {
@@ -300,6 +348,20 @@ struct ReattachTests {
         #expect(choices.first?.label == "Yes, proceed (y)")
         #expect(choices.dropFirst().first?.label.hasSuffix("-project App.xcodeproj` (p)") == true)
         #expect(choices.last?.label == "No, and tell Codex what to do differently (esc)")
+    }
+
+    @Test func codexToolApprovalStopsAtSubmitFooter() {
+        let choices = PermissionChoice.parse("""
+        Allow Vercel to run tool "vercel.update_project"?
+        › 1. Allow
+          2. Allow for this session
+          3. Always allow
+          4. Cancel
+        enter to submit | esc to cancel
+        1. Older output
+        """)
+        #expect(choices.map(\.number) == ["1", "2", "3", "4"])
+        #expect(choices.last?.label == "Cancel")
     }
 
     @Test func permissionSwipeUsesDistanceAndMomentumWithoutAccidentalPaging() {
@@ -581,8 +643,9 @@ struct ReattachTests {
     @Test func directInputKeepsCompositionLocalUntilCommitted() async throws {
         var sentText: [String] = []
         var sentKeys: [String] = []
+        let committed = XCTestExpectation(description: "Confirmed composition is sent")
         let coordinator = DirectInputTextViewRepresentable.Coordinator(
-            onText: { sentText.append($0) },
+            onText: { sentText.append($0); committed.fulfill() },
             onKey: { key, _ in sentKeys.append(key) },
             onCompositionChanged: { _ in }
         )
@@ -602,7 +665,8 @@ struct ReattachTests {
         textView.onCompositionEnded = { coordinator.textViewDidChange(textView) }
         textView.setMarkedText("日本語", selectedRange: NSRange(location: 3, length: 0))
         textView.unmarkText()
-        try await Task.sleep(for: .milliseconds(20))
+        let completion = await XCTWaiter.fulfillment(of: [committed], timeout: 3)
+        #expect(completion == .completed)
         #expect(sentText == ["日本語"])
         #expect(textView.text.isEmpty)
 
@@ -769,6 +833,7 @@ private final class RecoverySocket: PaneStreamSocket {
 }
 
 @MainActor
+@Suite(.serialized)
 struct StreamRecoveryTests {
     private func waitUntil(_ condition: () -> Bool) async throws {
         for _ in 0..<200 {

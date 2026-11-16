@@ -539,6 +539,8 @@ struct PaneDetailView: View {
         }
     }
 
+    // Toolbar menus can retain their native selection snapshot. Recreate only
+    // the affected menu when its selection changes, keeping terminal state intact.
     @ToolbarContentBuilder
     private var paneToolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -567,6 +569,7 @@ struct PaneDetailView: View {
             }
             .disabled(isDirectCompositionActive)
             .accessibilityIdentifier("windowLayoutMenu")
+            .id("display-mode-\(showWindowLayout)")
         }
         ToolbarItem(placement: .primaryAction) {
             if keyboardVisible || hardwareKeyboardConnected {
@@ -577,6 +580,7 @@ struct PaneDetailView: View {
                 }
                 .disabled(isDirectCompositionActive)
                 .accessibilityLabel(composeEnabled ? String(localized: "Compose") : String(localized: "Direct Input"))
+                .id("input-mode-\(composeEnabled)")
             } else {
                 Menu {
                     inputModeMenuItems
@@ -588,6 +592,7 @@ struct PaneDetailView: View {
                 .accessibilityLabel(String(localized: "Show Keyboard"))
                 .accessibilityHint(String(localized: "Touch and hold to switch input modes"))
                 .accessibilityIdentifier("showKeyboardButton")
+                .id("keyboard-input-mode-\(composeEnabled)")
             }
         }
         ToolbarItem(placement: .primaryAction) {
@@ -606,6 +611,7 @@ struct PaneDetailView: View {
             .accessibilityLabel(String(localized: "Pane Selection"))
             .accessibilityValue(configManager.synchronizesSelection ? String(localized: "Sync with Other Devices") : String(localized: "Switch on This Device Only"))
             .disabled(isDirectCompositionActive || configManager.isDemoMode)
+            .id("pane-selection-\(configManager.synchronizesSelection)")
         }
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -618,6 +624,7 @@ struct PaneDetailView: View {
                 Label(String(localized: "Refresh Display"), systemImage: "arrow.clockwise")
             }
             .accessibilityLabel(String(localized: "Refresh Display"))
+            .id("auto-refresh-\(viewModel.autoRefresh)")
         }
 
         ToolbarItem(placement: .primaryAction) {
@@ -1083,6 +1090,16 @@ struct PaneDetailView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { viewModel.stopStreaming() }
             if phase == .active { Task { await viewModel.startStreaming() } }
+        }
+        .onChange(of: viewModel.contentVersion) { _, _ in
+            if let server = ServerConfigManager.shared.activeServer {
+                PaneActivityStore.shared.displayedOutput(server: server, target: pane.target, ready: scenePhase == .active)
+            }
+        }
+        .onChange(of: viewModel.isStreamConnected) { _, connected in
+            if !connected, let server = ServerConfigManager.shared.activeServer {
+                PaneActivityStore.shared.displayedOutput(server: server, target: pane.target, ready: false)
+            }
         }
         .onChange(of: viewModel.autoRefresh) { _, enabled in
             if enabled {
