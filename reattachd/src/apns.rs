@@ -20,6 +20,27 @@ pub enum ApnsError {
     Io(#[from] std::io::Error),
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationMode {
+    #[default]
+    All,
+    PermissionOnly,
+    Off,
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationKind {
+    #[default]
+    Activity,
+    Permission,
+}
+impl NotificationMode {
+    fn allows(self, kind: NotificationKind) -> bool {
+        self == Self::All || (self == Self::PermissionOnly && kind == NotificationKind::Permission)
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct DeviceToken {
     pub token: String,
@@ -28,6 +49,8 @@ pub struct DeviceToken {
     pub device_id: String,
     #[serde(default)]
     pub server_name: String,
+    #[serde(default)]
+    pub notification_mode: NotificationMode,
 }
 
 pub struct ApnsConfig {
@@ -39,6 +62,7 @@ pub struct ApnsConfig {
 }
 
 pub struct ApnsService {
+    pub widget_push: crate::widget_push::Service,
     sandbox_client: Client,
     production_client: Client,
     bundle_id: String,
@@ -48,8 +72,10 @@ pub struct ApnsService {
 
 impl ApnsService {
     pub async fn new(config: ApnsConfig) -> Result<Self, ApnsError> {
-        let sandbox_client = Self::create_client(&config.key, &config.key_id, &config.team_id, true)?;
-        let production_client = Self::create_client(&config.key, &config.key_id, &config.team_id, false)?;
+        let sandbox_client =
+            Self::create_client(&config.key, &config.key_id, &config.team_id, true)?;
+        let production_client =
+            Self::create_client(&config.key, &config.key_id, &config.team_id, false)?;
 
         tracing::info!("APNs clients initialized (sandbox + production)");
 
@@ -57,9 +83,15 @@ impl ApnsService {
         let tokens_file = config.data_dir.join("device_tokens.json");
 
         let device_tokens = Self::load_tokens(&tokens_file).unwrap_or_default();
-        tracing::info!("Loaded {} device tokens from {:?}", device_tokens.len(), tokens_file);
+        tracing::info!(
+            "Loaded {} device tokens from {:?}",
+            device_tokens.len(),
+            tokens_file
+        );
 
+        let widget_push = crate::widget_push::Service::new(&config).map_err(ApnsError::Client)?;
         Ok(Self {
+            widget_push,
             sandbox_client,
             production_client,
             bundle_id: config.bundle_id,
@@ -68,7 +100,12 @@ impl ApnsService {
         })
     }
 
-    fn create_client(key: &str, key_id: &str, team_id: &str, sandbox: bool) -> Result<Client, ApnsError> {
+    fn create_client(
+        key: &str,
+        key_id: &str,
+        team_id: &str,
+        sandbox: bool,
+    ) -> Result<Client, ApnsError> {
         let mut key_cursor = Cursor::new(key.as_bytes());
         let endpoint = if sandbox {
             Endpoint::Sandbox
@@ -93,60 +130,46 @@ impl ApnsService {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
-    pub async fn register_device(&self, token: String, sandbox: bool, device_id: String, server_name: String) {
+    pub async fn register_device(
+        &self,
+        token: String,
+        sandbox: bool,
+        device_id: String,
+        server_name: String,
+        mode: Option<NotificationMode>,
+    ) -> Result<NotificationMode, ApnsError> {
         let mut tokens = self.device_tokens.write().await;
-        let device_token = DeviceToken { token: token.clone(), sandbox, device_id: device_id.clone(), server_name: server_name.clone() };
-
-        if let Some(existing) = tokens.iter_mut().find(|t| t.token == token) {
-            let mut updated = false;
-            if existing.sandbox != sandbox {
-                tracing::info!(
-                    "Updated device token: {}... (sandbox: {} -> {})",
-                    &token[..20.min(token.len())],
-                    existing.sandbox,
-                    sandbox
-                );
-                existing.sandbox = sandbox;
-                updated = true;
-            }
-            if existing.device_id != device_id {
-                tracing::info!(
-                    "Updated device token: {}... (device_id: {} -> {})",
-                    &token[..20.min(token.len())],
-                    existing.device_id,
-                    device_id
-                );
-                existing.device_id = device_id;
-                updated = true;
-            }
-            if existing.server_name != server_name {
-                tracing::info!(
-                    "Updated device token: {}... (server_name: {} -> {})",
-                    &token[..20.min(token.len())],
-                    existing.server_name,
-                    server_name
-                );
-                existing.server_name = server_name;
-                updated = true;
-            }
-            if updated {
-                if let Err(e) = Self::save_tokens(&self.tokens_file, &tokens) {
-                    tracing::error!("Failed to save device tokens: {}", e);
-                }
-            }
-        } else {
-            tracing::info!(
-                "Registered device token: {}... (sandbox: {}, device_id: {}, server_name: {})",
-                &token[..20.min(token.len())],
-                sandbox,
-                device_id,
-                server_name
-            );
-            tokens.push(device_token);
-            if let Err(e) = Self::save_tokens(&self.tokens_file, &tokens) {
-                tracing::error!("Failed to save device tokens: {}", e);
+        let notification_mode = mode
+            .or_else(|| {
+                tokens
+                    .iter()
+                    .find(|t| t.device_id == device_id && !device_id.is_empty())
+                    .map(|t| t.notification_mode)
+            })
+            .unwrap_or_default();
+        // A device's preference applies to its development and production registrations.
+        if !device_id.is_empty() {
+            for existing in tokens.iter_mut().filter(|t| t.device_id == device_id) {
+                existing.notification_mode = notification_mode;
             }
         }
+        let record = DeviceToken {
+            token: token.clone(),
+            sandbox,
+            device_id,
+            server_name,
+            notification_mode,
+        };
+        if let Some(existing) = tokens
+            .iter_mut()
+            .find(|t| t.token == token && t.sandbox == sandbox)
+        {
+            *existing = record;
+        } else {
+            tokens.push(record);
+        }
+        Self::save_tokens(&self.tokens_file, &tokens)?;
+        Ok(notification_mode)
     }
 
     pub async fn send_notification(
@@ -154,6 +177,7 @@ impl ApnsService {
         title: &str,
         body: &str,
         pane_target: Option<&str>,
+        kind: NotificationKind,
     ) -> Result<(), ApnsError> {
         let tokens = self.device_tokens.read().await.clone();
         if tokens.is_empty() {
@@ -171,7 +195,7 @@ impl ApnsService {
 
         let mut invalid_tokens = Vec::new();
 
-        for device_token in tokens.iter() {
+        for device_token in tokens.iter().filter(|t| t.notification_mode.allows(kind)) {
             let notification_title = if device_token.server_name.is_empty() {
                 title.to_string()
             } else {
@@ -198,11 +222,15 @@ impl ApnsService {
             let mut payload = builder.build(&device_token.token, options.clone());
 
             if let Some(target) = pane_target {
-                payload.data.insert("paneTarget", Value::String(target.to_string()));
+                payload
+                    .data
+                    .insert("paneTarget", Value::String(target.to_string()));
             }
 
             if !device_token.device_id.is_empty() {
-                payload.data.insert("deviceId", Value::String(device_token.device_id.clone()));
+                payload
+                    .data
+                    .insert("deviceId", Value::String(device_token.device_id.clone()));
             }
 
             let client = if device_token.sandbox {
@@ -215,7 +243,11 @@ impl ApnsService {
                 Ok(response) => {
                     tracing::info!(
                         "APNs notification sent ({}): {:?}",
-                        if device_token.sandbox { "sandbox" } else { "production" },
+                        if device_token.sandbox {
+                            "sandbox"
+                        } else {
+                            "production"
+                        },
                         response
                     );
                 }
@@ -231,7 +263,11 @@ impl ApnsService {
                             continue;
                         }
                     }
-                    tracing::error!("APNs error for token {}: {:?}", device_token.token, response);
+                    tracing::error!(
+                        "APNs error for token {}: {:?}",
+                        device_token.token,
+                        response
+                    );
                 }
                 Err(e) => {
                     tracing::error!("APNs error for token {}: {:?}", device_token.token, e);
@@ -253,5 +289,135 @@ impl ApnsService {
             tracing::error!("Failed to save device tokens: {}", e);
         }
         tracing::info!("Removed {} invalid tokens", tokens_to_remove.len());
+    }
+}
+
+#[cfg(test)]
+mod preference_tests {
+    use super::*;
+    #[test]
+    fn notification_modes_filter_without_affecting_widget_subscriptions() {
+        for (mode, activity, permission) in [
+            (NotificationMode::All, true, true),
+            (NotificationMode::PermissionOnly, false, true),
+            (NotificationMode::Off, false, false),
+        ] {
+            assert_eq!(mode.allows(NotificationKind::Activity), activity);
+            assert_eq!(mode.allows(NotificationKind::Permission), permission);
+        }
+    }
+    #[test]
+    fn legacy_tokens_keep_all_notifications() {
+        let token: DeviceToken = serde_json::from_str(r#"{"token":"ab","sandbox":true}"#).unwrap();
+        assert_eq!(token.notification_mode, NotificationMode::All);
+    }
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use axum::{
+        extract::State,
+        http::{HeaderMap, StatusCode},
+        Json,
+    };
+    #[tokio::test]
+    async fn preferences_are_authenticated_and_apply_to_both_environments_only_for_the_caller() {
+        use openssl::{
+            ec::{EcGroup, EcKey},
+            nid::Nid,
+            pkey::PKey,
+        };
+        let dir = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let key = PKey::from_ec_key(
+            EcKey::generate(&EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap()).unwrap(),
+        )
+        .unwrap();
+        let apns = Arc::new(
+            ApnsService::new(ApnsConfig {
+                key: String::from_utf8(key.private_key_to_pem_pkcs8().unwrap()).unwrap(),
+                key_id: "TEST".into(),
+                team_id: "TEAM".into(),
+                bundle_id: "test.app".into(),
+                data_dir: dir.clone(),
+            })
+            .await
+            .unwrap(),
+        );
+        let auth = Arc::new(crate::auth::AuthService::new(dir.clone()).await.unwrap());
+        let setup = auth
+            .generate_setup_token(false, chrono::Duration::minutes(1))
+            .await;
+        let device = auth.register_device(&setup, "A").await.unwrap();
+        apns.register_device(
+            "prod".into(),
+            false,
+            device.id.clone(),
+            "server".into(),
+            None,
+        )
+        .await
+        .unwrap();
+        apns.register_device(
+            "other".into(),
+            true,
+            "other-device".into(),
+            "server".into(),
+            None,
+        )
+        .await
+        .unwrap();
+        let request = || crate::api::notifications::RegisterDeviceRequest {
+            token: "dev".into(),
+            sandbox: true,
+            device_id: "other-device".into(),
+            server_name: "server".into(),
+            notification_mode: Some(NotificationMode::PermissionOnly),
+        };
+        assert!(matches!(
+            crate::api::notifications::register_apns_device(
+                State((apns.clone(), auth.clone())),
+                HeaderMap::new(),
+                Json(request())
+            )
+            .await,
+            Err(StatusCode::UNAUTHORIZED)
+        ));
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "authorization",
+            format!("Bearer {}", device.token).parse().unwrap(),
+        );
+        let result = crate::api::notifications::register_apns_device(
+            State((apns.clone(), auth)),
+            headers,
+            Json(request()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.1 .0["notification_mode"], "permission_only");
+        let tokens = apns.device_tokens.read().await;
+        assert!(tokens
+            .iter()
+            .filter(|t| t.device_id == device.id)
+            .all(|t| t.notification_mode == NotificationMode::PermissionOnly));
+        assert_eq!(
+            tokens
+                .iter()
+                .find(|t| t.token == "other")
+                .unwrap()
+                .notification_mode,
+            NotificationMode::All
+        );
+        let saved = ApnsService::load_tokens(&apns.tokens_file).unwrap();
+        assert_eq!(
+            saved
+                .iter()
+                .find(|t| t.token == "prod")
+                .unwrap()
+                .notification_mode,
+            NotificationMode::PermissionOnly
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

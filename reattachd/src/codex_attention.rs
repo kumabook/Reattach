@@ -91,40 +91,63 @@ fn command_prompt(text: &str) -> Option<String> {
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .collect();
-    // A completed prompt left above normal agent output must not become pending.
-    if *lines.last()? != FOOTER {
+    // Only a live prompt at the bottom of the visible grid is eligible.
+    let tool_prompt = *lines.last()? == "enter to submit | esc to cancel";
+    if !tool_prompt && *lines.last()? != FOOTER {
         return None;
     }
-    let start = lines.iter().rposition(|line| *line == HEADER)?;
+    let start = lines.iter().rposition(|line| {
+        if tool_prompt {
+            line.starts_with("Allow ") && line.contains(" to run tool \"") && line.ends_with("\"?")
+        } else {
+            *line == HEADER
+        }
+    })?;
     let prompt = &lines[start..];
     let mut numbers = Vec::new();
     let mut selected = 0;
     let mut approve = false;
     let mut deny = false;
+    let mut tool_labels = Vec::new();
     for line in prompt {
         let clean = line.trim_start_matches(['›', '❯', '>']).trim_start();
-        if clean != *line {
-            selected += 1;
-        }
         let Some((number, label)) = clean.split_once(". ") else {
             continue;
         };
         let Ok(number) = number.parse::<usize>() else {
             continue;
         };
+        if clean != *line {
+            selected += 1;
+        }
         numbers.push(number);
+        if tool_prompt {
+            // Descriptions form a second column; retain them in the identity.
+            let label = label.split("  ").next().unwrap_or(label).trim();
+            tool_labels.push(label);
+        }
         approve |= number == 1 && label == "Yes, proceed (y)";
         deny |= label == "No, and tell Codex what to do differently (esc)";
     }
-    if !approve
-        || !deny
+    let valid_labels = if tool_prompt {
+        tool_labels == ["Allow", "Allow for this session", "Always allow", "Cancel"]
+    } else {
+        approve && deny
+    };
+    if !valid_labels
         || selected != 1
         || numbers.len() < 2
         || numbers.iter().enumerate().any(|(i, n)| *n != i + 1)
     {
         return None;
     }
-    Some(prompt.join("\n"))
+    Some(
+        prompt
+            .iter()
+            .map(|line| line.trim_start_matches(['›', '❯', '>']).trim_start())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }
 
 #[cfg(test)]
@@ -150,6 +173,25 @@ mod tests {
         ] {
             assert!(command_prompt(&text).is_none(), "{text}");
         }
+    }
+
+    const TOOL_PROMPT: &str = "Field 1/1\nAllow Vercel to run tool \"vercel.update_project\"?\n\nidOrName: example\nrequestBody: {\"nodeVersion\":\"22.x\"}\nteamId: example\n\n› 1. Allow                     Run the tool and continue\n  2. Allow for this session    Run the tool and remember this choice for this session\n  3. Always allow              Run the tool and remember this choice for future tool calls\n  4. Cancel                    Cancel this tool call\nenter to submit | esc to cancel\n";
+
+    #[test]
+    fn recognizes_tool_approval_but_not_history_or_arbitrary_menus() {
+        assert!(command_prompt(TOOL_PROMPT).is_some());
+        assert!(command_prompt(&format!("{TOOL_PROMPT}\nWorking")).is_none());
+        assert!(command_prompt(&TOOL_PROMPT.replace("Always allow", "Choose blue")).is_none());
+        assert!(command_prompt(
+            &TOOL_PROMPT.replace("Allow Vercel to run tool", "Documentation for tool")
+        )
+        .is_none());
+        assert!(command_prompt(&TOOL_PROMPT.replace("  4.", "  5.")).is_none());
+        assert!(command_prompt(&TOOL_PROMPT.replace("› 1.", "  1.")).is_none());
+        let moved = TOOL_PROMPT.replace("› 1.", "  1.").replace("  2.", "› 2.");
+        assert_eq!(command_prompt(TOOL_PROMPT), command_prompt(&moved));
+        let changed = TOOL_PROMPT.replace("22.x", "24.x");
+        assert_ne!(command_prompt(TOOL_PROMPT), command_prompt(&changed));
     }
 
     #[test]

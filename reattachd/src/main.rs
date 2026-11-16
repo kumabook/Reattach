@@ -1,10 +1,12 @@
+mod activity;
 mod api;
-mod attention;
 mod apns;
+mod attention;
 mod auth;
 mod codex_attention;
 mod notification_content;
 mod tmux;
+mod widget_push;
 
 use std::sync::Arc;
 
@@ -192,9 +194,11 @@ fn restrict_permissions(path: &std::path::Path, mode: u32) {
 #[cfg(not(unix))]
 fn restrict_permissions(_path: &std::path::Path, _mode: u32) {}
 
-fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Result<(String, String), String> {
-    std::fs::create_dir_all(data_dir)
-        .map_err(|e| format!("Failed to create data dir: {}", e))?;
+fn generate_tailscale_certs(
+    hostname: &str,
+    data_dir: &std::path::Path,
+) -> Result<(String, String), String> {
+    std::fs::create_dir_all(data_dir).map_err(|e| format!("Failed to create data dir: {}", e))?;
     restrict_permissions(data_dir, 0o700);
 
     let cert_path = data_dir.join(format!("{}.crt", hostname));
@@ -203,14 +207,20 @@ fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Resul
     let remaining = cert_remaining_days(&cert_path).filter(|_| key_path.exists());
     if let Some(days) = remaining {
         if days >= CERT_MIN_REMAINING_DAYS {
-            tracing::info!("Reusing existing TLS certificate (valid for {} more days)", days);
+            tracing::info!(
+                "Reusing existing TLS certificate (valid for {} more days)",
+                days
+            );
             restrict_permissions(&key_path, 0o600);
             return Ok((
                 cert_path.to_string_lossy().to_string(),
                 key_path.to_string_lossy().to_string(),
             ));
         }
-        tracing::info!("Existing TLS certificate expires in {} days; regenerating", days);
+        tracing::info!(
+            "Existing TLS certificate expires in {} days; regenerating",
+            days
+        );
     }
 
     let status = std::process::Command::new("tailscale")
@@ -224,7 +234,10 @@ fn generate_tailscale_certs(hostname: &str, data_dir: &std::path::Path) -> Resul
         .map_err(|e| format!("Failed to run 'tailscale cert': {}", e))?;
 
     if !status.success() {
-        return Err("'tailscale cert' failed. Make sure HTTPS is enabled in your Tailscale admin console.".to_string());
+        return Err(
+            "'tailscale cert' failed. Make sure HTTPS is enabled in your Tailscale admin console."
+                .to_string(),
+        );
     }
 
     restrict_permissions(&key_path, 0o600);
@@ -280,7 +293,11 @@ async fn main() {
     };
 
     match cli.command {
-        Some(Commands::Setup { url, reusable, expires }) => {
+        Some(Commands::Setup {
+            url,
+            reusable,
+            expires,
+        }) => {
             let url = match (url, &tailscale_info) {
                 (Some(u), _) => u,
                 (None, Some(info)) => {
@@ -336,8 +353,12 @@ async fn main() {
                     }
                 }
             } else {
-                let tls_cert = cli.tls_cert.or_else(|| std::env::var("REATTACHD_TLS_CERT").ok());
-                let tls_key = cli.tls_key.or_else(|| std::env::var("REATTACHD_TLS_KEY").ok());
+                let tls_cert = cli
+                    .tls_cert
+                    .or_else(|| std::env::var("REATTACHD_TLS_CERT").ok());
+                let tls_key = cli
+                    .tls_key
+                    .or_else(|| std::env::var("REATTACHD_TLS_KEY").ok());
                 match (tls_cert, tls_key) {
                     (Some(cert), Some(key)) => Some((cert, key)),
                     (Some(_), None) | (None, Some(_)) => {
@@ -401,7 +422,12 @@ fn token_note_from_expires(expires: &str, reusable: bool) -> String {
     notes.join(", ")
 }
 
-async fn run_setup_mode(data_dir: std::path::PathBuf, url: String, reusable: bool, expires: String) {
+async fn run_setup_mode(
+    data_dir: std::path::PathBuf,
+    url: String,
+    reusable: bool,
+    expires: String,
+) {
     let duration = parse_duration(&expires).unwrap_or_else(|| {
         eprintln!("Invalid expiration format: {}. Using default 10m.", expires);
         chrono::Duration::minutes(10)
@@ -479,7 +505,9 @@ fn extract_last_assistant_message(transcript_path: &str) -> Option<String> {
                         if t != "text" {
                             return None;
                         }
-                        item.get("text").and_then(|v| v.as_str()).map(str::to_string)
+                        item.get("text")
+                            .and_then(|v| v.as_str())
+                            .map(str::to_string)
                     })
                     .collect::<Vec<_>>()
             })
@@ -675,7 +703,8 @@ fn ensure_claude_event_hook(
                 .map(|arr| {
                     arr.iter().any(|h| {
                         h.get("type").and_then(|v| v.as_str()) == Some("command")
-                            && h.get("command").and_then(|v| v.as_str()) == Some(HOOK_NOTIFY_COMMAND)
+                            && h.get("command").and_then(|v| v.as_str())
+                                == Some(HOOK_NOTIFY_COMMAND)
                     })
                 })
                 .unwrap_or(false)
@@ -925,7 +954,12 @@ async fn run_notify_command(
     let pane_target = target
         .or(payload.pane_target.clone())
         .or_else(auto_detect_tmux_target_from_env)
-        .or_else(|| payload.cwd.as_deref().and_then(auto_detect_tmux_target_from_cwd));
+        .or_else(|| {
+            payload
+                .cwd
+                .as_deref()
+                .and_then(auto_detect_tmux_target_from_cwd)
+        });
 
     if let Some(ref t) = pane_target {
         payload.title = title_for_target_and_cwd(t, payload.cwd.as_deref());
@@ -968,7 +1002,11 @@ async fn run_notify_command(
     }
 }
 
-async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, String)>, tailscale_info: Option<TailscaleInfo>) {
+async fn run_daemon(
+    data_dir: std::path::PathBuf,
+    tls_config: Option<(String, String)>,
+    tailscale_info: Option<TailscaleInfo>,
+) {
     let auth_service = AuthService::new(data_dir.clone())
         .await
         .expect("Failed to initialize auth service");
@@ -982,8 +1020,8 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
                 .and_then(|p| p.parse::<u16>().ok())
                 .unwrap_or(DEFAULT_PORT);
             let url = format!("https://{}:{}", info.hostname, port);
-            let expires = std::env::var("REATTACHD_SETUP_EXPIRES")
-                .unwrap_or_else(|_| "10m".to_string());
+            let expires =
+                std::env::var("REATTACHD_SETUP_EXPIRES").unwrap_or_else(|_| "10m".to_string());
             let duration = parse_duration(&expires).unwrap_or_else(|| {
                 tracing::warn!("Invalid REATTACHD_SETUP_EXPIRES '{}', using 10m", expires);
                 chrono::Duration::minutes(10)
@@ -993,11 +1031,16 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
             print_setup_qr(&setup_url, &token_note_from_expires(&expires, false));
             println!();
         } else {
-            tracing::warn!("No devices registered. Run 'reattachd setup --url <URL>' to register a device.");
+            tracing::warn!(
+                "No devices registered. Run 'reattachd setup --url <URL>' to register a device."
+            );
         }
         tracing::info!("Starting in open mode (no authentication required)");
     }
 
+    let activity_service =
+        activity::Service::new(&data_dir).expect("Failed to initialize pane activity");
+    activity_service.clone().start();
     let apns_service = init_apns_service(data_dir.clone()).await;
     let attention_service = attention::Service::new(&data_dir, apns_service.clone())
         .expect("Failed to initialize agent event service");
@@ -1005,6 +1048,12 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
     let auth_for_middleware = auth_service.clone();
 
     // Base routes with authentication
+    attention::start_widget_monitor(
+        attention_service.clone(),
+        auth_service.clone(),
+        activity_service.clone(),
+    );
+
     let base_routes = Router::new()
         .route("/sessions", get(api::list_sessions))
         .route("/sessions", post(api::create_session))
@@ -1022,11 +1071,28 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
             auth_middleware,
         ));
 
-    let base_routes = base_routes.merge(Router::new()
-        .route("/attention", get(attention::list))
-        .with_state(attention_service.clone())
-        .layer(middleware::from_fn_with_state(auth_service.clone(), auth_middleware)))
-        .merge(Router::new().route("/agent-events", post(attention::record)).with_state(attention_service));
+    let base_routes = base_routes
+        .merge(
+            Router::new()
+                .route("/attention", get(attention::list))
+                .with_state(attention_service.clone())
+                .layer(middleware::from_fn_with_state(
+                    auth_service.clone(),
+                    auth_middleware,
+                )),
+        )
+        .merge(
+            Router::new()
+                .route("/agent-events", post(attention::record))
+                .with_state(attention_service),
+        );
+
+    let base_routes = base_routes.merge(
+        Router::new()
+            .route("/activity", get(activity::list))
+            .route("/activity/read", post(activity::read))
+            .with_state((activity_service, auth_service.clone())),
+    );
 
     // Registration endpoint (no auth required)
     let register_routes = Router::new()
@@ -1036,16 +1102,20 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
     let app = if let Some(apns) = apns_service {
         let devices_route = Router::new()
             .route("/devices", post(api::register_apns_device))
-            .with_state(Arc::clone(&apns))
+            .with_state((Arc::clone(&apns), auth_service.clone()))
             .layer(middleware::from_fn_with_state(
                 auth_service.clone(),
                 auth_middleware,
             ));
+        let widget_route = Router::new()
+            .route("/widget-devices", post(widget_push::register))
+            .with_state((apns.clone(), auth_service.clone()));
         let notify_route = Router::new()
             .route("/notify", post(api::send_notification))
             .with_state(apns);
         base_routes
             .merge(devices_route)
+            .merge(widget_route)
             .merge(notify_route)
             .merge(register_routes)
     } else {
@@ -1062,18 +1132,19 @@ async fn run_daemon(data_dir: std::path::PathBuf, tls_config: Option<(String, St
         Some(info) => &info.ipv4,
         None => DEFAULT_BIND_ADDR,
     };
-    let bind_addr = std::env::var("REATTACHD_BIND_ADDR")
-        .unwrap_or_else(|_| default_bind.to_string());
+    let bind_addr =
+        std::env::var("REATTACHD_BIND_ADDR").unwrap_or_else(|_| default_bind.to_string());
     let addr = format!("{}:{}", bind_addr, port);
 
     if let Some((cert_path, key_path)) = tls_config {
         tracing::info!("Starting reattachd with TLS on {}", addr);
-        let rustls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
-            .await
-            .unwrap_or_else(|e| {
-                eprintln!("Failed to load TLS cert/key: {}", e);
-                std::process::exit(1);
-            });
+        let rustls_config =
+            axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("Failed to load TLS cert/key: {}", e);
+                    std::process::exit(1);
+                });
         let socket_addr: std::net::SocketAddr = addr.parse().unwrap_or_else(|e| {
             eprintln!("Invalid bind address {}: {}", addr, e);
             std::process::exit(1);
@@ -1214,15 +1285,21 @@ mod tests {
             let event = serde_json::json!({
                 "type": "agent-turn-complete", "last-assistant-message": body
             });
-            assert!(parse_agent_notify_payload(&event.to_string()).unwrap().is_none());
+            assert!(parse_agent_notify_payload(&event.to_string())
+                .unwrap()
+                .is_none());
         }
         let event = serde_json::json!({
             "type": "agent-turn-complete", "last-assistant-message": r#"{"result":"ok"}"#
         });
-        let parsed = parse_agent_notify_payload(&event.to_string()).unwrap().unwrap();
+        let parsed = parse_agent_notify_payload(&event.to_string())
+            .unwrap()
+            .unwrap();
         assert_eq!(parsed.body, r#"{"result":"ok"}"#);
         let permission = serde_json::json!({"hook_event_name":"Notification", "notification_type":"permission_prompt"});
-        assert!(parse_agent_notify_payload(&permission.to_string()).unwrap().is_some());
+        assert!(parse_agent_notify_payload(&permission.to_string())
+            .unwrap()
+            .is_some());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 mod input;
-mod notifications;
+pub(crate) mod notifications;
 mod output;
 mod panes;
 mod register;

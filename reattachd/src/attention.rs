@@ -152,21 +152,7 @@ pub async fn record(
     {
         return StatusCode::BAD_REQUEST;
     }
-    let new = update(&mut service.pending.lock().unwrap(), event.clone());
-    if new {
-        if let Some(apns) = &service.apns {
-            let target = resolve_target(&event).await;
-            if let Some(target) = target {
-                let _ = apns
-                    .send_notification(
-                        &format!("許可待ち · {target}"),
-                        "操作の許可が求められています。ペインを開いて確認してください。",
-                        Some(&target),
-                    )
-                    .await;
-            }
-        }
-    }
+    update(&mut service.pending.lock().unwrap(), event);
     StatusCode::NO_CONTENT
 }
 
@@ -215,6 +201,73 @@ pub async fn list(State(service): State<Arc<Service>>) -> Json<Vec<Attention>> {
     let mut seen = std::collections::HashSet::new();
     result.retain(|entry| seen.insert(entry.target.clone()));
     Json(result)
+}
+
+// Keep watching even when the mobile app is suspended. Changes detected from
+// hooks and visible Codex prompts use the same canonical list as the widget.
+pub fn start_widget_monitor(
+    service: Arc<Service>,
+    auth: crate::auth::SharedAuthService,
+    activity: Arc<crate::activity::Service>,
+) {
+    tokio::spawn(async move {
+        let mut previous = None;
+        let mut observed_requests: Vec<(String, String, i64)> = Vec::new();
+        let mut widget_retry_at = tokio::time::Instant::now();
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            let Some(apns) = &service.apns else {
+                return;
+            };
+            let Json(entries) = list(State(service.clone())).await;
+            let request_fingerprint = widget_fingerprint(&entries);
+            for (target, _, _) in request_fingerprint
+                .iter()
+                .filter(|request| !observed_requests.contains(*request))
+            {
+                let _ = apns
+                    .send_notification(
+                        &format!("許可待ち · {target}"),
+                        "操作の許可が求められています。ペインを開いて確認してください。",
+                        Some(target),
+                        crate::apns::NotificationKind::Permission,
+                    )
+                    .await;
+            }
+            observed_requests = request_fingerprint.clone();
+            if !apns.widget_push.has_subscribers().await {
+                previous = None;
+                continue;
+            }
+            let fingerprint = (
+                request_fingerprint,
+                activity
+                    .generation
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            );
+            if previous.as_ref() != Some(&fingerprint)
+                && tokio::time::Instant::now() >= widget_retry_at
+            {
+                match apns.widget_push.send_updates(&auth).await {
+                    Ok(()) => previous = Some(fingerprint),
+                    Err(_) => {
+                        // Retry widget delivery without pausing permission monitoring.
+                        widget_retry_at =
+                            tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn widget_fingerprint(entries: &[Attention]) -> Vec<(String, String, i64)> {
+    let mut values: Vec<_> = entries
+        .iter()
+        .map(|e| (e.target.clone(), e.tool.clone(), e.received_at))
+        .collect();
+    values.sort();
+    values
 }
 
 const PROMPT_RENDER_GRACE_SECS: i64 = 3;
@@ -379,6 +432,19 @@ mod tests {
     use super::*;
     fn event(name: &str, command: &str, turn: &str) -> Event {
         from_hook(&serde_json::json!({"hook_event_name":name,"session_id":"s","turn_id":turn,"tool_name":"Bash","tool_input":{"command":command}}), "%1".into(), "100".into()).unwrap()
+    }
+    #[test]
+    fn widget_changes_include_resolution_but_ignore_reordering() {
+        let entry = |target: &str, received_at| Attention {
+            target: target.into(),
+            tool: "Codex".into(),
+            received_at,
+        };
+        let first = widget_fingerprint(&[entry("a", 1), entry("b", 2)]);
+        assert_eq!(first, widget_fingerprint(&[entry("b", 2), entry("a", 1)]));
+        assert_ne!(first, widget_fingerprint(&[entry("a", 1)]));
+        assert_ne!(first, widget_fingerprint(&[]));
+        assert_ne!(first, widget_fingerprint(&[entry("a", 3), entry("b", 2)]));
     }
     #[test]
     fn tracks_other_panes_and_only_clears_matching_tool_or_turn() {
