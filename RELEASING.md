@@ -78,3 +78,24 @@ Validation before packaging: 43 iOS unit tests; display-mode menu, split selecti
 - Reduced the iPhone screenshots to five per locale (the one-tap command image was removed), aligned the permission card with the shared device frame, and localized the Japanese headlines. Generation: `fastlane/screenshot_sources/render_iphone.py`. Three uploads stalled in processing and were re-uploaded; all 14 images are complete and ordered.
 - Updated the release notes for pane splitting and reattachd 2.0.1, and the review notes for build 45.
 - Submitted for review. State `WAITING_FOR_REVIEW`; submission `9e8e5428-830e-4a23-ae6e-ce8bc49757f9`.
+
+## Submission record — 2026-11-17 (iOS 2.0.1 and Mac 2.0.1)
+
+### iOS 2.0.1 (48)
+
+- Selected Xcode Cloud build 48, source `dfda3b8`. It shows running coding agents, follows tmux activity for unread panes, opens the permission inbox from permission notifications, and polls each server independently. Build 47 (`9ee75bc`) was superseded and not used.
+- Published daemon `v2.0.4`; all five builds and the Homebrew tap update succeeded. The review server was running 2.0.2 and now runs the 2.0.4 Linux musl artifact (previous binary kept as `/usr/local/bin/reattachd.2.0.2`).
+- The review server's EC2 public IP changed to `54.238.255.128` (no Elastic IP); the `reattach-demo` SSH host entry was updated. The app connects through Cloudflare, so the IP change does not affect review.
+- Verified through Cloudflare with the review-note credentials: no credentials returns 403, Access credentials without a device token return 401, registration with the reusable setup token succeeds, and `/sessions`, `/activity` and `/attention` return 200. A `release-check-2.0.1` device remains registered on the review server.
+- The 2.0.0 QR attachment cannot be downloaded through the API, so the same setup URL was regenerated from the review server's reusable token and attached as `Reattach-2.0.1-review-QR.png` (decoded and verified before upload).
+- Release notes and review notes updated for 2.0.1 and reattachd 2.0.4. Release mode `MANUAL`.
+- Submitted: state `WAITING_FOR_REVIEW`; submission `dbd639e3-b4f6-4df7-85b2-4d7f46c3242b`.
+
+### Mac 2.0.1 (3) — first Mac submission
+
+- Source `55ac55f`. Added Cloudflare Access service-token fields (Client ID and Client Secret, stored in Keychain per server URL) to the Connection settings so reviewers can reach the review server. Verified registration and API access against the review server with the same connection code; the Settings UI entry flow itself was not exercised against the review server.
+- Archived locally and uploaded with `xcodebuild -exportArchive` (destination `upload`). Renamed the App Store version record from 1.0 to 2.0.1, set release mode `MANUAL`, copied copyright and support/marketing URLs from iOS, and uploaded the descriptions and promotional text from `macos/AppStore/`.
+- Screenshots: two per locale at 2880x1800 in `fastlane/screenshots_mac/`, rendered by `fastlane/screenshot_sources/render_mac.py` from panel-window captures of the app connected to a local demo reattachd with sample tmux sessions. Only the app window was captured.
+- Review notes describe the menu bar app and the Settings steps: address and port, Cloudflare Access credentials, and the reusable setup token.
+- Submitted: state `WAITING_FOR_REVIEW`; submission `bf80a579-7511-435d-9e22-98464e6d601f`.
+- When preparing demo tmux sessions, always target the demo socket with `tmux -S <socket>` and unset `TMUX`; otherwise commands such as `kill-server` reach the developer's own tmux server.
