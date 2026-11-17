@@ -5,7 +5,26 @@ struct Connection {
     var address: String
     var port: Int
     var token: String
+    var accessClientID = ""
+    var accessClientSecret = ""
     var session: URLSession = .shared
+
+    static let accessClientIDSuffix = "#cf-access-client-id"
+    static let accessClientSecretSuffix = "#cf-access-client-secret"
+
+    mutating func loadCredentials() throws {
+        let account = try baseURL.absoluteString
+        token = try CredentialStore.read(account)
+        accessClientID = try CredentialStore.read(account + Self.accessClientIDSuffix)
+        accessClientSecret = try CredentialStore.read(account + Self.accessClientSecretSuffix)
+    }
+
+    func saveCredentials() throws {
+        let account = try baseURL.absoluteString
+        try CredentialStore.save(token, account: account)
+        try CredentialStore.save(accessClientID, account: account + Self.accessClientIDSuffix)
+        try CredentialStore.save(accessClientSecret, account: account + Self.accessClientSecretSuffix)
+    }
 
     var baseURL: URL {
         get throws {
@@ -30,12 +49,21 @@ struct Connection {
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.httpMethod = method
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if !accessClientID.isEmpty, !accessClientSecret.isEmpty {
+            request.setValue(accessClientID, forHTTPHeaderField: "CF-Access-Client-Id")
+            request.setValue(accessClientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
+        }
         if let body {
             request.httpBody = try JSONEncoder().encode(body)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ClientError.message(String(localized: "Invalid server response.")) }
+        // Without valid service credentials, Access redirects to its sign-in page or answers 403.
+        if http.url?.host?.hasSuffix("cloudflareaccess.com") == true
+            || (http.statusCode == 403 && http.value(forHTTPHeaderField: "CF-RAY") != nil) {
+            throw ClientError.message(String(localized: "Cloudflare Access blocked the request. Check the Client ID and Client Secret."))
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw ClientError.message(http.statusCode == 401
                 ? String(localized: "Authentication failed. Register with a setup token in Settings.")
@@ -81,6 +109,13 @@ enum CredentialStore {
 
     static func save(_ token: String, account: String) throws {
         let query = query(account)
+        if token.isEmpty {
+            let status = SecItemDelete(query as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw ClientError.message(String(localized: "Could not save to Keychain (\(status))."))
+            }
+            return
+        }
         let values = [kSecValueData as String: Data(token.utf8)]
         var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
         if status == errSecItemNotFound {

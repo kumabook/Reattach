@@ -53,7 +53,7 @@ final class InboxStore {
         let address = defaults.string(forKey: "serverAddress") ?? "http://127.0.0.1"
         let port = defaults.object(forKey: "serverPort") as? Int ?? 8787
         var next = Connection(address: address, port: port, token: "")
-        do { next.token = try CredentialStore.read(try next.baseURL.absoluteString); error = nil }
+        do { try next.loadCredentials(); error = nil }
         catch { self.error = error.localizedDescription }
         titleRefresh?.cancel()
         titleRefresh = nil; workTitles = [:]; titleTargets = []; lastTitleRefresh = 0

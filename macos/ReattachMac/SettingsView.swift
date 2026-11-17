@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var address = UserDefaults.standard.string(forKey: "serverAddress") ?? "http://127.0.0.1"
     @State private var port = UserDefaults.standard.object(forKey: "serverPort") as? Int ?? 8787
     @State private var token = ""
+    @State private var accessClientID = ""
+    @State private var accessClientSecret = ""
     @State private var setupToken = ""
     @State private var status = ""
     @State private var busy = false
@@ -40,7 +42,11 @@ struct SettingsView: View {
     @State private var modelStatus = LocalWorkSummaryEngine.unavailableMessage
     @State private var login = SMAppService.mainApp.status == .enabled
 
-    private var connection: Connection { Connection(address: address.trimmingCharacters(in: .whitespacesAndNewlines), port: port, token: token) }
+    private var connection: Connection {
+        Connection(address: address.trimmingCharacters(in: .whitespacesAndNewlines), port: port, token: token,
+                   accessClientID: accessClientID.trimmingCharacters(in: .whitespacesAndNewlines),
+                   accessClientSecret: accessClientSecret.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -294,6 +300,10 @@ struct SettingsView: View {
             SecureField(String(localized: "Device Token"), text: $token)
             Text(String(localized: "Default: http://127.0.0.1:8787. If the daemon runs with Tailscale, use its HTTPS address."))
                 .font(.caption).foregroundStyle(.secondary)
+            TextField(String(localized: "Cloudflare Access Client ID"), text: $accessClientID)
+            SecureField(String(localized: "Cloudflare Access Client Secret"), text: $accessClientSecret)
+            Text(String(localized: "Only needed when the server is protected by a Cloudflare Access service token."))
+                .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button(String(localized: "Save & Test Connection"), systemImage: "network") { saveAndTest() }
                 Button(String(localized: "Restore Defaults"), systemImage: "arrow.counterclockwise") { address = "http://127.0.0.1"; port = 8787 }
@@ -361,14 +371,15 @@ struct SettingsView: View {
     }
 
     private func loadToken() {
-        token = ""
-        do { token = try CredentialStore.read(try connection.baseURL.absoluteString) }
+        var config = connection
+        config.token = ""; config.accessClientID = ""; config.accessClientSecret = ""
+        defer { token = config.token; accessClientID = config.accessClientID; accessClientSecret = config.accessClientSecret }
+        do { try config.loadCredentials() }
         catch { status = error.localizedDescription }
     }
 
     private func save(_ config: Connection) throws {
-        let account = try config.baseURL.absoluteString
-        try CredentialStore.save(config.token, account: account)
+        try config.saveCredentials()
         UserDefaults.standard.set(config.address, forKey: "serverAddress")
         UserDefaults.standard.set(config.port, forKey: "serverPort")
         delegate.store.reloadConnection()

@@ -1,28 +1,14 @@
-Mac release preparation — 2026-11-13
+Mac release — 2026-11-17
 
-Version: 2.0.0 (2)
+Version: 2.0.1 (3)
 Bundle identifier: tokyo.kumabook.tmux.reattach
 Minimum system: macOS 14
-Architectures: arm64, x86_64
 
-Completed:
-- Mac regression suite passed.
-- Release archive succeeded.
-- Privacy manifest included in the archive.
-- Apple distribution validation succeeded with no errors.
-- App Store Connect upload succeeded at 15:49 JST; package processing started.
-- English and Japanese Mac descriptions and promotional text prepared locally.
-
-Artifacts:
-/tmp/reattach-mac-submission/Reattach.xcarchive
-/tmp/reattach-mac-submission/Export/Reattach.pkg
-/tmp/reattach-submission-upload.log
-/tmp/reattach-submission-validation.log
-/tmp/reattach-submission-tests.log
-
-Not yet completed:
-- Verify processed build and macOS version record in App Store Connect (Chrome requires sign-in).
-- Upload Mac metadata and screenshots; existing iOS screenshots are not Mac screenshots.
-- Verify a dedicated review server and supply its connection details privately in App Review Information.
-- Confirm privacy answers, age rating, availability and release mode.
-- Send the version to App Review. No review submission or public release has been performed.
+- Added Cloudflare Access service-token fields to the Connection settings so the
+  app can reach servers behind Cloudflare Access, including the review server.
+- Screenshots: fastlane/screenshots_mac (2880x1800, en-US and ja), rendered by
+  fastlane/screenshot_sources/render_mac.py from panel-window captures of the
+  app connected to a local demo reattachd with sample tmux sessions.
+- Review notes describe connecting to the review server with the Cloudflare
+  Access credentials and the reusable setup token.
+- Release mode: manual.

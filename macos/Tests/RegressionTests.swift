@@ -200,6 +200,16 @@ final class StubProtocol: URLProtocol {
         precondition(posts == 2 && store.requiresReload.contains(entry.target) && !store.canReply, "Ambiguous failures require explicit reload")
         StubProtocol.respond = { _ in (401, "") }
         do { _ = try await api.entries(); fatalError("Unauthorized accepted") } catch {}
+        var accessAPI = api
+        accessAPI.accessClientID = "id.access"; accessAPI.accessClientSecret = "secret"
+        StubProtocol.respond = { request in
+            request.value(forHTTPHeaderField: "CF-Access-Client-Id") == "id.access"
+                && request.value(forHTTPHeaderField: "CF-Access-Client-Secret") == "secret" ? (200, "[]") : (403, "")
+        }
+        let accessEntries = try await accessAPI.entries()
+        precondition(accessEntries.isEmpty, "Cloudflare Access credentials must be sent")
+        do { _ = try await api.entries(); fatalError("Missing Access credentials accepted") } catch {}
+        StubProtocol.respond = { _ in (401, "") }
         await store.poll()
         precondition(store.output == nil && store.error != nil, "Connection errors must invalidate reviewed output")
         var selectedPath: String?

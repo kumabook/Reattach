@@ -3583,6 +3583,74 @@
           }
         }
       }
+    },
+    "Cloudflare Access Client ID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Access Client ID"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Access Client ID"
+          }
+        }
+      }
+    },
+    "Cloudflare Access Client Secret": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Access Client Secret"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Access Client Secret"
+          }
+        }
+      }
+    },
+    "Only needed when the server is protected by a Cloudflare Access service token.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only needed when the server is protected by a Cloudflare Access service token."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーをCloudflare Accessのサービストークンで保護している場合だけ入力します。"
+          }
+        }
+      }
+    },
+    "Cloudflare Access blocked the request. Check the Client ID and Client Secret.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Access blocked the request. Check the Client ID and Client Secret."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare Accessに拒否されました。Client IDとClient Secretを確認してください。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

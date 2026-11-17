@@ -38,8 +38,10 @@ localhost. Generate a setup URL with `reattachd setup --url <server-url>`, copy
 its `setup_token` query parameter into Settings, and select “登録して保存”.
 Alternatively enter an existing device token. Do not paste tokens into source
 files or logs. Tailscale-only listeners need their HTTPS hostname instead of
-localhost. Remote servers should use HTTPS. Cloudflare Access service-token
-and browser sign-in flows are not included in this first macOS version.
+localhost. Remote servers should use HTTPS. For a server behind Cloudflare
+Access, enter the service token's Client ID and Client Secret in Settings; they
+are sent with every request and stored in Keychain per server URL. Browser
+sign-in to Cloudflare Access is not supported.
 
 ## Controls
 
