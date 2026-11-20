@@ -71,8 +71,16 @@ impl ControlClient {
         Self::attach_at(target, None).await
     }
 
+    /// Attaching with a pane target would select it on the desktop, and the app
+    /// reconnects with its last-known pane after backgrounding or network loss.
+    /// Selection changes go through the explicit select API instead.
     async fn attach_at(target: &str, socket: Option<String>) -> Result<Self, TmuxError> {
-        Self::attach_client_at(target, socket, false).await
+        let session = command(
+            socket.as_deref(),
+            &["display-message", "-p", "-t", target, "#{session_id}"],
+        )
+        .await?;
+        Self::attach_client_at(session.trim(), socket, false).await
     }
 
     pub async fn attach_independent(target: &str) -> Result<Self, TmuxError> {
@@ -742,9 +750,20 @@ mod tests {
         assert_eq!(next_window.window_name, "second");
         assert_ne!(next_window.pane_id, first.pane_id);
         drop(client);
-        // Ctrl-Tab / sidebar selection opens a stream for the chosen pane.
-        // Reattaching must update the shared window and pane, not just our view.
+        // Reconnecting with a stale pane must follow the desktop, not move it.
+        let desktop = next_window.pane_id.clone();
+        for stale in [&first, &second] {
+            let mut reconnected = ControlClient::attach_at(&stale.target, Some(socket.clone()))
+                .await
+                .unwrap();
+            assert_eq!(reconnected.state().await.unwrap().pane_id, desktop);
+            drop(reconnected);
+        }
+        // App navigation selects explicitly before opening the stream.
         for selected in [&first, &second, &next_window] {
+            command(sock, &super::super::select::selection_args(&selected.target))
+                .await
+                .unwrap();
             let mut switched = ControlClient::attach_at(&selected.target, Some(socket.clone()))
                 .await
                 .unwrap();
