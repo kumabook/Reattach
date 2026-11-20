@@ -93,7 +93,7 @@ final class ReattachUITests: XCTestCase {
                                "-permission-choice-fixture", "-autoOpenPermissionInbox", "YES",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        let close = app.buttons["closePermissionInbox-myproject:0.0"]
+        let close = app.buttons["closePermissionInbox"]
         XCTAssertTrue(close.waitForExistence(timeout: 15))
         close.tap()
         XCTAssertTrue(app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch.waitForExistence(timeout: 5))
@@ -117,8 +117,10 @@ final class ReattachUITests: XCTestCase {
             XCTAssertTrue(allow.waitForExistence(timeout: 10))
             allow.tap()
         }
-        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["closeEmptyPermissionInbox"].exists)
+        let close = app.buttons["closePermissionInbox"]
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: close)
+        waitForExpectations(timeout: 10)
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -136,7 +138,7 @@ final class ReattachUITests: XCTestCase {
             XCTAssertTrue(allow.waitForExistence(timeout: 10))
             allow.tap()
         }
-        let close = app.buttons["closeEmptyPermissionInbox"]
+        let close = app.buttons["closePermissionInbox"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         XCTAssertTrue(close.isHittable)
         close.tap()
@@ -180,7 +182,7 @@ final class ReattachUITests: XCTestCase {
         let inbox = app.buttons.matching(identifier: "permissionWaitingMenu").firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 15))
         inbox.tap()
-        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["closePermissionInbox"].waitForExistence(timeout: 5))
         let enter = app.buttons["permissionInboxEnter-myproject:0.0"]
         XCTAssertTrue(enter.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: enter)
@@ -192,7 +194,7 @@ final class ReattachUITests: XCTestCase {
         enter.tap()
         XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
         XCTAssertFalse(enter.isEnabled)
-        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].exists)
+        XCTAssertTrue(app.buttons["closePermissionInbox"].exists)
     }
 
     @MainActor
@@ -216,7 +218,7 @@ final class ReattachUITests: XCTestCase {
         deny.tap()
         XCTAssertTrue(app.staticTexts["Sent. Waiting for the agent…"].waitForExistence(timeout: 5))
         XCTAssertFalse(allow.isEnabled)
-        XCTAssertTrue(app.buttons["closePermissionInbox-myproject:0.0"].exists)
+        XCTAssertTrue(app.buttons["closePermissionInbox"].exists)
     }
 
     @MainActor

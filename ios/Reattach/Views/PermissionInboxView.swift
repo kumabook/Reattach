@@ -14,9 +14,14 @@ struct PermissionInboxView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var previewFrames: [String: CGRect] = [:]
     let sessions: [Session]
+    /// An inbox the user did not open explicitly must not linger once its requests are gone.
+    var closesWhenEmpty = false
     let openPane: (PermissionAttention) -> Void
 
     private var targets: [String] { status.entries.map(\.id) }
+    private var shouldDismissEmpty: Bool {
+        targets.isEmpty && status.unavailableServers.isEmpty && (hadRequests ? autoClose : closesWhenEmpty)
+    }
     private var selectedIndex: Int { targets.firstIndex(of: selectedTarget ?? "") ?? 0 }
 
     var body: some View {
@@ -39,19 +44,6 @@ struct PermissionInboxView: View {
                     if status.entries.isEmpty {
                         ContentUnavailableView(status.unavailableServers.isEmpty ? String(localized: "No Pending Requests") : String(localized: "Unable to check all servers"),
                                                systemImage: status.unavailableServers.isEmpty ? "checkmark.circle" : "wifi.exclamationmark")
-                            .overlay(alignment: .topLeading) {
-                                Button { dismiss() } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 19, weight: .medium))
-                                        .frame(width: 44, height: 44)
-                                }
-                                .accessibilityLabel(String(localized: "Close"))
-                                .accessibilityIdentifier("closeEmptyPermissionInbox")
-                                .buttonStyle(.plain)
-                                .tint(.primary)
-                                .modifier(PermissionGlassControl())
-                                .padding(24)
-                            }
                     } else {
                         GeometryReader { geometry in
                             ZStack {
@@ -63,7 +55,6 @@ struct PermissionInboxView: View {
                                             ? PaneNavigationItem.matching(target: entry.target, in: sessions)?.windowName : nil) ?? entry.target,
                                         isActive: entry.id == (selectedTarget ?? targets.first),
                                         openPane: openPane,
-                                        close: { dismiss() },
                                         onDrag: { translation in
                                             guard entry.id == selectedTarget, context == nil else { return }
                                             let atEdge = (selectedIndex == 0 && translation > 0)
@@ -113,7 +104,22 @@ struct PermissionInboxView: View {
                     }
                 }
                 .background(Color(uiColor: .systemGroupedBackground))
-                .toolbar(.hidden, for: .navigationBar)
+                .navigationTitle(String(localized: "Pending Requests"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(String(localized: "Close"), systemImage: "xmark") { dismiss() }
+                            .accessibilityIdentifier("closePermissionInbox")
+                    }
+                    if targets.count > 1 {
+                        ToolbarItem(placement: .primaryAction) {
+                            Text("\(selectedIndex + 1) / \(targets.count)")
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                        }
+                    }
+                }
             }
             .accessibilityHidden(context != nil)
             .allowsHitTesting(context == nil)
@@ -142,10 +148,10 @@ struct PermissionInboxView: View {
             if let focus = route.focus, new.contains(focus) { route.focus = nil; selectedTarget = focus }
             else { selectedTarget = PermissionPaging.selection(current: selectedTarget, old: old, new: new) }
         }
-        .task(id: autoClose && hadRequests && targets.isEmpty && status.unavailableServers.isEmpty) {
-            guard autoClose, hadRequests, targets.isEmpty, status.unavailableServers.isEmpty else { return }
+        .task(id: shouldDismissEmpty) {
+            guard shouldDismissEmpty else { return }
             do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-            guard autoClose, targets.isEmpty, status.unavailableServers.isEmpty else { return }
+            guard shouldDismissEmpty else { return }
             dismiss()
         }
         .onChange(of: config.servers) { _, _ in dismiss() }
@@ -283,7 +289,6 @@ private struct PermissionRequestCard: View {
     let title: String
     let isActive: Bool
     let openPane: (PermissionAttention) -> Void
-    let close: () -> Void
     let onDrag: (CGFloat) -> Void
     let onDragEnd: (CGFloat, CGFloat) -> Void
     let onDragCancel: () -> Void
@@ -351,29 +356,6 @@ private struct PermissionRequestCard: View {
 
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    Button(action: close) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 19, weight: .medium))
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel(String(localized: "Close"))
-                    .accessibilityIdentifier("closePermissionInbox-\(entry.id)")
-                    .modifier(PermissionGlassControl())
-                    Spacer()
-                    Button {
-                        openPane(entry)
-                    } label: {
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 19, weight: .medium))
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel(String(localized: "Open Pane"))
-                    .accessibilityIdentifier(entry.id)
-                    .modifier(PermissionGlassControl())
-                }
-                .tint(.primary)
-                .buttonStyle(.plain)
                 if let serverName = entry.serverName {
                     Label(serverName, systemImage: "server.rack")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -388,6 +370,18 @@ private struct PermissionRequestCard: View {
                         Text(entry.target).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
+                    Button {
+                        openPane(entry)
+                    } label: {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 19, weight: .medium))
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel(String(localized: "Open Pane"))
+                    .accessibilityIdentifier(entry.id)
+                    .tint(.primary)
+                    .buttonStyle(.plain)
+                    .modifier(PermissionGlassControl())
                 }
                 // Horizontal swipes page the card; its entire content scrolls vertically.
                 // Long press (or the expand button) opens the same frozen output over the feed.

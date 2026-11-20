@@ -89,6 +89,25 @@ enum PaneIcon {
     }
 }
 
+/// Each toolbar placement observes the status itself so the sidebar and detail
+/// copies cannot render different counts.
+private struct PermissionToolbarButton: View {
+    @State private var status = PermissionStatus.shared
+    let action: () -> Void
+
+    var body: some View {
+        let count = status.entries.count
+        Button(action: action) {
+            Label(String(localized: "Pending Requests"), systemImage: "checkmark")
+        }
+        .badge(count)
+        .tint(count == 0 ? .secondary : .orange)
+        .id(count == 0)
+        .accessibilityLabel(String(localized: "\(count) pending requests"))
+        .accessibilityIdentifier("permissionWaitingMenu")
+    }
+}
+
 // MARK: - SessionListView
 
 struct SessionListView: View {
@@ -109,6 +128,7 @@ struct SessionListView: View {
         paneActivity.statuses(serverID: ServerConfigManager.shared.activeServer?.id)
     }
     @State private var showPermissionInbox = false
+    @State private var permissionInboxOpenedByUser = false
     @AppStorage("autoOpenPermissionInbox") private var autoOpenPermissionInbox = false
     @State private var automaticInbox = PermissionInboxAutoPresentation()
     @State private var keyboardVisible = false
@@ -156,7 +176,7 @@ struct SessionListView: View {
             }
         }
         .fullScreenCover(isPresented: $showPermissionInbox) {
-            PermissionInboxView(sessions: viewModel.sessions) { entry in
+            PermissionInboxView(sessions: viewModel.sessions, closesWhenEmpty: !permissionInboxOpenedByUser) { entry in
                 showPermissionInbox = false
                 if let serverID = entry.serverID {
                     navigateToPaneWithKey("\(serverID):\(entry.target)")
@@ -260,15 +280,10 @@ struct SessionListView: View {
     }
 
     private var permissionMenu: some View {
-        Button {
+        PermissionToolbarButton {
+            permissionInboxOpenedByUser = true
             showPermissionInbox = true
-        } label: {
-            Label(String(localized: "Pending Requests"), systemImage: "checkmark")
         }
-        .badge(permissionStatus.entries.count)
-        .tint(permissionStatus.entries.isEmpty ? .secondary : .orange)
-        .accessibilityLabel(String(localized: "\(permissionStatus.entries.count) pending requests"))
-        .accessibilityIdentifier("permissionWaitingMenu")
     }
 
     // Keep one navigation hierarchy as the display opens, closes, or resizes.
@@ -535,12 +550,15 @@ struct SessionListView: View {
         let blocked = showingCreateSheet || isCreatingWindow || showingWindowDestinations
             || showServerList || showServerSettings || paneToDelete != nil
             || viewModel.showError || pendingNavigationID != nil || keyboardVisible || hasPresentedModal
-        if PermissionWidgetRoute.shared.pending, !blocked {
+        let hasEntries = !permissionStatus.entries.isEmpty
+        if PermissionWidgetRoute.shared.pending, !blocked, hasEntries {
             PermissionWidgetRoute.shared.pending = false
+            permissionInboxOpenedByUser = false
             showPermissionInbox = true
         } else if automaticInbox.update(entries: permissionStatus.entries, serverID: "all",
                                         enabled: autoOpenPermissionInbox,
-                                        visible: showPermissionInbox, blocked: blocked) {
+                                        visible: showPermissionInbox, blocked: blocked), hasEntries {
+            permissionInboxOpenedByUser = false
             showPermissionInbox = true
         }
     }

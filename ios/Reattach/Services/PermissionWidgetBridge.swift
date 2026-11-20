@@ -36,7 +36,12 @@ enum PermissionWidgetBridge {
 @MainActor @Observable
 final class PermissionWidgetRoute {
     static let shared = PermissionWidgetRoute()
-    var pending = false
+    private var requestedAt: Date?
+    /// Expires so a stale widget or notification tap cannot open the inbox much later.
+    var pending: Bool {
+        get { requestedAt.map { Date().timeIntervalSince($0) < 10 } ?? false }
+        set { requestedAt = newValue ? Date() : nil }
+    }
     /// The request to show first, as `PermissionAttention.id`.
     var focus: String?
 
