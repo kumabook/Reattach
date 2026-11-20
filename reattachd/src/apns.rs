@@ -253,7 +253,7 @@ impl ApnsService {
                 }
                 Err(a2::Error::ResponseError(ref response)) => {
                     if let Some(ref error_body) = response.error {
-                        if error_body.reason == a2::ErrorReason::BadDeviceToken {
+                        if is_invalid_token(&error_body.reason) {
                             tracing::warn!(
                                 "Removing invalid token: {}... (sandbox: {})",
                                 &device_token.token[..20.min(device_token.token.len())],
@@ -289,6 +289,27 @@ impl ApnsService {
             tracing::error!("Failed to save device tokens: {}", e);
         }
         tracing::info!("Removed {} invalid tokens", tokens_to_remove.len());
+    }
+}
+
+/// Unregistered (410) means the app was removed or the token expired; the
+/// token will never become valid again, matching the widget push handling.
+fn is_invalid_token(reason: &a2::ErrorReason) -> bool {
+    matches!(
+        reason,
+        a2::ErrorReason::BadDeviceToken | a2::ErrorReason::Unregistered
+    )
+}
+
+#[cfg(test)]
+mod invalid_token_tests {
+    use super::*;
+    #[test]
+    fn removes_only_permanently_invalid_tokens() {
+        assert!(is_invalid_token(&a2::ErrorReason::BadDeviceToken));
+        assert!(is_invalid_token(&a2::ErrorReason::Unregistered));
+        assert!(!is_invalid_token(&a2::ErrorReason::TooManyRequests));
+        assert!(!is_invalid_token(&a2::ErrorReason::InternalServerError));
     }
 }
 
