@@ -175,6 +175,11 @@ class ReattachAPI {
         _ = try await request(path: "/panes/\(encodedTarget)/input", method: "POST", body: body)
     }
 
+    func respondToPermission(target: String, receivedAt: Int64, digest: String, choice: String) async throws {
+        let body = PermissionReplyRequest(target: target, receivedAt: receivedAt, digest: digest, choice: choice)
+        _ = try await request(path: "/attention/respond", method: "POST", body: body)
+    }
+
     func sendEscape(target: String) async throws {
         if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target
@@ -279,21 +284,27 @@ class ReattachAPI {
         _ = try await request(path: "/activity/read", method: "POST", body: ["target": entry.target, "revision": entry.revision])
     }
 
-    func registerDevice(token: String, sandbox: Bool, deviceId: String, serverName: String, notificationMode: String? = nil) async throws {
-        let body = RegisterDeviceRequest(token: token, sandbox: sandbox, deviceId: deviceId, serverName: serverName, notificationMode: notificationMode)
+    func registerDevice(token: String, sandbox: Bool, deviceId: String, serverName: String,
+                        notificationMode: String? = nil, permissionContent: Bool? = nil) async throws {
+        let body = RegisterDeviceRequest(token: token, sandbox: sandbox, deviceId: deviceId, serverName: serverName,
+                                         notificationMode: notificationMode, permissionContent: permissionContent)
         let data = try await request(path: "/devices", method: "POST", body: body)
-        if let notificationMode {
-            let response = try? JSONSerialization.jsonObject(with: data) as? [String: String]
-            guard response?["notification_mode"] == notificationMode else {
-                throw APIError.serverError(String(localized: "Update reattachd to apply notification settings."))
-            }
+        let response = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+        if let notificationMode, response?["notification_mode"] != notificationMode {
+            throw APIError.serverError(String(localized: "Update reattachd to apply notification settings."))
+        }
+        // Servers without this setting never include request details in notifications.
+        if let permissionContent, let applied = response?["permission_content"],
+           applied != (permissionContent ? "on" : "off") {
+            throw APIError.serverError(String(localized: "Update reattachd to apply notification settings."))
         }
     }
 
     func registerAPNsDevice(token: String) async throws {
         guard let server else { return }
         try await registerDevice(token: token, sandbox: PushNotificationEnvironment.currentSandbox,
-                                 deviceId: server.deviceId, serverName: server.serverName, notificationMode: PushNotificationPreference.current.rawValue)
+                                 deviceId: server.deviceId, serverName: server.serverName, notificationMode: PushNotificationPreference.current.rawValue,
+                                 permissionContent: PushNotificationPreference.includesPermissionContent)
     }
 
     private func request<T: Encodable>(path: String, method: String, body: T? = nil) async throws -> Data {

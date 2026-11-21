@@ -79,12 +79,26 @@ struct RegisterDeviceRequest: Codable {
     let deviceId: String
     let serverName: String
     var notificationMode: String? = nil
+    var permissionContent: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case token, sandbox
         case deviceId = "device_id"
         case serverName = "server_name"
         case notificationMode = "notification_mode"
+        case permissionContent = "permission_content"
+    }
+}
+
+struct PermissionReplyRequest: Codable {
+    let target: String
+    let receivedAt: Int64
+    let digest: String
+    let choice: String
+
+    enum CodingKeys: String, CodingKey {
+        case target, digest, choice
+        case receivedAt = "received_at"
     }
 }
 

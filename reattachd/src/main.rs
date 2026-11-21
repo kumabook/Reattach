@@ -5,6 +5,7 @@ mod attention;
 mod auth;
 mod codex_attention;
 mod notification_content;
+mod permission_prompt;
 mod tmux;
 mod widget_push;
 
@@ -1075,6 +1076,7 @@ async fn run_daemon(
         .merge(
             Router::new()
                 .route("/attention", get(attention::list))
+                .route("/attention/respond", post(attention::respond))
                 .with_state(attention_service.clone())
                 .layer(middleware::from_fn_with_state(
                     auth_service.clone(),

@@ -20,6 +20,7 @@ pub struct RegisterDeviceRequest {
     #[serde(default)]
     pub server_name: String,
     pub notification_mode: Option<crate::apns::NotificationMode>,
+    pub permission_content: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -47,19 +48,24 @@ pub async fn register_apns_device(
         return Err(StatusCode::UNAUTHORIZED);
     };
     payload.device_id = device.id;
-    let mode = apns
+    let (mode, permission_content) = apns
         .register_device(
             payload.token,
             payload.sandbox,
             payload.device_id,
             payload.server_name,
             payload.notification_mode,
+            payload.permission_content,
         )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Older apps decode this object as string values only.
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({"notification_mode": mode})),
+        Json(serde_json::json!({
+            "notification_mode": mode,
+            "permission_content": if permission_content { "on" } else { "off" },
+        })),
     ))
 }
 

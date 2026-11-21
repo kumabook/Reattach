@@ -167,7 +167,7 @@ struct PermissionChoice: Equatable, Identifiable {
             }
         }
         if !current.isEmpty { groups.append(current) }
-        guard let choices = groups.last, choices.count >= 2,
+        guard let choices = groups.last(where: { $0.contains(where: \.selected) }), choices.count >= 2,
               choices.filter(\.selected).count == 1,
               choices.enumerated().allSatisfy({ $0.element.number == String($0.offset + 1) }) else {
             return []

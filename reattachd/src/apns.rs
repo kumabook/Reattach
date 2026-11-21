@@ -51,6 +51,20 @@ pub struct DeviceToken {
     pub server_name: String,
     #[serde(default)]
     pub notification_mode: NotificationMode,
+    /// Whether permission pushes may carry the prompt text and reply buttons.
+    #[serde(default = "default_permission_content")]
+    pub permission_content: bool,
+}
+
+fn default_permission_content() -> bool {
+    true
+}
+
+/// Identifies the exact prompt a notification showed, so a reply from the
+/// notification can be rejected once the screen no longer matches.
+pub struct PermissionPush<'a> {
+    pub prompt: Option<&'a crate::permission_prompt::Prompt>,
+    pub received_at: i64,
 }
 
 pub struct ApnsConfig {
@@ -137,20 +151,23 @@ impl ApnsService {
         device_id: String,
         server_name: String,
         mode: Option<NotificationMode>,
-    ) -> Result<NotificationMode, ApnsError> {
+        permission_content: Option<bool>,
+    ) -> Result<(NotificationMode, bool), ApnsError> {
         let mut tokens = self.device_tokens.write().await;
+        let previous = tokens
+            .iter()
+            .find(|t| t.device_id == device_id && !device_id.is_empty());
         let notification_mode = mode
-            .or_else(|| {
-                tokens
-                    .iter()
-                    .find(|t| t.device_id == device_id && !device_id.is_empty())
-                    .map(|t| t.notification_mode)
-            })
+            .or_else(|| previous.map(|t| t.notification_mode))
             .unwrap_or_default();
+        let permission_content = permission_content
+            .or_else(|| previous.map(|t| t.permission_content))
+            .unwrap_or_else(default_permission_content);
         // A device's preference applies to its development and production registrations.
         if !device_id.is_empty() {
             for existing in tokens.iter_mut().filter(|t| t.device_id == device_id) {
                 existing.notification_mode = notification_mode;
+                existing.permission_content = permission_content;
             }
         }
         let record = DeviceToken {
@@ -159,6 +176,7 @@ impl ApnsService {
             device_id,
             server_name,
             notification_mode,
+            permission_content,
         };
         if let Some(existing) = tokens
             .iter_mut()
@@ -169,7 +187,7 @@ impl ApnsService {
             tokens.push(record);
         }
         Self::save_tokens(&self.tokens_file, &tokens)?;
-        Ok(notification_mode)
+        Ok((notification_mode, permission_content))
     }
 
     pub async fn send_notification(
@@ -178,6 +196,34 @@ impl ApnsService {
         body: &str,
         pane_target: Option<&str>,
         kind: NotificationKind,
+    ) -> Result<(), ApnsError> {
+        self.send(title, body, pane_target, kind, None).await
+    }
+
+    pub async fn send_permission(
+        &self,
+        title: &str,
+        fallback_body: &str,
+        pane_target: &str,
+        push: PermissionPush<'_>,
+    ) -> Result<(), ApnsError> {
+        self.send(
+            title,
+            fallback_body,
+            Some(pane_target),
+            NotificationKind::Permission,
+            Some(push),
+        )
+        .await
+    }
+
+    async fn send(
+        &self,
+        title: &str,
+        body: &str,
+        pane_target: Option<&str>,
+        kind: NotificationKind,
+        permission: Option<PermissionPush<'_>>,
     ) -> Result<(), ApnsError> {
         let tokens = self.device_tokens.read().await.clone();
         if tokens.is_empty() {
@@ -214,12 +260,29 @@ impl ApnsService {
                 }
             };
 
-            let builder = DefaultNotificationBuilder::new()
+            let prompt = permission
+                .as_ref()
+                .and_then(|p| p.prompt)
+                .filter(|_| device_token.permission_content);
+            let prompt_body = prompt.map(|p| p.body());
+            let category = prompt.map(|p| format!("PERMISSION_{}", p.choices.len()));
+            let mut builder = DefaultNotificationBuilder::new()
                 .set_title(&notification_title)
-                .set_body(body)
+                .set_body(prompt_body.as_deref().unwrap_or(body))
                 .set_sound("default");
+            if let Some(category) = &category {
+                builder = builder.set_category(category);
+            }
 
             let mut payload = builder.build(&device_token.token, options.clone());
+            if let (Some(push), Some(prompt)) = (&permission, prompt) {
+                payload
+                    .data
+                    .insert("receivedAt", Value::from(push.received_at));
+                payload
+                    .data
+                    .insert("promptDigest", Value::String(prompt.digest.clone()));
+            }
 
             if let Some(target) = pane_target {
                 payload
@@ -331,6 +394,7 @@ mod preference_tests {
     fn legacy_tokens_keep_all_notifications() {
         let token: DeviceToken = serde_json::from_str(r#"{"token":"ab","sandbox":true}"#).unwrap();
         assert_eq!(token.notification_mode, NotificationMode::All);
+        assert!(token.permission_content);
     }
 }
 
@@ -376,6 +440,7 @@ mod registration_tests {
             device.id.clone(),
             "server".into(),
             None,
+            None,
         )
         .await
         .unwrap();
@@ -384,6 +449,7 @@ mod registration_tests {
             true,
             "other-device".into(),
             "server".into(),
+            None,
             None,
         )
         .await
@@ -394,6 +460,7 @@ mod registration_tests {
             device_id: "other-device".into(),
             server_name: "server".into(),
             notification_mode: Some(NotificationMode::PermissionOnly),
+            permission_content: Some(false),
         };
         assert!(matches!(
             crate::api::notifications::register_apns_device(
@@ -417,6 +484,7 @@ mod registration_tests {
         .await
         .unwrap();
         assert_eq!(result.1 .0["notification_mode"], "permission_only");
+        assert_eq!(result.1 .0["permission_content"], "off");
         let tokens = apns.device_tokens.read().await;
         assert!(tokens
             .iter()

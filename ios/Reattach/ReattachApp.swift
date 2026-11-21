@@ -31,6 +31,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) -> Bool {
         AppDelegate.shared = self
         UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().setNotificationCategories(PermissionNotificationActions.categories)
         setupNotifications()
         return true
     }
@@ -127,6 +128,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
+        if let choice = PermissionNotificationActions.choice(for: response.actionIdentifier) {
+            Task { @MainActor in
+                await PermissionNotificationActions.reply(choice: choice, userInfo: userInfo)
+                completionHandler()
+            }
+            return
+        }
         if let deviceId = userInfo["deviceId"] as? String,
            let paneTarget = userInfo["paneTarget"] as? String {
             let key = "\(deviceId):\(paneTarget)"
