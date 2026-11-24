@@ -4,7 +4,9 @@ import Observation
 @MainActor
 enum PermissionWidgetBridge {
     static func synchronize(_ manager: ServerConfigManager) {
-        PermissionWidgetStore.synchronize(manager.isDemoMode ? [] : manager.servers.map(connection))
+        let connections = manager.isDemoMode ? [] : manager.servers.map(connection)
+        PermissionWidgetStore.synchronize(connections)
+        WatchServerSync.shared.update(connections)
     }
 
     static func connection(_ server: ServerConfig) -> PermissionWidgetConnection {

@@ -5,7 +5,7 @@ const MAX_CONTEXT_CHARS: usize = 600;
 const MAX_LABEL_CHARS: usize = 80;
 pub const MAX_CHOICES: usize = 6;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Choice {
     pub number: String,
     pub label: String,
@@ -13,7 +13,7 @@ pub struct Choice {
 
 /// A numbered menu exactly as the terminal shows it, plus the lines that describe
 /// what is being approved. The digest lets a later reply prove nothing changed.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Prompt {
     pub context: String,
     pub choices: Vec<Choice>,

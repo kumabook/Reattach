@@ -1076,6 +1076,7 @@ async fn run_daemon(
         .merge(
             Router::new()
                 .route("/attention", get(attention::list))
+                .route("/attention/prompts", get(attention::prompts))
                 .route("/attention/respond", post(attention::respond))
                 .with_state(attention_service.clone())
                 .layer(middleware::from_fn_with_state(

@@ -32,6 +32,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         AppDelegate.shared = self
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setNotificationCategories(PermissionNotificationActions.categories)
+        WatchServerSync.shared.start()
         setupNotifications()
         return true
     }

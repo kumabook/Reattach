@@ -1,16 +1,116 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "Permission requests from Reattach appear as notifications. Tap a number to answer." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reattach の許可リクエストは通知で届きます。番号をタップして応答できます。"
+  "sourceLanguage": "en",
+  "strings": {
+    "No pending requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ちはありません"
+          }
+        }
+      }
+    },
+    "No servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーがありません"
+          }
+        }
+      }
+    },
+    "Open Reattach on iPhone to share its servers.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone で Reattach を開くと、サーバーが共有されます。"
+          }
+        }
+      }
+    },
+    "Refresh": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
+    "Requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リクエスト"
+          }
+        }
+      }
+    },
+    "Server error (%lld)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーエラー (%lld)"
+          }
+        }
+      }
+    },
+    "Sign-in expired. Open Reattach on iPhone.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証が切れました。iPhone で Reattach を開いてください。"
+          }
+        }
+      }
+    },
+    "The choices are not visible on screen. Answer from iPhone or the terminal.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面に選択肢が見つかりません。iPhone かターミナルから応答してください。"
+          }
+        }
+      }
+    },
+    "The request changed. Check it again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リクエストの内容が変わりました。もう一度確認してください。"
+          }
+        }
+      }
+    },
+    "This request is no longer pending.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリクエストはもう許可待ちではありません。"
+          }
+        }
+      }
+    },
+    "Unavailable: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続できません: %@"
           }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

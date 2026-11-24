@@ -288,6 +288,28 @@ pub fn start_widget_monitor(
     });
 }
 
+#[derive(Serialize)]
+pub struct PromptAttention {
+    #[serde(flatten)]
+    attention: Attention,
+    prompt: Option<crate::permission_prompt::Prompt>,
+}
+
+/// Pending requests with the menu currently on screen, for clients that answer
+/// without showing the terminal.
+pub async fn prompts(State(service): State<Arc<Service>>) -> Json<Vec<PromptAttention>> {
+    let Json(entries) = list(State(service)).await;
+    let mut result = Vec::with_capacity(entries.len());
+    for attention in entries {
+        let prompt = match crate::permission_prompt::capture(&attention.target).await {
+            Some(screen) => crate::permission_prompt::parse(&screen),
+            None => None,
+        };
+        result.push(PromptAttention { attention, prompt });
+    }
+    Json(result)
+}
+
 #[derive(Deserialize)]
 pub struct Reply {
     target: String,
@@ -514,6 +536,24 @@ pub async fn run_hook(data_dir: &Path, port: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prompt_attention_keeps_list_fields_at_the_top_level() {
+        let entry = PromptAttention {
+            attention: Attention {
+                target: "s:0.0".into(),
+                tool: "Bash".into(),
+                received_at: 7,
+            },
+            prompt: crate::permission_prompt::parse("Run?\n❯ 1. Yes\n  2. No"),
+        };
+        let value = serde_json::to_value(entry).unwrap();
+        assert_eq!(value["target"], "s:0.0");
+        assert_eq!(value["received_at"], 7);
+        assert_eq!(value["prompt"]["context"], "Run?");
+        assert_eq!(value["prompt"]["choices"][1]["label"], "No");
+        assert!(value["prompt"]["digest"].is_string());
+    }
     fn event(name: &str, command: &str, turn: &str) -> Event {
         from_hook(&serde_json::json!({"hook_event_name":name,"session_id":"s","turn_id":turn,"tool_name":"Bash","tool_input":{"command":command}}), "%1".into(), "100".into()).unwrap()
     }
