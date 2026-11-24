@@ -237,6 +237,14 @@ pub fn start_widget_monitor(
                     deferred.push(request.clone());
                     continue;
                 }
+                match &prompt {
+                    Some(p) => tracing::info!(
+                        "Permission push for {target}: {} choices, digest {}",
+                        p.choices.len(),
+                        p.digest
+                    ),
+                    None => tracing::info!("Permission push for {target}: no choices on screen"),
+                }
                 let _ = apns
                     .send_permission(
                         &format!("許可待ち · {target}"),
@@ -294,31 +302,46 @@ pub async fn respond(
     State(service): State<Arc<Service>>,
     Json(reply): Json<Reply>,
 ) -> (StatusCode, Json<Value>) {
-    let error =
-        |status: StatusCode, reason: &str| (status, Json(serde_json::json!({ "error": reason })));
+    let target = reply.target.clone();
+    let choice = reply.choice.clone();
+    let result = check_and_send(service, reply).await;
+    match &result {
+        Ok(()) => tracing::info!("Permission reply sent to {target}: choice {choice}"),
+        Err((_, reason)) => {
+            tracing::warn!("Permission reply to {target} rejected: {reason} (choice {choice})")
+        }
+    }
+    match result {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({}))),
+        Err((status, reason)) => (status, Json(serde_json::json!({ "error": reason }))),
+    }
+}
+
+async fn check_and_send(
+    service: Arc<Service>,
+    reply: Reply,
+) -> Result<(), (StatusCode, &'static str)> {
     let Json(entries) = list(State(service)).await;
     if !entries
         .iter()
         .any(|e| e.target == reply.target && e.received_at == reply.received_at)
     {
-        return error(StatusCode::CONFLICT, "no_longer_pending");
+        return Err((StatusCode::CONFLICT, "no_longer_pending"));
     }
-    let Some(screen) = crate::permission_prompt::capture(&reply.target).await else {
-        return error(StatusCode::CONFLICT, "unavailable");
-    };
-    let Some(prompt) =
-        crate::permission_prompt::parse(&screen).filter(|p| p.digest == reply.digest)
-    else {
-        return error(StatusCode::CONFLICT, "changed");
-    };
+    let screen = crate::permission_prompt::capture(&reply.target)
+        .await
+        .ok_or((StatusCode::CONFLICT, "unavailable"))?;
+    let prompt = crate::permission_prompt::parse(&screen)
+        .filter(|p| p.digest == reply.digest)
+        .ok_or((StatusCode::CONFLICT, "changed"))?;
     if !prompt.choices.iter().any(|c| c.number == reply.choice) {
-        return error(StatusCode::BAD_REQUEST, "invalid_choice");
+        return Err((StatusCode::BAD_REQUEST, "invalid_choice"));
     }
-    let target = reply.target.clone();
-    match tokio::task::spawn_blocking(move || crate::tmux::send_keys(&target, &reply.choice)).await
+    match tokio::task::spawn_blocking(move || crate::tmux::send_keys(&reply.target, &reply.choice))
+        .await
     {
-        Ok(Ok(())) => (StatusCode::OK, Json(serde_json::json!({}))),
-        _ => error(StatusCode::INTERNAL_SERVER_ERROR, "send_failed"),
+        Ok(Ok(())) => Ok(()),
+        _ => Err((StatusCode::INTERNAL_SERVER_ERROR, "send_failed")),
     }
 }
 
