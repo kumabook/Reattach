@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1C0FFEE000000000000000C /* ReattachWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000002 /* ReattachWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0111409A440A51CDCCDED382 /* PermissionWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554AB86800AFF361081148E5 /* PermissionWidgetData.swift */; };
 		4D11B35FA6235DB4C6207D82 /* ReattachWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA5CCA18E5B0CF9AAED816C /* ReattachWidgets.swift */; };
 		4E9FC2373170B40D40EF356C /* PermissionWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554AB86800AFF361081148E5 /* PermissionWidgetData.swift */; };
@@ -18,6 +19,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		A1C0FFEE000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 670759212EEDBDE1004D3434 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1C0FFEE0000000000000001;
+			remoteInfo = ReattachWatch;
+		};
 		670759372EEDBDE3004D3434 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 670759212EEDBDE1004D3434 /* Project object */;
@@ -53,9 +61,22 @@
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1C0FFEE000000000000000D /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				A1C0FFEE000000000000000C /* ReattachWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
+
 /* Begin PBXFileReference section */
+		A1C0FFEE0000000000000002 /* ReattachWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReattachWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2229689DC107DFD83BE4E178 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		554AB86800AFF361081148E5 /* PermissionWidgetData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PermissionWidgetData.swift; sourceTree = "<group>"; };
 		5CA5CCA18E5B0CF9AAED816C /* ReattachWidgets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReattachWidgets.swift; sourceTree = "<group>"; };
@@ -82,6 +103,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1C0FFEE0000000000000003 /* ReattachWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ReattachWatch;
+			sourceTree = "<group>";
+		};
 		6707592B2EEDBDE1004D3434 /* Reattach */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -107,6 +133,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A1C0FFEE0000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		670759262EEDBDE1004D3434 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -168,6 +201,7 @@
 				67BA10B32F24E24E00C2E0DD /* Frameworks */,
 				D85D2978B2D5B13367622F26 /* ReattachWidgets */,
 				2CC64EDF65DE246B3A755E3E /* WidgetShared */,
+				A1C0FFEE0000000000000003 /* ReattachWatch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -178,6 +212,7 @@
 				670759362EEDBDE3004D3434 /* ReattachTests.xctest */,
 				670759402EEDBDE3004D3434 /* ReattachUITests.xctest */,
 				DAA9A1B1112375A6CA33F74D /* ReattachWidgets.appex */,
+				A1C0FFEE0000000000000002 /* ReattachWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -215,6 +250,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A1C0FFEE0000000000000001 /* ReattachWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C0FFEE0000000000000007 /* Build configuration list for PBXNativeTarget "ReattachWatch" */;
+			buildPhases = (
+				A1C0FFEE0000000000000004 /* Sources */,
+				A1C0FFEE0000000000000005 /* Frameworks */,
+				A1C0FFEE0000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1C0FFEE0000000000000003 /* ReattachWatch */,
+			);
+			name = ReattachWatch;
+			productName = ReattachWatch;
+			productReference = A1C0FFEE0000000000000002 /* ReattachWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 		670759282EEDBDE1004D3434 /* Reattach */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6707594A2EEDBDE3004D3434 /* Build configuration list for PBXNativeTarget "Reattach" */;
@@ -223,11 +278,13 @@
 				670759262EEDBDE1004D3434 /* Frameworks */,
 				670759272EEDBDE1004D3434 /* Resources */,
 				2B2087F29DD84C7068C9B35E /* Embed App Extensions */,
+				A1C0FFEE000000000000000D /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				EC0AAC5E59BA5604FE4BB8E6 /* PBXTargetDependency */,
+				A1C0FFEE000000000000000B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6707592B2EEDBDE1004D3434 /* Reattach */,
@@ -338,11 +395,19 @@
 				670759352EEDBDE3004D3434 /* ReattachTests */,
 				6707593F2EEDBDE3004D3434 /* ReattachUITests */,
 				B2F71DE4E7D049774E19BEA0 /* ReattachWidgets */,
+				A1C0FFEE0000000000000001 /* ReattachWatch */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A1C0FFEE0000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3F961F1D147DEB5391B9F41F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -376,6 +441,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A1C0FFEE0000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2D92443ED9838A525A62AD99 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -410,6 +482,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A1C0FFEE000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1C0FFEE0000000000000001 /* ReattachWatch */;
+			targetProxy = A1C0FFEE000000000000000A /* PBXContainerItemProxy */;
+		};
 		670759382EEDBDE3004D3434 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 670759282EEDBDE1004D3434 /* Reattach */;
@@ -429,6 +506,63 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		A1C0FFEE0000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 48;
+				DEVELOPMENT_TEAM = 7AK92UN63W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Reattach;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = tokyo.kumabook.tmux.reattach;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		A1C0FFEE0000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 48;
+				DEVELOPMENT_TEAM = 7AK92UN63W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Reattach;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = tokyo.kumabook.tmux.reattach;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = tokyo.kumabook.tmux.reattach.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 		018436ADC33F314DB5FD511B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -772,6 +906,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A1C0FFEE0000000000000007 /* Build configuration list for PBXNativeTarget "ReattachWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C0FFEE0000000000000008 /* Debug */,
+				A1C0FFEE0000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		670759242EEDBDE1004D3434 /* Build configuration list for PBXProject "Reattach" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

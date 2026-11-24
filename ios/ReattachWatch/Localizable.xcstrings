@@ -1,0 +1,16 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Permission requests from Reattach appear as notifications. Tap a number to answer." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reattach の許可リクエストは通知で届きます。番号をタップして応答できます。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
