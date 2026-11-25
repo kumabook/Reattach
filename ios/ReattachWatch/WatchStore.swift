@@ -1,11 +1,12 @@
 import Foundation
 import Observation
+import WidgetKit
 
 @MainActor
 @Observable
 final class WatchStore {
     static let shared = WatchStore()
-    private static let connectionsKey = "connections"
+    private static let connectionsKey = WatchKeychain.connectionsAccount
 
     private(set) var connections: [WatchConnection] = []
     private(set) var requests: [PendingRequest] = []
@@ -21,8 +22,9 @@ final class WatchStore {
                 UserDefaults.standard.removeObject(forKey: Self.connectionsKey)
             }
         }
-        if let data = WatchKeychain.data(for: Self.connectionsKey) ?? UserDefaults.standard.data(forKey: Self.connectionsKey),
-           let saved = try? JSONDecoder().decode([WatchConnection].self, from: data) {
+        connections = WatchKeychain.connections()
+        if connections.isEmpty, let legacy = UserDefaults.standard.data(forKey: Self.connectionsKey),
+           let saved = try? JSONDecoder().decode([WatchConnection].self, from: legacy) {
             connections = saved
         }
     }
@@ -32,6 +34,7 @@ final class WatchStore {
               received != connections else { return }
         connections = received
         WatchKeychain.set(data, for: Self.connectionsKey)
+        WidgetCenter.shared.reloadAllTimelines()
         Task { await refresh() }
     }
 
@@ -49,7 +52,9 @@ final class WatchStore {
                 if let result { loaded += result } else { failed.append(connection.serverName) }
             }
         }
-        requests = loaded.sorted { $0.receivedAt < $1.receivedAt }
+        let sorted = loaded.sorted { $0.receivedAt < $1.receivedAt }
+        if sorted != requests || !hasLoaded { WidgetCenter.shared.reloadAllTimelines() }
+        requests = sorted
         unavailableServers = failed.sorted()
     }
 
@@ -64,6 +69,7 @@ final class WatchStore {
         guard let prompt = request.prompt else { return }
         try await WatchAPI(connection: request.connection).respond(to: request, digest: prompt.digest, choice: choice)
         requests.removeAll { $0.id == request.id }
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Notification buttons carry the digest the notification showed.
@@ -72,5 +78,6 @@ final class WatchStore {
         let request = PendingRequest(connection: connection, target: target, tool: "", receivedAt: receivedAt, prompt: nil)
         try await WatchAPI(connection: connection).respond(to: request, digest: digest, choice: choice)
         requests.removeAll { $0.id == request.id }
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

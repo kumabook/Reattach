@@ -1,0 +1,66 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld pending": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ち %lld件"
+          }
+        }
+      }
+    },
+    "No pending requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ちはありません"
+          }
+        }
+      }
+    },
+    "Open Reattach on iPhone": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhoneでReattachを開いてください"
+          }
+        }
+      }
+    },
+    "Pending Requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ち"
+          }
+        }
+      }
+    },
+    "Permission requests waiting on your Mac.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Macで許可を待っているリクエストを表示します。"
+          }
+        }
+      }
+    },
+    "Server unavailable": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーに接続できません"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

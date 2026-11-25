@@ -17,6 +17,12 @@ struct RequestListView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.refresh() } }
         }
+        .onOpenURL { url in
+            if let focus = NotificationFocus(url: url) {
+                store.focus = focus
+                Task { await store.refresh() }
+            }
+        }
         .onChange(of: store.focus) { openFocus() }
         .onChange(of: store.requests) { openFocus() }
     }

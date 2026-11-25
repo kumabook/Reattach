@@ -55,6 +55,13 @@ struct WatchAPI {
         _ = try await send(path: "/attention/respond", method: "POST", body: body)
     }
 
+    func registerWidget(token: String, sandbox: Bool, enabled: Bool) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "token": token, "sandbox": sandbox, "enabled": enabled, "platform": "watchos",
+        ])
+        _ = try await send(path: "/widget-devices", method: "POST", body: body)
+    }
+
     private func send(path: String, method: String, body: Data?) async throws -> Data {
         guard let url = URL(string: connection.serverURL + path) else { throw URLError(.badURL) }
         var request = URLRequest(url: url, timeoutInterval: 15)

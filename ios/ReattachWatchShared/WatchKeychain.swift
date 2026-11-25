@@ -35,3 +35,11 @@ enum WatchKeychain {
         ]
     }
 }
+
+extension WatchKeychain {
+    static let connectionsAccount = "connections"
+
+    static func connections() -> [WatchConnection] {
+        data(for: connectionsAccount).flatMap { try? JSONDecoder().decode([WatchConnection].self, from: $0) } ?? []
+    }
+}
