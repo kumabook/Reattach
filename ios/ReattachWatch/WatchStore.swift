@@ -15,7 +15,13 @@ final class WatchStore {
     var focus: NotificationFocus?
 
     private init() {
-        if let data = UserDefaults.standard.data(forKey: Self.connectionsKey),
+        // Earlier builds kept the tokens in UserDefaults.
+        if let legacy = UserDefaults.standard.data(forKey: Self.connectionsKey) {
+            if WatchKeychain.data(for: Self.connectionsKey) != nil || WatchKeychain.set(legacy, for: Self.connectionsKey) {
+                UserDefaults.standard.removeObject(forKey: Self.connectionsKey)
+            }
+        }
+        if let data = WatchKeychain.data(for: Self.connectionsKey) ?? UserDefaults.standard.data(forKey: Self.connectionsKey),
            let saved = try? JSONDecoder().decode([WatchConnection].self, from: data) {
             connections = saved
         }
@@ -25,7 +31,7 @@ final class WatchStore {
         guard let received = try? JSONDecoder().decode([WatchConnection].self, from: data),
               received != connections else { return }
         connections = received
-        UserDefaults.standard.set(data, forKey: Self.connectionsKey)
+        WatchKeychain.set(data, for: Self.connectionsKey)
         Task { await refresh() }
     }
 
