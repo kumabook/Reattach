@@ -33,7 +33,9 @@ struct PendingProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PendingEntry>) -> Void) {
         Task {
-            await WidgetPush.synchronize()
+            // A timeline request means the widget is on a face or in the Smart Stack,
+            // even if the push handler's widget list said otherwise.
+            await WidgetPush.synchronize(enabled: true)
             let entry = await load()
             completion(Timeline(entries: [entry], policy: .after(entry.date.addingTimeInterval(15 * 60))))
         }
@@ -184,7 +186,8 @@ enum WidgetPush {
         UserDefaults.standard.set(enabled, forKey: enabledKey)
     }
 
-    static func synchronize() async {
+    static func synchronize(enabled newValue: Bool? = nil) async {
+        if let newValue { UserDefaults.standard.set(newValue, forKey: enabledKey) }
         guard let token = UserDefaults.standard.string(forKey: tokenKey) else { return }
         let enabled = UserDefaults.standard.bool(forKey: enabledKey)
         await withTaskGroup(of: Void.self) { group in

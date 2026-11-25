@@ -52,9 +52,8 @@ final class WatchStore {
                 if let result { loaded += result } else { failed.append(connection.serverName) }
             }
         }
-        let sorted = loaded.sorted { $0.receivedAt < $1.receivedAt }
-        if sorted != requests || !hasLoaded { WidgetCenter.shared.reloadAllTimelines() }
-        requests = sorted
+        requests = loaded.sorted { $0.receivedAt < $1.receivedAt }
+        WidgetCenter.shared.reloadAllTimelines()
         unavailableServers = failed.sorted()
     }
 
