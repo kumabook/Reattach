@@ -270,14 +270,23 @@ pub async fn register(
         return StatusCode::UNAUTHORIZED;
     };
     let Some(device) = auth.validate_device_token(token).await else {
+        tracing::warn!(platform = ?r.platform, "Widget registration with an unknown device token");
         return StatusCode::UNAUTHORIZED;
     };
     if !r.valid() {
+        tracing::warn!(platform = ?r.platform, "Widget registration with a malformed push token");
         return StatusCode::BAD_REQUEST;
     }
+    let (platform, sandbox, enabled) = (r.platform, r.sandbox, r.enabled);
     match apns.widget_push.register(device.id, r).await {
-        Ok(()) => StatusCode::NO_CONTENT,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        Ok(()) => {
+            tracing::info!(?platform, sandbox, enabled, "Widget registration saved");
+            StatusCode::NO_CONTENT
+        }
+        Err(e) => {
+            tracing::warn!(?platform, "Widget registration not saved: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 }
 
