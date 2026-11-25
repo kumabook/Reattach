@@ -19,12 +19,24 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 const LEASE_SECONDS: i64 = 3 * 24 * 60 * 60;
+
+/// Which app's widget holds the token; each needs its own APNs topic.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Platform {
+    #[default]
+    Ios,
+    Watchos,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct Subscription {
     device_id: String,
     token: String,
     sandbox: bool,
     expires: i64,
+    #[serde(default)]
+    platform: Platform,
 }
 
 pub struct Service {
@@ -32,7 +44,7 @@ pub struct Service {
     key: PKey<Private>,
     key_id: String,
     team_id: String,
-    topic: String,
+    bundle_id: String,
     file: PathBuf,
     subscriptions: Mutex<Vec<Subscription>>,
     jwt: Mutex<Option<(i64, String)>>,
@@ -43,6 +55,8 @@ pub struct Registration {
     token: String,
     sandbox: bool,
     enabled: bool,
+    #[serde(default)]
+    platform: Platform,
 }
 impl Registration {
     fn valid(&self) -> bool {
@@ -71,7 +85,7 @@ impl Service {
             key: PKey::private_key_from_pem(config.key.as_bytes()).map_err(|e| e.to_string())?,
             key_id: config.key_id.clone(),
             team_id: config.team_id.clone(),
-            topic: format!("{}.push-type.widgets", config.bundle_id),
+            bundle_id: config.bundle_id.clone(),
             file,
             subscriptions: Mutex::new(subscriptions),
             jwt: Mutex::new(None),
@@ -141,6 +155,13 @@ impl Service {
         Ok(token)
     }
 
+    fn topic(&self, platform: Platform) -> String {
+        match platform {
+            Platform::Ios => format!("{}.push-type.widgets", self.bundle_id),
+            Platform::Watchos => format!("{}.watchkitapp.push-type.widgets", self.bundle_id),
+        }
+    }
+
     fn request(&self, subscription: &Subscription, bearer: &str) -> reqwest::RequestBuilder {
         let host = if subscription.sandbox {
             "api.sandbox.push.apple.com"
@@ -151,7 +172,7 @@ impl Service {
             .post(format!("https://{host}/3/device/{}", subscription.token))
             .bearer_auth(bearer)
             .header("apns-push-type", "widgets")
-            .header("apns-topic", &self.topic)
+            .header("apns-topic", self.topic(subscription.platform))
             .header("apns-priority", "5")
             .header("apns-collapse-id", "permission-widget")
             .header(
@@ -175,7 +196,7 @@ impl Service {
             }
             match self.request(&s, &bearer).send().await {
                 Ok(response) if response.status().is_success() => {
-                    tracing::info!("Widget update accepted by APNs")
+                    tracing::info!(platform = ?s.platform, "Widget update accepted by APNs")
                 }
                 Ok(response) => {
                     let status = response.status();
@@ -222,6 +243,7 @@ fn update_subscription(
         s.expires > now
             && !(s.device_id == device_id
                 && s.sandbox == r.sandbox
+                && s.platform == r.platform
                 && (r.enabled || s.token == r.token))
     });
     if r.enabled {
@@ -230,6 +252,7 @@ fn update_subscription(
             token: r.token,
             sandbox: r.sandbox,
             expires: now + LEASE_SECONDS,
+            platform: r.platform,
         });
     }
 }
@@ -304,6 +327,7 @@ mod tests {
                 token: "ab".repeat(32),
                 sandbox,
                 expires: i64::MAX,
+                platform: Platform::Ios,
             };
             let req = service.request(&sub, &bearer).build().unwrap();
             assert_eq!(req.headers()["apns-push-type"], "widgets");
@@ -321,6 +345,18 @@ mod tests {
                 serde_json::from_slice(req.body().unwrap().as_bytes().unwrap()).unwrap();
             assert_eq!(body, serde_json::json!({"aps":{"content-changed":true}}));
         }
+        let watch = Subscription {
+            device_id: "A".into(),
+            token: "ab".repeat(32),
+            sandbox: false,
+            expires: i64::MAX,
+            platform: Platform::Watchos,
+        };
+        let req = service.request(&watch, &bearer).build().unwrap();
+        assert_eq!(
+            req.headers()["apns-topic"],
+            "test.app.watchkitapp.push-type.widgets"
+        );
     }
 
     #[tokio::test]
@@ -333,6 +369,7 @@ mod tests {
             token: "ab".repeat(32),
             sandbox: true,
             enabled: true,
+            platform: Platform::Ios,
         };
         let state = || State((apns.clone(), auth.clone()));
         assert_eq!(
@@ -365,14 +402,16 @@ mod tests {
             assert!(!Registration {
                 token: token.into(),
                 sandbox: true,
-                enabled: true
+                enabled: true,
+                platform: Platform::Ios,
             }
             .valid());
         }
         assert!(Registration {
             token: "ab".repeat(32),
             sandbox: false,
-            enabled: true
+            enabled: true,
+            platform: Platform::Ios,
         }
         .valid());
     }
@@ -383,6 +422,7 @@ mod tests {
             token: token.into(),
             sandbox: true,
             enabled,
+            platform: Platform::Ios,
         };
         update_subscription(&mut stored, "A".into(), reg("old", true), 0);
         update_subscription(&mut stored, "B".into(), reg("other", true), 0);
@@ -398,5 +438,30 @@ mod tests {
             LEASE_SECONDS + 1,
         );
         assert_eq!(stored.len(), 1);
+    }
+
+    #[test]
+    fn watch_and_phone_widgets_of_one_device_coexist() {
+        let mut stored = Vec::new();
+        let reg = |token: &str, platform| Registration {
+            token: token.into(),
+            sandbox: false,
+            enabled: true,
+            platform,
+        };
+        update_subscription(&mut stored, "A".into(), reg("phone", Platform::Ios), 0);
+        update_subscription(&mut stored, "A".into(), reg("watch", Platform::Watchos), 0);
+        assert_eq!(stored.len(), 2);
+        update_subscription(&mut stored, "A".into(), reg("watch2", Platform::Watchos), 0);
+        assert_eq!(stored.len(), 2);
+        assert!(stored.iter().any(|s| s.token == "phone"));
+    }
+
+    #[test]
+    fn subscriptions_saved_before_platforms_are_phone_widgets() {
+        let old: Subscription =
+            serde_json::from_str(r#"{"device_id":"A","token":"t","sandbox":true,"expires":1}"#)
+                .unwrap();
+        assert_eq!(old.platform, Platform::Ios);
     }
 }
