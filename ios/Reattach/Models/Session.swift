@@ -90,18 +90,6 @@ struct RegisterDeviceRequest: Codable {
     }
 }
 
-struct PermissionReplyRequest: Codable {
-    let target: String
-    let receivedAt: Int64
-    let digest: String
-    let choice: String
-
-    enum CodingKeys: String, CodingKey {
-        case target, digest, choice
-        case receivedAt = "received_at"
-    }
-}
-
 struct OutputResponse: Codable {
     let output: String
 }

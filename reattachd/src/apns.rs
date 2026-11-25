@@ -265,23 +265,16 @@ impl ApnsService {
                 .and_then(|p| p.prompt)
                 .filter(|_| device_token.permission_content);
             let prompt_body = prompt.map(|p| p.body());
-            let category = prompt.map(|p| format!("PERMISSION_{}", p.choices.len()));
-            let mut builder = DefaultNotificationBuilder::new()
+            let builder = DefaultNotificationBuilder::new()
                 .set_title(&notification_title)
                 .set_body(prompt_body.as_deref().unwrap_or(body))
                 .set_sound("default");
-            if let Some(category) = &category {
-                builder = builder.set_category(category);
-            }
 
             let mut payload = builder.build(&device_token.token, options.clone());
-            if let (Some(push), Some(prompt)) = (&permission, prompt) {
+            if let (Some(push), Some(_)) = (&permission, prompt) {
                 payload
                     .data
                     .insert("receivedAt", Value::from(push.received_at));
-                payload
-                    .data
-                    .insert("promptDigest", Value::String(prompt.digest.clone()));
             }
 
             if let Some(target) = pane_target {

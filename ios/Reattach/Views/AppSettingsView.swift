@@ -34,7 +34,7 @@ struct AppSettingsView: View {
                 } footer: {
                     Text("Applies to all servers on this device. Unread indicators and widgets update independently of push notification settings. Servers must run the latest reattachd.")
                     + Text(verbatim: " ")
-                    + Text("Request details add the prompt and numbered reply buttons, also on Apple Watch. The text is delivered through Apple Push Notification service.")
+                    + Text("Request details add the prompt and its choices to the notification. The text is delivered through Apple Push Notification service.")
                 }
 
                 Section {

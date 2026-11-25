@@ -175,11 +175,6 @@ class ReattachAPI {
         _ = try await request(path: "/panes/\(encodedTarget)/input", method: "POST", body: body)
     }
 
-    func respondToPermission(target: String, receivedAt: Int64, digest: String, choice: String) async throws {
-        let body = PermissionReplyRequest(target: target, receivedAt: receivedAt, digest: digest, choice: choice)
-        _ = try await request(path: "/attention/respond", method: "POST", body: body)
-    }
-
     func sendEscape(target: String) async throws {
         if isDemoMode { return }
         let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target

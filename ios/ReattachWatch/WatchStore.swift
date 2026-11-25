@@ -71,13 +71,4 @@ final class WatchStore {
         requests.removeAll { $0.id == request.id }
         WidgetCenter.shared.reloadAllTimelines()
     }
-
-    /// Notification buttons carry the digest the notification showed.
-    func respond(serverID: String, target: String, receivedAt: Int64, digest: String, choice: String) async throws {
-        guard let connection = connections.first(where: { $0.serverID == serverID }) else { return }
-        let request = PendingRequest(connection: connection, target: target, tool: "", receivedAt: receivedAt, prompt: nil)
-        try await WatchAPI(connection: connection).respond(to: request, digest: digest, choice: choice)
-        requests.removeAll { $0.id == request.id }
-        WidgetCenter.shared.reloadAllTimelines()
-    }
 }

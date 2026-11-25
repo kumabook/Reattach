@@ -3631,40 +3631,6 @@
         }
       }
     },
-    "Reply not sent · %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reply not sent · %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返信を送れませんでした · %@"
-          }
-        }
-      }
-    },
-    "The request changed. Open the pane to review it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The request changed. Open the pane to review it."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "依頼の内容が変わりました。ペインを開いて確認してください。"
-          }
-        }
-      }
-    },
     "Show request details in notifications": {
       "extractionState": "manual",
       "localizations": {
@@ -3682,19 +3648,19 @@
         }
       }
     },
-    "Request details add the prompt and numbered reply buttons, also on Apple Watch. The text is delivered through Apple Push Notification service.": {
+    "Request details add the prompt and its choices to the notification. The text is delivered through Apple Push Notification service.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Request details add the prompt and numbered reply buttons, also on Apple Watch. The text is delivered through Apple Push Notification service."
+            "value": "Request details add the prompt and its choices to the notification. The text is delivered through Apple Push Notification service."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "依頼の内容を表示すると、通知にプロンプトと番号の返信ボタンが付きます（Apple Watch でも使えます）。内容は Apple Push Notification サービスを経由して届きます。"
+            "value": "依頼の内容を表示すると、通知にプロンプトと選択肢が入ります。内容は Apple Push Notification サービスを経由して届きます。"
           }
         }
       }
