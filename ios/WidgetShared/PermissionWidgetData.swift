@@ -249,10 +249,9 @@ nonisolated enum PermissionWidgetLoader {
 nonisolated enum PermissionWidgetPush {
     private static var defaults: UserDefaults? { UserDefaults(suiteName: PermissionWidgetStore.group) }
 
-    static func store(token: Data, enabled: Bool, sandbox: Bool) {
+    static func store(token: Data, enabled: Bool) {
         defaults?.set(token.map { String(format: "%02x", $0) }.joined(), forKey: "widgetPushToken")
         defaults?.set(enabled, forKey: "widgetPushEnabled")
-        defaults?.set(sandbox, forKey: "widgetPushSandbox")
     }
 
     static func registrationRequest(connection: PermissionWidgetConnection, token: String, sandbox: Bool, enabled: Bool) throws -> URLRequest {
@@ -280,7 +279,7 @@ nonisolated enum PermissionWidgetPush {
         defer { session.invalidateAndCancel() }
         do {
             let request = try registrationRequest(connection: connection, token: token,
-                sandbox: defaults?.bool(forKey: "widgetPushSandbox") ?? false,
+                sandbox: PushNotificationEnvironment.currentSandbox,
                 enabled: enabled ?? defaults?.bool(forKey: "widgetPushEnabled") ?? false)
             let (_, response) = try await session.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 204 else { return }

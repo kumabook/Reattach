@@ -162,8 +162,7 @@ struct PermissionWidget: Widget {
 struct PermissionPushHandler: WidgetPushHandler {
     func pushTokenDidChange(_ pushInfo: WidgetPushInfo, widgets: [WidgetInfo]) {
         PermissionWidgetPush.store(token: pushInfo.token,
-            enabled: widgets.contains { $0.kind == PermissionWidgetStore.kind },
-            sandbox: PushNotificationEnvironment.currentSandbox)
+            enabled: widgets.contains { $0.kind == PermissionWidgetStore.kind })
         Task { await PermissionWidgetPush.synchronize() }
     }
 }

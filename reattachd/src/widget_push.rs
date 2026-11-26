@@ -242,7 +242,6 @@ fn update_subscription(
     stored.retain(|s| {
         s.expires > now
             && !(s.device_id == device_id
-                && s.sandbox == r.sandbox
                 && s.platform == r.platform
                 && (r.enabled || s.token == r.token))
     });
@@ -464,6 +463,21 @@ mod tests {
         update_subscription(&mut stored, "A".into(), reg("watch2", Platform::Watchos), 0);
         assert_eq!(stored.len(), 2);
         assert!(stored.iter().any(|s| s.token == "phone"));
+    }
+
+    #[test]
+    fn reinstalling_from_testflight_replaces_the_sandbox_subscription() {
+        let mut stored = Vec::new();
+        let reg = |token: &str, sandbox| Registration {
+            token: token.into(),
+            sandbox,
+            enabled: true,
+            platform: Platform::Ios,
+        };
+        update_subscription(&mut stored, "A".into(), reg("xcode", true), 0);
+        update_subscription(&mut stored, "A".into(), reg("testflight", false), 0);
+        assert_eq!(stored.len(), 1);
+        assert!(!stored[0].sandbox);
     }
 
     #[test]
