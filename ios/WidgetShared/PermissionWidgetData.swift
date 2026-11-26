@@ -263,7 +263,8 @@ nonisolated enum PermissionWidgetPush {
         return request
     }
 
-    static func synchronize() async {
+    static func synchronize(enabled: Bool? = nil) async {
+        if let enabled { defaults?.set(enabled, forKey: "widgetPushEnabled") }
         let connections = PermissionWidgetStore.connections()
         await withTaskGroup(of: Void.self) { group in
             for connection in connections { group.addTask { await synchronize(connection: connection) } }

@@ -18,7 +18,8 @@ struct PermissionProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PermissionEntry>) -> Void) {
         Task {
-            await PermissionWidgetPush.synchronize()
+            // A timeline request means the widget is on screen, even if the push handler's widget list said otherwise.
+            await PermissionWidgetPush.synchronize(enabled: true)
             let connections = PermissionWidgetStore.connections()
             let config = URLSessionConfiguration.ephemeral
             config.httpShouldSetCookies = false
