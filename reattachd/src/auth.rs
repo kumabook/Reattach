@@ -161,6 +161,8 @@ impl AuthService {
     }
 
     pub async fn update_last_seen(&self, device_id: &str) {
+        // `reattachd setup` writes setup tokens to disk; don't overwrite them with the in-memory copy.
+        self.reload().await;
         {
             let mut store = self.store.write().await;
             if let Some(device) = store.devices.iter_mut().find(|d| d.id == device_id) {
@@ -176,6 +178,7 @@ impl AuthService {
     }
 
     pub async fn revoke_device(&self, device_id: &str) -> bool {
+        self.reload().await;
         let removed = {
             let mut store = self.store.write().await;
             let len_before = store.devices.len();
@@ -202,3 +205,19 @@ fn generate_token() -> String {
 }
 
 pub type SharedAuthService = Arc<AuthService>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn daemon_activity_keeps_setup_tokens_written_by_the_setup_command() {
+        let dir = std::env::temp_dir().join(format!("reattachd-auth-{}", uuid::Uuid::new_v4()));
+        let daemon = AuthService::new(dir.clone()).await.unwrap();
+        let setup = AuthService::new(dir.clone()).await.unwrap();
+        let token = setup.generate_setup_token(false, chrono::Duration::minutes(10)).await;
+        daemon.update_last_seen("unknown").await;
+        assert!(daemon.register_device(&token, "iPhone").await.is_ok());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
