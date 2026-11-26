@@ -202,7 +202,7 @@ impl Service {
                     let status = response.status();
                     let body: serde_json::Value = response.json().await.unwrap_or_default();
                     let reason = body["reason"].as_str().unwrap_or("Unknown");
-                    tracing::warn!(%status, reason, "Widget APNs update rejected");
+                    tracing::warn!(%status, reason, platform = ?s.platform, token = &s.token[..s.token.len().min(8)], "Widget APNs update rejected");
                     if status.as_u16() == 410 || reason == "BadDeviceToken" {
                         invalid.push(s);
                     } else {
@@ -277,9 +277,10 @@ pub async fn register(
         return StatusCode::BAD_REQUEST;
     }
     let (platform, sandbox, enabled) = (r.platform, r.sandbox, r.enabled);
+    let token_prefix = r.token[..r.token.len().min(8)].to_string();
     match apns.widget_push.register(device.id, r).await {
         Ok(()) => {
-            tracing::info!(?platform, sandbox, enabled, "Widget registration saved");
+            tracing::info!(?platform, sandbox, enabled, token = %token_prefix, "Widget registration saved");
             StatusCode::NO_CONTENT
         }
         Err(e) => {
