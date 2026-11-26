@@ -1115,7 +1115,7 @@ async fn run_daemon(
             .with_state((apns.clone(), auth_service.clone()));
         let notify_route = Router::new()
             .route("/notify", post(api::send_notification))
-            .with_state(apns);
+            .with_state((apns, auth_service.clone()));
         base_routes
             .merge(devices_route)
             .merge(widget_route)

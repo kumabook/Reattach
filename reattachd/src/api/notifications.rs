@@ -70,13 +70,15 @@ pub async fn register_apns_device(
 }
 
 pub async fn send_notification(
-    State(apns): State<SharedApnsService>,
+    State((apns, auth)): State<(SharedApnsService, crate::auth::SharedAuthService)>,
     Json(payload): Json<SendNotificationRequest>,
 ) -> StatusCode {
     // Older installed CLI hooks also submit here; filter before contacting APNs.
     if crate::notification_content::is_background_generation(&payload.body) {
         return StatusCode::OK;
     }
+    apns.forget_revoked_devices(&auth.list_devices().await)
+        .await;
     match apns
         .send_notification(
             &payload.title,

@@ -338,6 +338,23 @@ impl ApnsService {
         Ok(())
     }
 
+    /// Drops tokens of devices revoked with `reattachd devices revoke`, which runs in another process.
+    pub async fn forget_revoked_devices(&self, devices: &[crate::auth::Device]) {
+        let mut tokens = self.device_tokens.write().await;
+        let before = tokens.len();
+        tokens.retain(|t| t.device_id.is_empty() || devices.iter().any(|d| d.id == t.device_id));
+        if tokens.len() == before {
+            return;
+        }
+        if let Err(e) = Self::save_tokens(&self.tokens_file, &tokens) {
+            tracing::error!("Failed to save device tokens: {}", e);
+        }
+        tracing::info!(
+            "Removed {} tokens of revoked devices",
+            before - tokens.len()
+        );
+    }
+
     async fn remove_tokens(&self, tokens_to_remove: &[String]) {
         let mut tokens = self.device_tokens.write().await;
         tokens.retain(|t| !tokens_to_remove.contains(&t.token));
@@ -500,6 +517,55 @@ mod registration_tests {
                 .notification_mode,
             NotificationMode::PermissionOnly
         );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn tokens_of_revoked_devices_are_forgotten() {
+        use openssl::{
+            ec::{EcGroup, EcKey},
+            nid::Nid,
+            pkey::PKey,
+        };
+        let dir = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let key = PKey::from_ec_key(
+            EcKey::generate(&EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap()).unwrap(),
+        )
+        .unwrap();
+        let apns = ApnsService::new(ApnsConfig {
+            key: String::from_utf8(key.private_key_to_pem_pkcs8().unwrap()).unwrap(),
+            key_id: "TEST".into(),
+            team_id: "TEAM".into(),
+            bundle_id: "test.app".into(),
+            data_dir: dir.clone(),
+        })
+        .await
+        .unwrap();
+        let auth = crate::auth::AuthService::new(dir.clone()).await.unwrap();
+        let setup = auth
+            .generate_setup_token(true, chrono::Duration::minutes(1))
+            .await;
+        let kept = auth.register_device(&setup, "kept").await.unwrap();
+        let revoked = auth.register_device(&setup, "revoked").await.unwrap();
+        for (token, device_id) in [
+            ("a", kept.id.clone()),
+            ("b", revoked.id.clone()),
+            ("legacy", String::new()),
+        ] {
+            apns.register_device(token.into(), false, device_id, "s".into(), None, None)
+                .await
+                .unwrap();
+        }
+        auth.revoke_device(&revoked.id).await;
+        apns.forget_revoked_devices(&auth.list_devices().await)
+            .await;
+        let mut left: Vec<String> = ApnsService::load_tokens(&apns.tokens_file)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.token)
+            .collect();
+        left.sort();
+        assert_eq!(left, ["a", "legacy"]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

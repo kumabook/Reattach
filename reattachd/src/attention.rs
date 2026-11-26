@@ -245,6 +245,8 @@ pub fn start_widget_monitor(
                     ),
                     None => tracing::info!("Permission push for {target}: no choices on screen"),
                 }
+                apns.forget_revoked_devices(&auth.list_devices().await)
+                    .await;
                 let _ = apns
                     .send_permission(
                         &format!("許可待ち · {target}"),
