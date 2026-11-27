@@ -9,6 +9,16 @@ struct RequestListView: View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle("Requests")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        NavigationLink {
+                            WatchSettingsView()
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
+                    }
+                }
                 .navigationDestination(for: String.self) { id in
                     RequestDetailView(requestID: id)
                 }

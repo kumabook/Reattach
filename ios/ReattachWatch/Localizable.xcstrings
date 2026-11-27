@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Choices first": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択肢を先に表示"
+          }
+        }
+      }
+    },
     "No pending requests": {
       "localizations": {
         "ja": {
@@ -57,6 +67,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "サーバーエラー (%lld)"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
+          }
+        }
+      }
+    },
+    "Show the choices above the request details.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依頼の内容より上に選択肢を表示します。"
           }
         }
       }
