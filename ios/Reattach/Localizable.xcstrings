@@ -2153,23 +2153,6 @@
         }
       }
     },
-    "Unlock all features": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unlock all features"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべての機能を利用"
-          }
-        }
-      }
-    },
     "Unlimited Servers": {
       "extractionState": "manual",
       "localizations": {
@@ -2234,40 +2217,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "必要なだけコマンドを保存"
-          }
-        }
-      }
-    },
-    "Extended History": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Extended History"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "履歴を拡張"
-          }
-        }
-      }
-    },
-    "Keep up to 100 commands in history": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keep up to 100 commands in history"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コマンド履歴を最大100件保存"
           }
         }
       }
@@ -2977,6 +2926,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "入力モードを切り替え"
+          }
+        }
+      }
+    },
+    "Every machine, answered from your wrist": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every machine, answered from your wrist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのマシンに、手元からすぐ応答"
+          }
+        }
+      }
+    },
+    "Reply from Apple Watch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply from Apple Watch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Watch から応答"
+          }
+        }
+      }
+    },
+    "Answer permission requests with a tap on your wrist": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer permission requests with a tap on your wrist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可待ちに、手首をタップするだけで応答"
           }
         }
       }

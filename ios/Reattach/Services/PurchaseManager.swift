@@ -36,8 +36,7 @@ class PurchaseManager {
 
     static let freeServerLimit = 1
     static let freeBookmarkLimit = 5
-    static let freeHistoryLimit = 20
-    static let proHistoryLimit = 100
+    static let historyLimit = 100
 
     var serverLimit: Int {
         isPro ? .max : Self.freeServerLimit
@@ -45,10 +44,6 @@ class PurchaseManager {
 
     var bookmarkLimit: Int {
         isPro ? .max : Self.freeBookmarkLimit
-    }
-
-    var historyLimit: Int {
-        isPro ? Self.proHistoryLimit : Self.freeHistoryLimit
     }
 
     private init() {

@@ -7,6 +7,7 @@ struct RequestDetailView: View {
     @State private var sending: String?
     @State private var failure: String?
     @AppStorage(WatchSettings.choicesFirstKey) private var choicesFirst = true
+    @State private var pro = WatchPro.shared
 
     private var request: PendingRequest? {
         store.requests.first { $0.id == requestID }
@@ -40,6 +41,7 @@ struct RequestDetailView: View {
             }
         }
         .navigationTitle(request?.tool ?? "")
+        .task { await pro.refresh() }
     }
 
     @ViewBuilder
@@ -49,7 +51,13 @@ struct RequestDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func choices(of prompt: PermissionPrompt, for request: PendingRequest) -> some View {
+        if !pro.isPro {
+            Label("Reply from Apple Watch with Reattach Pro. Unlock it in the iPhone app.", systemImage: "lock.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
         ForEach(prompt.choices, id: \.self) { choice in
             Button {
                 answer(request, choice: choice.number)
@@ -61,7 +69,7 @@ struct RequestDetailView: View {
                     if sending == choice.number { ProgressView().frame(width: 16) }
                 }
             }
-            .disabled(sending != nil)
+            .disabled(sending != nil || !pro.isPro)
         }
     }
 

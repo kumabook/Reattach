@@ -51,6 +51,16 @@
         }
       }
     },
+    "Reply from Apple Watch with Reattach Pro. Unlock it in the iPhone app.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Watch から応答するには Reattach Pro が必要です。iPhone のアプリで購入できます。"
+          }
+        }
+      }
+    },
     "Requests": {
       "localizations": {
         "ja": {

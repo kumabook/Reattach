@@ -48,7 +48,7 @@ struct UpgradeView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text(String(localized: "Unlock all features"))
+            Text(String(localized: "Every machine, answered from your wrist"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -64,15 +64,15 @@ struct UpgradeView: View {
             )
 
             FeatureRow(
-                icon: "bookmark.fill",
-                title: String(localized: "Unlimited Bookmarks"),
-                description: String(localized: "Save as many commands as you need")
+                icon: "applewatch",
+                title: String(localized: "Reply from Apple Watch"),
+                description: String(localized: "Answer permission requests with a tap on your wrist")
             )
 
             FeatureRow(
-                icon: "clock.arrow.circlepath",
-                title: String(localized: "Extended History"),
-                description: String(localized: "Keep up to 100 commands in history")
+                icon: "bookmark.fill",
+                title: String(localized: "Unlimited Bookmarks"),
+                description: String(localized: "Save as many commands as you need")
             )
         }
         .padding()

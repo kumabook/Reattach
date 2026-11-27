@@ -106,7 +106,7 @@ class CommandHistoryManager {
     private let userDefaultsKey = "commandHistory"
 
     private var maxCount: Int {
-        PurchaseManager.shared.historyLimit
+        PurchaseManager.historyLimit
     }
 
     private init() {
