@@ -261,6 +261,28 @@
             </div>
 
             <div class="step">
+                <span class="step-number">★</span>
+                <span class="step-title">Quick start: <code>reattachd init</code></span>
+                <div class="step-content">
+                    <p>Install reattachd, then run <code>reattachd init</code>. It finds Tailscale (or uses the URL you pass), starts reattachd in the background at login, offers to add notification hooks for Claude Code and Codex, connects Reattach for Mac if it's installed on the same Mac, and shows a QR code to scan in the app.</p>
+                    <pre><code># macOS
+brew install kumabook/reattach/reattachd
+reattachd init
+
+# Linux
+curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
+reattachd init
+
+# Cloudflare Tunnel or another HTTPS proxy
+reattachd init --url https://your-host.example.com</code></pre>
+                    <p>To pair another device later, run <code>reattachd setup</code>. The steps below are for setting things up by hand.</p>
+                    <div class="note">
+                        <p><code>reattachd init</code> registers its own background service. Don't also start reattachd with <code>brew services</code>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
                 <span class="step-number">1</span>
                 <span class="step-title">Install reattachd</span>
                 <div class="step-content">

@@ -270,6 +270,28 @@
             </div>
 
             <div class="step">
+                <span class="step-number">★</span>
+                <span class="step-title">かんたんセットアップ：<code>reattachd init</code></span>
+                <div class="step-content">
+                    <p>reattachd を入れたら、<code>reattachd init</code> を実行します。Tailscale を見つけて（または指定した URL を使って）接続を設定し、ログイン時に reattachd が起動するよう登録し、Claude Code と Codex の通知フックを入れるか確認し、同じ Mac に Reattach for Mac があればそれもつないで、アプリで読み取る QR コードを表示します。</p>
+                    <pre><code># macOS
+brew install kumabook/reattach/reattachd
+reattachd init
+
+# Linux
+curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
+reattachd init
+
+# Cloudflare Tunnel など HTTPS のプロキシを使う場合
+reattachd init --url https://your-host.example.com</code></pre>
+                    <p>あとで別の端末をつなぐときは <code>reattachd setup</code> を実行します。以下は、手作業で設定する場合の手順です。</p>
+                    <div class="note">
+                        <p><code>reattachd init</code> は自分で常駐の設定を登録します。<code>brew services</code> でも起動すると二重に動くので、併用しないでください。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
                 <span class="step-number">1</span>
                 <span class="step-title">reattachdをインストール</span>
                 <div class="step-content">

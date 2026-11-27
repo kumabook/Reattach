@@ -3,662 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reattach - Remote tmux Client for iOS</title>
-    <meta name="description" content="Control your tmux sessions from your iPhone. Perfect for monitoring Claude Code and other coding agents.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #007AFF;
-            --primary-dark: #0056CC;
-            --bg: #000000;
-            --bg-secondary: #1C1C1E;
-            --text: #FFFFFF;
-            --text-secondary: #8E8E93;
-            --border: #38383A;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        /* Header */
-        header {
-            padding: 20px 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 1.5rem;
-            font-weight: 700;
-            text-decoration: none;
-            color: var(--text);
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            object-fit: cover;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 32px;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.95rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--text);
-        }
-
-        /* Hero */
-        .hero {
-            padding: 60px 0 20px;
-            text-align: center;
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            font-weight: 700;
-            margin-bottom: 24px;
-            background: linear-gradient(135deg, var(--text), var(--text-secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 1.25rem;
-            color: var(--text-secondary);
-            margin: 0 auto 40px;
-        }
-
-        .cta-buttons {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: var(--bg-secondary);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: #2C2C2E;
-            transform: translateY(-2px);
-        }
-
-        .app-store-badge {
-            display: inline-flex;
-            align-items: center;
-            transition: transform 0.2s;
-        }
-
-        .app-store-badge:hover {
-            transform: translateY(-2px);
-        }
-
-        .app-store-badge img {
-            height: 44px;
-            width: auto;
-        }
-
-        .cta-buttons .btn {
-            height: 44px;
-            padding: 0 24px;
-            display: inline-flex;
-            align-items: center;
-        }
-
-        /* Hero Visual */
-        .hero-visual {
-            padding: 0;
-        }
-
-        .handoff-diagram {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 40px;
-            flex-wrap: wrap;
-        }
-
-        .device {
-            position: relative;
-        }
-
-        .device-label {
-            text-align: center;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        .pc-screen {
-            width: 400px;
-            height: 260px;
-            background: #1a1a1a;
-            border-radius: 12px;
-            border: 2px solid var(--border);
-            padding: 12px;
-            font-family: 'SF Mono', 'Menlo', monospace;
-            font-size: 0.75rem;
-            color: #4AF626;
-            overflow: hidden;
-        }
-
-        .pc-screen .title-bar {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-        }
-
-        .pc-screen .title-bar span {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        .pc-screen .title-bar .red { background: #FF5F56; }
-        .pc-screen .title-bar .yellow { background: #FFBD2E; }
-        .pc-screen .title-bar .green { background: #27CA40; }
-
-        .pc-screen .terminal-content {
-            line-height: 1.5;
-            color: #ccc;
-            flex: 1;
-        }
-
-        .pc-screen .prompt { color: #4AF626; }
-        .pc-screen .command { color: #fff; }
-        .pc-screen .output { color: #888; }
-
-        .pc-screen .tmux-status {
-            background: #005f00;
-            color: #fff;
-            padding: 4px 8px;
-            font-size: 0.7rem;
-            margin: 8px -12px -12px -12px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .pc-screen .tmux-status .session {
-            background: #00ff00;
-            color: #000;
-            padding: 0 8px;
-            font-weight: bold;
-        }
-
-        .arrow {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            color: var(--primary);
-        }
-
-        .arrow svg {
-            width: 48px;
-            height: 48px;
-        }
-
-        .arrow span {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        .phone-frame {
-            width: 180px;
-            height: 380px;
-            background: #000;
-            border-radius: 36px;
-            border: 3px solid #333;
-            padding: 8px;
-            position: relative;
-        }
-
-        .phone-frame::before {
-            content: '';
-            position: absolute;
-            top: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 20px;
-            background: #1a1a1a;
-            border-radius: 10px;
-        }
-
-        .phone-screen {
-            width: 100%;
-            height: 100%;
-            background: #1C1C1E;
-            border-radius: 28px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .phone-header {
-            background: #2C2C2E;
-            padding: 32px 12px 8px;
-            text-align: center;
-            font-size: 0.7rem;
-            font-weight: 600;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .phone-content {
-            flex: 1;
-            padding: 8px;
-            font-family: 'SF Mono', 'Menlo', monospace;
-            font-size: 0.55rem;
-            color: #ccc;
-            line-height: 1.4;
-            overflow: hidden;
-        }
-
-        .phone-content .prompt { color: #4AF626; }
-
-        @media (max-width: 768px) {
-            .handoff-diagram {
-                flex-direction: column;
-                gap: 24px;
-            }
-
-            .pc-screen {
-                width: 320px;
-                height: 200px;
-                font-size: 0.65rem;
-            }
-
-            .arrow {
-                transform: rotate(90deg);
-            }
-
-            .arrow span {
-                transform: rotate(-90deg);
-            }
-
-            .phone-frame {
-                width: 140px;
-                height: 300px;
-            }
-        }
-
-        /* Upcoming release */
-        .release-preview { padding: 56px 0; background: var(--bg-secondary); }
-        .release-preview h2 { font-size: 2rem; margin-bottom: 12px; }
-        .release-preview p { margin-bottom: 16px; }
-        .release-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin: 24px 0; }
-        .release-grid article { padding: 20px; border: 1px solid var(--border); border-radius: 12px; }
-        .release-grid h3 { margin-bottom: 8px; }
-
-        /* Features */
-        .features {
-            padding: 80px 0;
-        }
-
-        .features h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 60px;
-        }
-
-        .feature-row {
-            display: flex;
-            align-items: center;
-            gap: 60px;
-            margin-bottom: 80px;
-        }
-
-        .feature-row:nth-child(even) {
-            flex-direction: row-reverse;
-        }
-
-        .feature-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .feature-image {
-            flex-shrink: 0;
-        }
-
-        .feature-image img {
-            width: 280px;
-            height: auto;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        }
-
-        .feature-content h3 {
-            font-size: 1.5rem;
-            margin-bottom: 16px;
-        }
-
-        .feature-content p {
-            color: var(--text-secondary);
-            font-size: 1.05rem;
-            line-height: 1.7;
-        }
-
-        @media (max-width: 768px) {
-            .feature-row,
-            .feature-row:nth-child(even) {
-                flex-direction: column;
-                gap: 32px;
-                text-align: center;
-            }
-
-            .feature-image img {
-                width: 240px;
-            }
-        }
-
-        /* Architecture */
-        .architecture {
-            padding: 80px 0;
-            background: var(--bg-secondary);
-        }
-
-        .architecture h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-        }
-
-        .architecture > .container > p {
-            text-align: center;
-            color: var(--text-secondary);
-            margin-bottom: 60px;
-        }
-
-        .diagram {
-            display: flex;
-            justify-content: center;
-            padding: 40px 20px;
-        }
-
-        .diagram svg {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .diagram-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 40px;
-            padding: 40px 20px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .diagram-item {
-            text-align: center;
-        }
-
-        .diagram-item h3 {
-            font-size: 1.1rem;
-            margin-bottom: 20px;
-            color: var(--text);
-        }
-
-        .diagram-item svg {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .diagram-caption {
-            margin-top: 16px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        .diagram-caption code {
-            background: var(--bg);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-
-        @media (max-width: 700px) {
-            .diagram-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .diagram-box {
-            fill: var(--bg-secondary);
-            stroke: var(--border);
-            stroke-width: 2;
-            rx: 12;
-        }
-
-        .diagram-box-highlight {
-            fill: rgba(0, 122, 255, 0.15);
-            stroke: var(--primary);
-            stroke-width: 2;
-            rx: 12;
-        }
-
-        .diagram-text {
-            fill: var(--text);
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .diagram-text-small {
-            fill: var(--text-secondary);
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-        }
-
-        .diagram-text-mono {
-            fill: var(--text-secondary);
-            font-family: 'SF Mono', 'Menlo', monospace;
-            font-size: 11px;
-        }
-
-        .diagram-arrow {
-            stroke: var(--primary);
-            stroke-width: 2;
-            fill: none;
-            marker-end: url(#arrowhead);
-        }
-
-        .diagram-line-dashed {
-            stroke: var(--border);
-            stroke-width: 2;
-            stroke-dasharray: 6 4;
-            fill: none;
-        }
-
-        .diagram-icon {
-            fill: var(--text);
-        }
-
-        .architecture-notes {
-            max-width: 1200px;
-            margin: 40px auto 0;
-            text-align: center;
-        }
-
-        .architecture-notes p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-bottom: 12px;
-        }
-
-        .architecture-notes strong {
-            color: var(--text);
-        }
-
-        /* Use Cases */
-        .use-cases {
-            padding: 80px 0;
-        }
-
-        .use-cases h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 60px;
-        }
-
-        .use-case-list {
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        .use-case {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 32px;
-            align-items: flex-start;
-        }
-
-        .use-case-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .use-case h3 {
-            font-size: 1.1rem;
-            margin-bottom: 8px;
-        }
-
-        .use-case p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-        }
-
-        /* CTA Section */
-        .cta-section {
-            padding: 20px 0 40px;
-            text-align: center;
-        }
-
-        /* Footer */
-        footer {
-            padding: 40px 0;
-            border-top: 1px solid var(--border);
-            text-align: center;
-        }
-
-        footer p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        footer a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-
-            .hero p {
-                font-size: 1.1rem;
-            }
-
-            .nav-links {
-                display: none;
-            }
-
-            .features h2,
-            .architecture h2,
-            .use-cases h2 {
-                font-size: 2rem;
-            }
-        }
-    </style>
+    <title>Reattach — Your tmux, wherever you are</title>
+    <meta name="description" content="Reattach puts the tmux you already use on your iPhone, iPad, Apple Watch, and Mac menu bar. Same sessions, same keys, and one way to answer your coding agents from anywhere.">
+    <link rel="alternate" hreflang="ja" href="https://reattach.tmux.kumabook.tokyo/ja/">
+    <link rel="stylesheet" href="/site.css">
 </head>
 <body>
     <header>
         <div class="container">
             <nav>
-                <a href="/" class="logo">
-                    <img src="app-icon.png" alt="Reattach" class="logo-icon">
-                    Reattach
-                </a>
+                <a href="/" class="logo"><img src="/app-icon.png" alt="">Reattach</a>
                 <div class="nav-links">
-                    <a href="#features">Features</a>
-                    <a href="#architecture">How it Works</a>
-                    <a href="/setup.html">Setup</a>
-                    <a href="https://github.com/kumabook/Reattach">GitHub</a>
+                    <a href="#devices" class="optional">Devices</a>
+                    <a href="#setup">Setup</a>
+                    <a href="#pricing" class="optional">Pricing</a>
+                    <a href="https://github.com/kumabook/Reattach" class="optional">GitHub</a>
                     <a href="/ja/">日本語</a>
                 </div>
             </nav>
@@ -666,305 +25,171 @@
     </header>
 
     <main>
-        <section class="hero">
+        <section class="hero center">
             <div class="container">
-                <h1>Remote tmux for iOS</h1>
-                <p>Your terminal, on your phone. Chat with your coding agent from anywhere.</p>
-            </div>
-        </section>
+                <h1>Your tmux,<br>wherever you are.</h1>
+                <p class="lead">Reattach puts the tmux you already use on your iPhone, Apple Watch, and Mac menu bar. Same sessions, same keys, and the same way to answer your coding agents — wherever you are.</p>
+                <div class="actions">
+                    <a class="badge" href="https://apps.apple.com/app/id6757171671"><img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store"></a>
+                    <a class="btn" href="#setup">Set up in two steps</a>
+                </div>
 
-        <section class="hero-visual">
-            <div class="container">
-                <div class="handoff-diagram">
-                    <div class="device">
-                        <div class="device-label">Your Computer</div>
-                        <div class="pc-screen">
-                            <div class="title-bar">
-                                <span class="red"></span>
-                                <span class="yellow"></span>
-                                <span class="green"></span>
-                            </div>
-                            <div class="terminal-content">
-                                <div><span class="prompt">$</span> <span class="command">claude</span></div>
-                                <div><span class="output">> Add dark mode toggle</span></div>
-                                <div><span class="output"></span></div>
-                                <div><span class="output">I'll implement dark mode.</span></div>
-                                <div><span class="output">Reading SettingsView.swift...</span></div>
-                                <div><span class="output"></span></div>
-                                <div><span class="output">✓ Added ThemeManager.swift</span></div>
-                                <div><span class="output">✓ Updated SettingsView.swift</span></div>
-                                <div><span class="output"></span></div>
-                                <div><span class="output">Run tests? (y/n)</span></div>
-                            </div>
-                            <div class="tmux-status">
-                                <span><span class="session">[0]</span> dev:claude*</span>
-                                <span>myproject</span>
+                <div class="devices" aria-hidden="true">
+                    <div>
+                        <div class="mac">
+                            <div class="mac-bar"><span></span><span></span><span></span></div>
+                            <div class="mac-body">
+                                <div class="tool">✋ Bash · web-app</div>
+                                <div class="request-title">Would you like to run the following command?</div>
+                                <div class="prompt-box">$ pnpm --filter web build</div>
+                                <div class="choice"><b>1</b>Yes, proceed</div>
+                                <div class="choice"><b>2</b>Yes, and don't ask again</div>
+                                <div class="choice"><b>3</b>No, tell it what to do differently</div>
                             </div>
                         </div>
+                        <div class="device-caption">Mac menu bar</div>
                     </div>
-
-                    <div class="arrow">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
-                        </svg>
-                        <span>Continue on iPhone</span>
-                    </div>
-
-                    <div class="device">
-                        <div class="device-label">Your Device</div>
-                        <div class="phone-frame">
+                    <div>
+                        <div class="phone">
                             <div class="phone-screen">
-                                <div class="phone-header">claude · main</div>
-                                <div class="phone-content">
-                                    <div>> Add dark mode toggle</div>
-                                    <div></div>
-                                    <div>I'll implement dark mode.</div>
-                                    <div>Reading SettingsView.swift...</div>
-                                    <div></div>
-                                    <div>✓ Added ThemeManager.swift</div>
-                                    <div>✓ Updated SettingsView.swift</div>
-                                    <div></div>
-                                    <div>Run tests? (y/n)</div>
-                                    <div></div>
-                                    <div><span class="prompt">▊</span></div>
+                                <div class="phone-head">claude · main</div>
+                                <div class="phone-term">
+                                    <div>&gt; Add a dark mode toggle</div>
+                                    <div class="dim">Reading SettingsView.swift…</div>
+                                    <div class="ok">✓ Added ThemeManager.swift</div>
+                                    <div class="ok">✓ Updated SettingsView.swift</div>
+                                    <br>
+                                    <div>Run the tests?</div>
+                                    <div>› 1. Yes</div>
+                                    <div>&nbsp; 2. No</div>
+                                    <br>
+                                    <div><span class="cursor">&nbsp;</span></div>
                                 </div>
+                                <div class="phone-keys"><span>esc</span><span class="on">ctrl</span><span>tab</span><span>←</span><span>↑</span><span>→</span></div>
                             </div>
                         </div>
+                        <div class="device-caption">iPhone &amp; iPad</div>
+                    </div>
+                    <div>
+                        <div class="watch">
+                            <div class="watch-screen">
+                                <b>claude:0.0</b>
+                                <div class="watch-choice first">1 Yes, proceed</div>
+                                <div class="watch-choice">2 Don't ask again</div>
+                                <div class="watch-choice">3 No</div>
+                            </div>
+                        </div>
+                        <div class="device-caption">Apple Watch</div>
                     </div>
                 </div>
-                <div class="use-case-list">
-                    <div class="use-case">
-                        <div class="use-case-icon">🛋️</div>
+            </div>
+        </section>
+
+        <section class="soft" id="devices">
+            <div class="container">
+                <h2>One tmux. The same experience everywhere.</h2>
+                <p class="lead">Start a task at your desk, keep an eye on it from the couch, and answer from your wrist. Every device shows the same sessions and the same pending requests.</p>
+                <div class="grid three">
+                    <div class="card">
+                        <div class="icon">💻</div>
+                        <h3>Mac</h3>
+                        <p>Lives in the menu bar. See what's waiting and what's running on all your machines, and answer without hunting for the right terminal.</p>
+                    </div>
+                    <div class="card">
+                        <div class="icon">📱</div>
+                        <h3>iPhone &amp; iPad</h3>
+                        <p>Your sessions, windows, and panes, laid out as in tmux. Type with your own prefix and key bindings, using helper keys or a hardware keyboard. Home Screen widgets show what's waiting.</p>
+                    </div>
+                    <div class="card">
+                        <div class="icon">⌚️</div>
+                        <h3>Apple Watch</h3>
+                        <p>Get notified, read the request, and pick a choice. Complications and the Smart Stack show how many requests are waiting.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="container">
+                <h2>Just tmux. Nothing in the way.</h2>
+                <p class="lead">Reattach doesn't replace your terminal or wrap your agents. It connects to the tmux you already run.</p>
+                <ul class="points">
+                    <li><div><h3>Your sessions as they are</h3><p>No new shell, no chat view, no extra setup per project. Whatever runs in a pane is there.</p></div></li>
+                    <li><div><h3>Any agent, any program</h3><p>Claude Code, Codex, or anything else in tmux. Permission requests from Claude Code and Codex reach every device, and you answer them right where they appear.</p></div></li>
+                    <li><div><h3>Your keys</h3><p>Your prefix and bindings work as on your desk. Copy mode syncs with your clipboard, and Japanese input works with on-screen and hardware keyboards.</p></div></li>
+                    <li><div><h3>Your machines, connected directly</h3><p>reattachd is open source and runs on your Mac or Linux computer. Your phone connects to it over Tailscale or Cloudflare Tunnel, with no relay server in between.</p></div></li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="soft" id="setup">
+            <div class="container">
+                <h2>Set up in two steps</h2>
+                <p class="lead">Install reattachd on the computer that runs tmux. <code>reattachd init</code> sets up the connection, starts it in the background, adds notification hooks for Claude Code and Codex, and shows a QR code.</p>
+                <div class="steps">
+                    <div class="step">
                         <div>
-                            <h3>While You Relax</h3>
-                            <p>Kick off an AI agent task on your PC, then chill on the couch. Get a push notification and reply right from your phone.</p>
+                            <h3>Run this on your computer</h3>
+                            <pre class="cmd"><span class="label"># macOS</span>
+brew install kumabook/reattach/reattachd
+reattachd init
+
+<span class="label"># Linux</span>
+curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
+reattachd init</pre>
+                            <p class="note">Tailscale is used automatically when it's installed. For Cloudflare Tunnel, run <code>reattachd init --url https://your-host</code>. See the <a href="/setup.html">setup guide</a> for details.</p>
                         </div>
                     </div>
-                    <div class="use-case">
-                        <div class="use-case-icon">👆</div>
+                    <div class="step">
                         <div>
-                            <h3>One-Tap Replies</h3>
-                            <p>Save common commands like "y", "n", or "yes" and send them with a single tap. No keyboard needed.</p>
-                        </div>
-                    </div>
-                    <div class="use-case">
-                        <div class="use-case-icon">📋</div>
-                        <div>
-                            <h3>All Sessions at a Glance</h3>
-                            <p>Dev, prod, experiments... manage multiple tmux sessions in one place. Switch between them with a tap.</p>
-                        </div>
-                    </div>
-                    <div class="use-case">
-                        <div class="use-case-icon">🏃</div>
-                        <div>
-                            <h3>On the Go</h3>
-                            <p>Set up remote access and stay connected during lunch breaks or while taking a walk.</p>
+                            <h3>Scan the QR code</h3>
+                            <p>Open Reattach on your iPhone and scan the code. Your Apple Watch picks up the connection from your iPhone. On the same Mac, <code>reattachd init</code> connects Reattach for Mac too. For another Mac, paste the URL shown under the QR code into its settings.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="cta-section">
-            <div class="container">
-                <div class="cta-buttons">
-                    <a href="#" class="app-store-badge">
-                        <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store">
-                    </a>
-                    <a href="/setup.html" class="btn btn-secondary">Setup Guide</a>
-                    <a href="https://github.com/kumabook/Reattach" class="btn btn-secondary">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-                        GitHub
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <section class="release-preview" id="release-2" aria-labelledby="release-title">
-            <div class="container">
-                <h2 id="release-title">Coming in Reattach 2.0</h2>
-                <p>A more complete tmux workflow on iPhone and iPad. Version 2.0 is being prepared for release.</p>
-                <div class="release-grid">
-                    <article><h3>Your tmux layout</h3><p>Match your tmux pane layout, scroll each pane independently, and tap to select it.</p></article>
-                    <article><h3>Your tmux keys</h3><p>Use your configured prefix and key bindings, with direct input, Japanese composition, and hardware keyboard shortcuts.</p></article>
-                    <article><h3>Copy mode on your phone</h3><p>See the copy-mode cursor and selection. Confirm a copy from the app to send it to your device clipboard, or use the selection-copy menu.</p></article>
-                    <article><h3>Stay connected</h3><p>Interrupted connections recover automatically. A red status indicator tells you when Reattach is reconnecting.</p></article>
-                    <article><h3>Your workspace, your language</h3><p>Sync pane selection with other devices or navigate independently. Adjust text size and use the interface in English or Japanese.</p></article>
-                </div>
-                <p>Update reattachd to 2.0.1 alongside the app to use the new tmux and clipboard features.</p>
-            </div>
-        </section>
-
-        <section class="features" id="features">
-            <div class="container">
-                <h2>Features</h2>
-                <div class="feature-row">
-                    <div class="feature-image">
-                        <img src="images/sessions.png" alt="Session List">
+        <section id="pricing">
+            <div class="container center">
+                <h2>Free to start. Pro when you need more.</h2>
+                <p class="lead">Reattach Pro is a one-time purchase that works on iPhone, iPad, and Apple Watch.</p>
+                <div class="plans" style="text-align: left;">
+                    <div class="plan">
+                        <h3>Free</h3>
+                        <p class="price">No account or subscription</p>
+                        <ul>
+                            <li>Every tmux feature on iPhone and iPad</li>
+                            <li>Notifications, permission requests, and widgets</li>
+                            <li>One server</li>
+                            <li>Five saved commands and 100 history entries</li>
+                            <li>See pending requests on Apple Watch</li>
+                            <li>Reattach for Mac, with no limits</li>
+                        </ul>
                     </div>
-                    <div class="feature-content">
-                        <h3>tmux Session Management</h3>
-                        <p>View and control your tmux sessions from your iPhone or iPad. All your sessions are listed with their windows and panes. Tap to connect and start working remotely.</p>
-                    </div>
-                </div>
-                <div class="feature-row">
-                    <div class="feature-image">
-                        <img src="images/pane.png" alt="Terminal Output">
-                    </div>
-                    <div class="feature-content">
-                        <h3>Command I/O</h3>
-                        <p>See your terminal output in real-time. Monitor long-running tasks, watch build progress, or check on your AI coding assistant. Send commands directly from your phone.</p>
-                    </div>
-                </div>
-                <div class="feature-row">
-                    <div class="feature-image">
-                        <img src="images/commands.png" alt="Command History">
-                    </div>
-                    <div class="feature-content">
-                        <h3>Command History</h3>
-                        <p>Save frequently used commands for quick access. No need to type the same commands over and over. One tap to send any saved command to your terminal.</p>
-                    </div>
-                </div>
-                <div class="feature-row">
-                    <div class="feature-image">
-                        <img src="images/notifications.png" alt="Push Notifications">
-                    </div>
-                    <div class="feature-content">
-                        <h3>Push Notifications</h3>
-                        <p>Get notified when your AI coding assistant needs your input or permission. Find the waiting pane and respond from anywhere without returning to your desk.</p>
-                    </div>
-                </div>
-                <div class="feature-row">
-                    <div class="feature-image">
-                        <img src="images/scan.png" alt="QR Code Setup">
-                    </div>
-                    <div class="feature-content">
-                        <h3>Easy Setup</h3>
-                        <p>Just scan a QR code to connect. Run a simple command on your Mac or Linux machine, scan the code with the app, and you're ready to go.</p>
+                    <div class="plan pro">
+                        <h3>Pro</h3>
+                        <p class="price">One-time purchase</p>
+                        <ul>
+                            <li>Unlimited servers</li>
+                            <li>Reply from Apple Watch</li>
+                            <li>Unlimited saved commands</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </section>
-
-        <section class="architecture" id="architecture">
-            <div class="container">
-                <h2>How it Works</h2>
-                <p>Simple architecture — connect from home or anywhere</p>
-                <div class="diagram-grid">
-                    <!-- Local Network Diagram -->
-                    <div class="diagram-item">
-                        <h3>Local Network</h3>
-                        <svg width="320" height="320" viewBox="0 0 320 320">
-                            <defs>
-                                <marker id="arrowhead1" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                                    <polygon points="0 0, 10 3.5, 0 7" fill="#007AFF"/>
-                                </marker>
-                                <clipPath id="iconClip1">
-                                    <rect x="0" y="0" width="32" height="32" rx="7"/>
-                                </clipPath>
-                            </defs>
-
-                            <!-- iOS App -->
-                            <rect class="diagram-box-highlight" x="75" y="15" width="175" height="60"/>
-                            <rect x="95" y="28" width="24" height="38" rx="3" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <rect x="103" y="58" width="8" height="2" rx="1" fill="#8E8E93"/>
-                            <g transform="translate(128, 29)">
-                                <image href="app-icon.png" width="32" height="32" clip-path="url(#iconClip1)"/>
-                            </g>
-                            <text class="diagram-text" x="170" y="48" text-anchor="start">Reattach</text>
-
-                            <!-- Arrow -->
-                            <line class="diagram-arrow" x1="160" y1="75" x2="160" y2="115" marker-end="url(#arrowhead1)"/>
-                            <text class="diagram-text-small" x="175" y="100">Wi-Fi</text>
-
-                            <!-- Machine box -->
-                            <rect class="diagram-box" x="35" y="125" width="250" height="175"/>
-                            <path d="M55 145 L55 175 L105 175 L105 145 Z" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <path d="M47 175 L113 175 L117 183 L43 183 Z" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <text class="diagram-text" x="130" y="162" text-anchor="start">Your Machine</text>
-
-                            <!-- reattachd -->
-                            <rect class="diagram-box-highlight" x="55" y="205" width="100" height="40"/>
-                            <text class="diagram-text" x="105" y="232" text-anchor="middle">reattachd</text>
-
-                            <!-- Arrow -->
-                            <line class="diagram-arrow" x1="155" y1="225" x2="185" y2="225" marker-end="url(#arrowhead1)"/>
-
-                            <!-- tmux -->
-                            <rect class="diagram-box" x="185" y="205" width="80" height="40"/>
-                            <text class="diagram-text" x="225" y="232" text-anchor="middle">tmux</text>
-                        </svg>
-                        <p class="diagram-caption">Connect via local IP address<br><code>http://192.168.x.x:8787</code></p>
-                    </div>
-
-                    <!-- Remote Access Diagram -->
-                    <div class="diagram-item">
-                        <h3>Remote Access</h3>
-                        <svg width="320" height="320" viewBox="0 0 320 320">
-                            <defs>
-                                <marker id="arrowhead2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                                    <polygon points="0 0, 10 3.5, 0 7" fill="#007AFF"/>
-                                </marker>
-                                <clipPath id="iconClip2">
-                                    <rect x="0" y="0" width="32" height="32" rx="7"/>
-                                </clipPath>
-                            </defs>
-
-                            <!-- iOS App -->
-                            <rect class="diagram-box-highlight" x="75" y="15" width="175" height="60"/>
-                            <rect x="95" y="28" width="24" height="38" rx="3" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <rect x="103" y="58" width="8" height="2" rx="1" fill="#8E8E93"/>
-                            <g transform="translate(128, 29)">
-                                <image href="app-icon.png" width="32" height="32" clip-path="url(#iconClip2)"/>
-                            </g>
-                            <text class="diagram-text" x="170" y="48" text-anchor="start">Reattach</text>
-
-                            <!-- Arrow -->
-                            <line class="diagram-arrow" x1="160" y1="75" x2="160" y2="95" marker-end="url(#arrowhead2)"/>
-
-                            <!-- VPN/Tunnel box -->
-                            <rect class="diagram-box" x="55" y="100" width="210" height="35" rx="6"/>
-                            <text class="diagram-text-small" x="160" y="123" text-anchor="middle">VPN / Cloudflare Tunnel</text>
-
-                            <!-- Arrow -->
-                            <line class="diagram-arrow" x1="160" y1="135" x2="160" y2="155" marker-end="url(#arrowhead2)"/>
-
-                            <!-- Machine box -->
-                            <rect class="diagram-box" x="35" y="160" width="250" height="140"/>
-                            <path d="M55 175 L55 205 L105 205 L105 175 Z" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <path d="M47 205 L113 205 L117 213 L43 213 Z" fill="none" stroke="#8E8E93" stroke-width="2"/>
-                            <text class="diagram-text" x="130" y="192" text-anchor="start">Your Machine</text>
-
-                            <!-- reattachd -->
-                            <rect class="diagram-box-highlight" x="55" y="230" width="100" height="40"/>
-                            <text class="diagram-text" x="105" y="257" text-anchor="middle">reattachd</text>
-
-                            <!-- Arrow -->
-                            <line class="diagram-arrow" x1="155" y1="250" x2="185" y2="250" marker-end="url(#arrowhead2)"/>
-
-                            <!-- tmux -->
-                            <rect class="diagram-box" x="185" y="230" width="80" height="40"/>
-                            <text class="diagram-text" x="225" y="257" text-anchor="middle">tmux</text>
-                        </svg>
-                        <p class="diagram-caption">Connect via secure tunnel<br><code>https://your-domain.com</code></p>
-                    </div>
-                </div>
-                <div class="architecture-notes">
-                    <p><strong>Reattach</strong> — iOS app available on the App Store. View and control your tmux sessions from your iPhone or iPad.</p>
-                    <p><strong>reattachd</strong> — Lightweight daemon to install on your Mac or Linux machine. Provides an HTTP API that bridges the app and tmux.</p>
-                </div>
-            </div>
-        </section>
-
     </main>
 
     <footer>
         <div class="container">
-            <p>
-                Built with ❤️ by <a href="https://github.com/kumabook">kumabook</a> ・
-                <a href="https://github.com/kumabook/Reattach">Source Code</a> ・
-                MIT License
-            </p>
+            <span>Made by <a href="https://github.com/kumabook">kumabook</a> · reattachd is MIT licensed</span>
+            <nav>
+                <a href="/setup.html">Setup</a>
+                <a href="/cloudflare.html">Cloudflare Tunnel</a>
+                <a href="/privacy.html">Privacy</a>
+                <a href="https://github.com/kumabook/Reattach">GitHub</a>
+            </nav>
         </div>
     </footer>
 </body>
