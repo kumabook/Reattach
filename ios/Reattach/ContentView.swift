@@ -107,57 +107,118 @@ struct ContentView: View {
 
 struct SetupView: View {
     @State private var showQRScanner = false
+    @State private var platform = SetupPlatform.macOS
+    @State private var copied = false
     var onTryDemo: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(systemName: "terminal.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(.tint)
-
-            Text(verbatim: "Reattach")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text(String(localized: "Control your tmux sessions remotely"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-
-            Spacer()
-
-            Button {
-                showQRScanner = true
-            } label: {
-                HStack {
-                    Image(systemName: "qrcode.viewfinder")
-                    Text(String(localized: "Scan QR Code to Connect"))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(spacing: 12) {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(.tint)
+                    Text(verbatim: "Reattach")
+                        .font(.largeTitle.bold())
+                    Text(String(localized: "Your tmux, from your phone."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.top, 32)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    stepTitle(1, String(localized: "Run this on the computer running tmux"))
+                    Picker(String(localized: "Platform"), selection: $platform) {
+                        ForEach(SetupPlatform.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    commandBlock
+                    Text(String(localized: "reattachd init uses Tailscale when it is installed. For Cloudflare Tunnel, add --url https://your-host."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Link(String(localized: "Setup guide"),
+                         destination: URL(string: "https://reattach.tmux.kumabook.tokyo/setup.html")!)
+                        .font(.footnote)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    stepTitle(2, String(localized: "Scan the QR code it shows"))
+                    Button {
+                        showQRScanner = true
+                    } label: {
+                        Label(String(localized: "Scan QR Code to Connect"), systemImage: "qrcode.viewfinder")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Button(String(localized: "Try Demo Mode"), action: onTryDemo)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal, 40)
-
-            Text(String(localized: "Scan the QR code from reattachd setup"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button {
-                onTryDemo()
-            } label: {
-                Text(String(localized: "Try Demo Mode"))
-                    .foregroundStyle(.tint)
-            }
-            .padding(.top, 8)
-
-            Spacer()
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
         }
         .sheet(isPresented: $showQRScanner) {
             QRScannerView()
+        }
+    }
+
+    private func stepTitle(_ number: Int, _ title: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(number, format: .number)
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(.tint, in: Circle())
+            Text(title).font(.headline)
+        }
+    }
+
+    private var commandBlock: some View {
+        HStack(alignment: .top) {
+            Text(verbatim: platform.commands)
+                .font(.system(.footnote, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                UIPasteboard.general.string = platform.commands
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            }
+            .accessibilityLabel(copied ? String(localized: "Copied") : String(localized: "Copy"))
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+enum SetupPlatform: String, CaseIterable, Identifiable {
+    case macOS, linux
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .macOS: "macOS"
+        case .linux: "Linux"
+        }
+    }
+
+    var commands: String {
+        switch self {
+        case .macOS:
+            "brew install kumabook/reattach/reattachd\nreattachd init"
+        case .linux:
+            "curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh\nreattachd init"
         }
     }
 }

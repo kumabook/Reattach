@@ -36,13 +36,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         return true
     }
 
-    private func setupNotifications() {
+    /// Asks for permission only once a server is paired, when notifications have something to deliver.
+    func setupNotifications() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
                 switch settings.authorizationStatus {
                 case .authorized, .provisional:
                     UIApplication.shared.registerForRemoteNotifications()
                 case .notDetermined:
+                    guard !ServerConfigManager.shared.servers.isEmpty else { return }
                     self.requestNotificationPermission()
                 case .denied:
                     print("Notification permission denied")

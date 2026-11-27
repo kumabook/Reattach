@@ -61,7 +61,7 @@ struct QRScannerView: View {
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.8))
 
-                        Text(verbatim: "reattachd setup --url <your-url>")
+                        Text(verbatim: "reattachd init")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
@@ -246,6 +246,7 @@ struct QRScannerView: View {
                 await MainActor.run {
                     ServerConfigManager.shared.addServer(serverConfig)
                     ServerConfigManager.shared.setActiveServer(serverConfig.id)
+                    AppDelegate.shared?.setupNotifications()
                     AppDelegate.shared?.registerDeviceTokenWithServer()
                     dismiss()
                 }

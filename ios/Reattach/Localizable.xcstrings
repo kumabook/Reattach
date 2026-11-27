@@ -2743,23 +2743,6 @@
         }
       }
     },
-    "Control your tmux sessions remotely": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Control your tmux sessions remotely"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tmux セッションをリモートで操作"
-          }
-        }
-      }
-    },
     "Scan QR Code to Connect": {
       "extractionState": "manual",
       "localizations": {
@@ -2777,19 +2760,104 @@
         }
       }
     },
-    "Scan the QR code from reattachd setup": {
+    "Your tmux, from your phone.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Scan the QR code from reattachd setup"
+            "value": "Your tmux, from your phone."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "reattachd のセットアップで表示された QR コードを読み取ってください"
+            "value": "いつもの tmux を、スマホから。"
+          }
+        }
+      }
+    },
+    "Run this on the computer running tmux": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run this on the computer running tmux"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tmux を動かしているコンピュータで実行"
+          }
+        }
+      }
+    },
+    "Platform": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platform"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラットフォーム"
+          }
+        }
+      }
+    },
+    "reattachd init uses Tailscale when it is installed. For Cloudflare Tunnel, add --url https://your-host.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reattachd init uses Tailscale when it is installed. For Cloudflare Tunnel, add --url https://your-host."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reattachd init は、Tailscale が入っていれば自動で使います。Cloudflare Tunnel を使う場合は --url https://あなたのホスト を付けてください。"
+          }
+        }
+      }
+    },
+    "Scan the QR code it shows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan the QR code it shows"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示された QR コードを読み取る"
+          }
+        }
+      }
+    },
+    "Copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピーしました"
           }
         }
       }
