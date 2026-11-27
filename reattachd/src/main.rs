@@ -3,6 +3,7 @@ mod api;
 mod apns;
 mod attention;
 mod auth;
+mod init;
 mod codex_attention;
 mod notification_content;
 mod permission_prompt;
@@ -52,6 +53,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Set up reattachd on this computer: connection, background service, agent hooks, and pairing
+    Init {
+        /// HTTPS URL your phone uses to reach this computer (Cloudflare Tunnel or another proxy).
+        /// Tailscale is detected automatically when omitted.
+        #[arg(long)]
+        url: Option<String>,
+        /// Do not install the background service
+        #[arg(long)]
+        no_service: bool,
+        /// Do not install Claude Code / Codex notification hooks
+        #[arg(long)]
+        no_hooks: bool,
+        /// Answer yes to every question
+        #[arg(short, long)]
+        yes: bool,
+    },
     /// Start setup mode to register a new device
     Setup {
         /// External URL for the server (e.g., https://your-server.example.com).
@@ -158,8 +175,21 @@ fn parse_tailscale_info(json: &[u8]) -> Result<TailscaleInfo, String> {
     Ok(TailscaleInfo { hostname, ipv4 })
 }
 
+// The Mac App Store build of Tailscale does not put its CLI on PATH.
+fn tailscale_command() -> std::path::PathBuf {
+    const MAC_APP_CLI: &str = "/Applications/Tailscale.app/Contents/MacOS/Tailscale";
+    let on_path = std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join("tailscale").is_file()))
+        .unwrap_or(false);
+    if !on_path && std::path::Path::new(MAC_APP_CLI).is_file() {
+        MAC_APP_CLI.into()
+    } else {
+        "tailscale".into()
+    }
+}
+
 fn get_tailscale_info() -> Result<TailscaleInfo, String> {
-    let output = std::process::Command::new("tailscale")
+    let output = std::process::Command::new(tailscale_command())
         .args(["status", "--json"])
         .output()
         .map_err(|e| format!("Failed to run 'tailscale status': {}", e))?;
@@ -224,7 +254,7 @@ fn generate_tailscale_certs(
         );
     }
 
-    let status = std::process::Command::new("tailscale")
+    let status = std::process::Command::new(tailscale_command())
         .arg("cert")
         .arg("--cert-file")
         .arg(&cert_path)
@@ -294,6 +324,23 @@ async fn main() {
     };
 
     match cli.command {
+        Some(Commands::Init {
+            url,
+            no_service,
+            no_hooks,
+            yes,
+        }) => {
+            init::run(
+                data_dir,
+                init::InitOptions {
+                    url,
+                    service: !no_service,
+                    hooks: !no_hooks,
+                    yes,
+                },
+            )
+            .await;
+        }
         Some(Commands::Setup {
             url,
             reusable,
@@ -308,6 +355,9 @@ async fn main() {
                         .and_then(|p| p.parse::<u16>().ok())
                         .unwrap_or(DEFAULT_PORT);
                     format!("https://{}:{}", info.hostname, port)
+                }
+                (None, None) if init::saved_server_url(&data_dir).is_some() => {
+                    init::saved_server_url(&data_dir).unwrap()
                 }
                 (None, None) => {
                     eprintln!("--url is required (or use --tailscale to auto-detect)");
@@ -393,6 +443,14 @@ fn parse_duration(s: &str) -> Option<chrono::Duration> {
         "d" => Some(chrono::Duration::days(num)),
         _ => None,
     }
+}
+
+fn configured_port() -> u16 {
+    std::env::var("REATTACHD_PORT")
+        .or_else(|_| std::env::var("PORT"))
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_PORT)
 }
 
 fn print_setup_qr(setup_url: &str, token_note: &str) {

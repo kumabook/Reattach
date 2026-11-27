@@ -89,4 +89,4 @@ if [ "$INSTALL_DIR" != "/usr/local/bin" ]; then
     echo ""
 fi
 
-echo "Run 'reattachd --help' to get started"
+echo "Next, run 'reattachd init' to connect your phone."
