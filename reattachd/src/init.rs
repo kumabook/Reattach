@@ -122,6 +122,25 @@ pub async fn run(data_dir: PathBuf, options: InitOptions) {
         warn("reattachd has not started yet. Check its log if pairing fails.");
     }
 
+    if let Some(app) = mac_app() {
+        step("Reattach for Mac");
+        if options.yes || confirm("Connect Reattach for Mac on this computer too?", true) {
+            let local_url = match &connection {
+                Connection::Tailscale { .. } => server_url.clone(),
+                Connection::Url(_) => format!("http://127.0.0.1:{}", port),
+            };
+            match pair_mac_app(&data_dir, &app, &local_url).await {
+                Ok(()) => done("connected"),
+                Err(e) => warn(&format!(
+                    "{} Paste the URL below into Reattach for Mac's settings instead.",
+                    e
+                )),
+            }
+        } else {
+            done("skipped. Paste the URL below into Reattach for Mac's settings to connect it later.");
+        }
+    }
+
     let auth = AuthService::new(data_dir)
         .await
         .expect("Failed to initialize auth service");
@@ -134,6 +153,58 @@ pub async fn run(data_dir: PathBuf, options: InitOptions) {
     );
     println!("\n  Open Reattach on your iPhone and tap \"Scan QR Code to Connect\".");
     println!("  To pair another device later, run `reattachd setup`.\n");
+}
+
+fn mac_app() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let home = dirs::home_dir().map(|h| h.join("Applications/Reattach.app"));
+    [Some(PathBuf::from("/Applications/Reattach.app")), home]
+        .into_iter()
+        .flatten()
+        // The iPad app on Apple silicon also installs as Reattach.app, but has no Contents/MacOS.
+        .find(|app| app.join("Contents/MacOS").is_dir())
+}
+
+/// Hands a setup token to Reattach for Mac and waits for it to register, so the
+/// next token (for the iPhone QR code) does not replace one it still needs.
+async fn pair_mac_app(data_dir: &Path, app: &Path, server_url: &str) -> Result<(), String> {
+    let devices = || async {
+        AuthService::new(data_dir.to_path_buf())
+            .await
+            .map_err(|e| e.to_string())
+    };
+    let before = devices().await?.list_devices().await.len();
+    let token = devices()
+        .await?
+        .generate_setup_token(false, chrono::Duration::minutes(10))
+        .await;
+    let link = format!(
+        "reattach-mac://pair?server={}&setup_token={}",
+        percent_encode(server_url),
+        token
+    );
+    run_command(Command::new("open").arg("-a").arg(app).arg(&link))?;
+    println!("    Choose \"Connect\" in Reattach for Mac.");
+    for _ in 0..120 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        if devices().await?.list_devices().await.len() > before {
+            return Ok(());
+        }
+    }
+    Err("Reattach for Mac did not finish connecting.".into())
+}
+
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{:02X}", b),
+        })
+        .collect()
 }
 
 fn detect_connection(url: Option<String>, data_dir: &Path) -> Result<Connection, String> {
@@ -381,6 +452,14 @@ mod tests {
         let unit = systemd_unit(Path::new("/usr/local/bin/reattachd"), &[], "/usr/bin");
         assert!(unit.contains("ExecStart=/usr/local/bin/reattachd\n"));
         assert!(unit.contains("Environment=\"PATH=/usr/bin\""));
+    }
+
+    #[test]
+    fn mac_pairing_links_encode_the_server_url() {
+        assert_eq!(
+            percent_encode("https://mac.tail.ts.net:8787"),
+            "https%3A%2F%2Fmac.tail.ts.net%3A8787"
+        );
     }
 
     #[test]

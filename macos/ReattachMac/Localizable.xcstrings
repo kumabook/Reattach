@@ -1,6 +1,125 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Setup URL or Token": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup URL or Token"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットアップ URL または合言葉"
+          }
+        }
+      }
+    },
+    "Paste the URL shown by reattachd init or reattachd setup. Its setup_token value alone also works.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste the URL shown by reattachd init or reattachd setup. Its setup_token value alone also works."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reattachd init または reattachd setup が表示した URL を貼り付けてください。setup_token の値だけでも登録できます。"
+          }
+        }
+      }
+    },
+    "Connect to this server?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to this server?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このサーバーにつなぎますか？"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "つなぐ"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャンセル"
+          }
+        }
+      }
+    },
+    "Reattach for Mac is connected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattach for Mac is connected."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattach for Mac をつなぎました。"
+          }
+        }
+      }
+    },
+    "Could not connect.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not connect."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "つなげませんでした。"
+          }
+        }
+      }
+    },
     "Customize the language, length, and focus of summaries. Applying changes regenerates cached summaries. Up to 1,200 characters.": {
       "extractionState": "manual",
       "localizations": {
@@ -2636,23 +2755,6 @@
         }
       }
     },
-    "Run reattachd setup --url <server-url> and enter the setup_token value from the generated URL.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Run reattachd setup --url <server-url> and enter the setup_token value from the generated URL."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "reattachd setup --url <接続先URL> で生成したURLの setup_token の値を入力します。"
-          }
-        }
-      }
-    },
     "Save & Test Connection": {
       "extractionState": "manual",
       "localizations": {
@@ -2972,23 +3074,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定…"
-          }
-        }
-      }
-    },
-    "Setup Token": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setup Token"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セットアップトークン"
           }
         }
       }

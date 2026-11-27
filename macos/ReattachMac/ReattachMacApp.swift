@@ -669,6 +669,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let link = urls.lazy.compactMap({ SetupLink($0.absoluteString) }).first else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let confirm = NSAlert()
+        confirm.messageText = String(localized: "Connect to this server?")
+        confirm.informativeText = "\(link.address):\(link.port)"
+        confirm.addButton(withTitle: String(localized: "Connect"))
+        confirm.addButton(withTitle: String(localized: "Cancel"))
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        Task { @MainActor in
+            let result = NSAlert()
+            do {
+                let connection = try await Connection(address: link.address, port: link.port, token: "")
+                    .registering(setupToken: link.token)
+                try connection.saveAsCurrent()
+                store.reloadConnection()
+                await store.poll()
+                result.messageText = String(localized: "Reattach for Mac is connected.")
+            } catch {
+                result.alertStyle = .warning
+                result.messageText = String(localized: "Could not connect.")
+                result.informativeText = error.localizedDescription
+            }
+            result.runModal()
+        }
+    }
+
     func showSettings(connectionSetup: Bool = false) {
         if settings == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 550, height: 600), styleMask: [.titled, .closable], backing: .buffered, defer: false)

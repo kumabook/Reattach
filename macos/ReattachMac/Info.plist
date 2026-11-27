@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>LSUIElement</key><true/>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>tokyo.kumabook.tmux.reattach.pairing</string>
+<key>CFBundleURLSchemes</key><array><string>reattach-mac</string></array>
+</dict></array>
 <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
 <key>ITSAppUsesNonExemptEncryption</key><false/>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>

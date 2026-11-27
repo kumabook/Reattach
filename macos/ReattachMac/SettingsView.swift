@@ -315,8 +315,8 @@ struct SettingsView: View {
 
     private var registrationSection: some View {
         Section {
-            SecureField(String(localized: "Setup Token"), text: $setupToken)
-            Text(String(localized: "Run reattachd setup --url <server-url> and enter the setup_token value from the generated URL."))
+            TextField(String(localized: "Setup URL or Token"), text: $setupToken)
+            Text(String(localized: "Paste the URL shown by reattachd init or reattachd setup. Its setup_token value alone also works."))
                 .font(.caption).textSelection(.enabled)
             Button(String(localized: "Register & Save"), systemImage: "key") { register() }.disabled(setupToken.isEmpty)
         } header: {
@@ -379,9 +379,7 @@ struct SettingsView: View {
     }
 
     private func save(_ config: Connection) throws {
-        try config.saveCredentials()
-        UserDefaults.standard.set(config.address, forKey: "serverAddress")
-        UserDefaults.standard.set(config.port, forKey: "serverPort")
+        try config.saveAsCurrent()
         delegate.store.reloadConnection()
     }
 
@@ -401,14 +399,19 @@ struct SettingsView: View {
 
     private func register() {
         var config = connection
-        let setup = setupToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        var setup = setupToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let link = SetupLink(setup) {
+            address = link.address
+            port = link.port
+            config.address = link.address
+            config.port = link.port
+            setup = link.token
+        }
         busy = true
         Task { @MainActor in
             defer { busy = false }
             do {
-                struct Registration: Decodable { let device_token: String }
-                let data = try await config.request(["register"], method: "POST", body: ["setup_token": setup, "device_name": "Reattach Mac"])
-                config.token = try JSONDecoder().decode(Registration.self, from: data).device_token
+                config = try await config.registering(setupToken: setup)
                 token = config.token
                 try save(config)
                 setupToken = ""

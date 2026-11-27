@@ -82,6 +82,52 @@ struct Connection {
     }
 }
 
+/// A pairing link from `reattachd init` / `reattachd setup`: either the printed
+/// `https://host:port?setup_token=…` URL or `reattach-mac://pair?server=…&setup_token=…`.
+struct SetupLink: Equatable {
+    static let scheme = "reattach-mac"
+
+    let address: String
+    let port: Int
+    let token: String
+
+    init?(_ text: String) {
+        guard let components = URLComponents(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let token = components.queryItems?.first(where: { $0.name == "setup_token" })?.value,
+              !token.isEmpty else { return nil }
+        let server: URLComponents?
+        if components.scheme == Self.scheme {
+            server = components.queryItems?.first(where: { $0.name == "server" })?.value.flatMap(URLComponents.init(string:))
+        } else {
+            server = components
+        }
+        guard let server, let scheme = server.scheme, ["http", "https"].contains(scheme),
+              let host = server.host, !host.isEmpty else { return nil }
+        address = "\(scheme)://\(host)"
+        port = server.port ?? (scheme == "https" ? 443 : 80)
+        self.token = token
+    }
+}
+
+extension Connection {
+    /// Registers this Mac with a setup token and returns the connection holding its device token.
+    func registering(setupToken: String) async throws -> Connection {
+        struct Registration: Decodable { let device_token: String }
+        var registered = self
+        registered.token = ""
+        let data = try await registered.request(["register"], method: "POST",
+                                                body: ["setup_token": setupToken, "device_name": "Reattach Mac"])
+        registered.token = try JSONDecoder().decode(Registration.self, from: data).device_token
+        return registered
+    }
+
+    func saveAsCurrent() throws {
+        try saveCredentials()
+        UserDefaults.standard.set(address, forKey: "serverAddress")
+        UserDefaults.standard.set(port, forKey: "serverPort")
+    }
+}
+
 enum ClientError: LocalizedError {
     case message(String)
     var errorDescription: String? { if case let .message(text) = self { return text }; return nil }
