@@ -731,6 +731,15 @@ struct ReattachTests {
         #expect(mapped.modifiers == ["control"])
     }
 
+    @Test func accessoryControlAppliesToTheNextTypedCharacter() {
+        #expect(TerminalAccessoryKeys.controlKey(for: "B") == "b")
+        #expect(TerminalAccessoryKeys.controlKey(for: " ") == "space")
+        #expect(TerminalAccessoryKeys.controlKey(for: "[") == "[")
+        #expect(TerminalAccessoryKeys.controlKey(for: "1") == nil)
+        #expect(TerminalAccessoryKeys.controlKey(for: "ls") == nil)
+        #expect(TerminalAccessoryKeys.controlKey(for: "あ") == nil)
+    }
+
     @Test func inputSourceShortcutsAreNotSentToTerminal() {
         for characters in [" ", "\u{0}", ""] {
             for modifiers: UIKeyModifierFlags in [.control, [.control, .shift]] {

@@ -168,6 +168,11 @@ struct SessionListView: View {
                     columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
+                Button(String(localized: "Permission Requests"), systemImage: "hand.raised") {
+                    permissionInboxOpenedByUser = true
+                    showPermissionInbox = true
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
             }
         }
         .sheet(isPresented: $showingCreateSheet) {

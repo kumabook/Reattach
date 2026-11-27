@@ -714,6 +714,8 @@ struct PaneDetailView: View {
                     .keyboardShortcut("-", modifiers: .command)
                 Button(String(localized: "Reset Text Size")) { zoomRequest = TerminalZoomRequest(multiplier: nil) }
                     .keyboardShortcut("0", modifiers: .command)
+                Button(String(localized: "Switch Input Mode")) { composeEnabled.toggle() }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
             }
             .hidden()
 
@@ -817,7 +819,8 @@ struct PaneDetailView: View {
                         onKey: { viewModel.queueDirectKey($0, modifiers: $1) },
                         onCompositionChanged: { isDirectCompositionActive = $0 },
                         keyboardFocusRequest: keyboardFocusRequest,
-                        isInputEnabled: viewModel.isStreamConnected
+                        isInputEnabled: viewModel.isStreamConnected,
+                        showsAccessoryKeys: !hardwareKeyboardConnected
                     )
                     .frame(width: frame.width, height: frame.height)
                     .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))

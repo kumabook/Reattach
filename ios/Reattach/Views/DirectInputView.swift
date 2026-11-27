@@ -227,6 +227,7 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
     let onCompositionChanged: (Bool) -> Void
     var keyboardFocusRequest: UUID? = nil
     var isInputEnabled = true
+    var showsAccessoryKeys = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -263,12 +264,14 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
         textView.accessibilityLabel = String(localized: "Direct terminal input")
 
         textView.isEditable = isInputEnabled
+        textView.showsAccessoryKeys = showsAccessoryKeys
         textView.requestKeyboardFocus()
         return textView
     }
 
     func updateUIView(_ textView: TerminalInputTextView, context: Context) {
         textView.keyboardFocusAllowed = keyboardFocusAllowed
+        textView.showsAccessoryKeys = showsAccessoryKeys
         let wasEnabled = textView.isEditable
         textView.isEditable = isInputEnabled
         if isInputEnabled && !wasEnabled { textView.requestKeyboardFocus() }
@@ -323,6 +326,13 @@ struct DirectInputTextViewRepresentable: UIViewRepresentable {
             let committedText = textView.text ?? ""
             textView.text = ""
             onCompositionChanged(false)
+            if let terminal = textView as? TerminalInputTextView, terminal.controlLatched {
+                terminal.controlLatched = false
+                if let key = TerminalAccessoryKeys.controlKey(for: committedText) {
+                    onKey(key, ["control"])
+                    return
+                }
+            }
             onText(committedText)
         }
 
@@ -442,6 +452,37 @@ enum DirectInputKeyMapper {
 final class TerminalInputTextView: UITextView {
     var onKey: ((_ key: String, _ modifiers: [String]) -> Void)?
     var onCompositionEnded: (() -> Void)?
+
+    /// Set from the accessory bar's Ctrl key; applies to the next key or character.
+    var controlLatched = false {
+        didSet { accessoryBar?.setControlLatched(controlLatched) }
+    }
+
+    private var accessoryBar: TerminalAccessoryBar?
+
+    var showsAccessoryKeys = false {
+        didSet {
+            guard showsAccessoryKeys != oldValue else { return }
+            if showsAccessoryKeys {
+                let bar = TerminalAccessoryBar()
+                bar.onKey = { [weak self] key in
+                    guard let self else { return }
+                    let modifiers = self.controlLatched ? ["control"] : []
+                    self.controlLatched = false
+                    self.onKey?(key, modifiers)
+                }
+                bar.onText = { [weak self] text in self?.insertText(text) }
+                bar.onControl = { [weak self] in self?.controlLatched.toggle() }
+                accessoryBar = bar
+                inputAccessoryView = bar
+            } else {
+                controlLatched = false
+                accessoryBar = nil
+                inputAccessoryView = nil
+            }
+            if isFirstResponder { reloadInputViews() }
+        }
+    }
 
     private var pendingKeyboardFocus = false
     var keyboardFocusAllowed = true {
@@ -564,6 +605,85 @@ final class TerminalInputTextView: UITextView {
         if flags.contains(.alternate) { modifiers.append("alt") }
         if includingShift && flags.contains(.shift) { modifiers.append("shift") }
         return modifiers
+    }
+}
+
+enum TerminalAccessoryKeys {
+    /// The tmux key name for Ctrl plus a typed character, or nil when Ctrl does not apply.
+    static func controlKey(for text: String) -> String? {
+        guard text.count == 1, let scalar = text.unicodeScalars.first, scalar.isASCII else { return nil }
+        let character = String(scalar).lowercased()
+        if character == " " { return "space" }
+        return "abcdefghijklmnopqrstuvwxyz[\\]^_@".contains(character) ? character : nil
+    }
+}
+
+final class TerminalAccessoryBar: UIInputView {
+    var onKey: ((String) -> Void)?
+    var onText: ((String) -> Void)?
+    var onControl: (() -> Void)?
+
+    private let controlButton = UIButton(configuration: .gray())
+
+    init() {
+        super.init(frame: CGRect(x: 0, y: 0, width: 0, height: 48), inputViewStyle: .keyboard)
+        allowsSelfSizing = true
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        stack.addArrangedSubview(button(title: "esc", label: String(localized: "Escape")) { [weak self] in self?.onKey?("escape") })
+        controlButton.configuration?.title = "ctrl"
+        controlButton.accessibilityLabel = String(localized: "Control")
+        controlButton.addAction(UIAction { [weak self] _ in self?.onControl?() }, for: .touchUpInside)
+        stack.addArrangedSubview(controlButton)
+        stack.addArrangedSubview(button(title: "tab", label: String(localized: "Tab")) { [weak self] in self?.onKey?("tab") })
+        for (symbol, key, label) in [("arrow.left", "left", String(localized: "Left")),
+                                     ("arrow.down", "down", String(localized: "Down")),
+                                     ("arrow.up", "up", String(localized: "Up")),
+                                     ("arrow.right", "right", String(localized: "Right"))] {
+            let arrow = button(title: nil, label: label) { [weak self] in self?.onKey?(key) }
+            arrow.configuration?.image = UIImage(systemName: symbol)
+            stack.addArrangedSubview(arrow)
+        }
+        for symbol in ["|", "~", "/", "-"] {
+            stack.addArrangedSubview(button(title: symbol, label: symbol) { [weak self] in self?.onText?(symbol) })
+        }
+
+        let scroll = UIScrollView()
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.addSubview(stack)
+        addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scroll.heightAnchor.constraint(equalToConstant: 48),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),
+            stack.centerYAnchor.constraint(equalTo: scroll.frameLayoutGuide.centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setControlLatched(_ latched: Bool) {
+        controlButton.configuration = latched ? .filled() : .gray()
+        controlButton.configuration?.title = "ctrl"
+        controlButton.isSelected = latched
+    }
+
+    private func button(title: String?, label: String, action: @escaping () -> Void) -> UIButton {
+        var configuration = UIButton.Configuration.gray()
+        configuration.title = title
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
+        let button = UIButton(configuration: configuration)
+        button.accessibilityLabel = label
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
     }
 }
 
