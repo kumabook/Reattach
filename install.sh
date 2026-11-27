@@ -23,7 +23,12 @@ esac
 
 # Linux uses musl build for better compatibility
 if [ "$OS_NAME" = "linux" ]; then
-    PLATFORM="${OS_NAME}-${ARCH_NAME}-musl"
+    # Releases have a static musl build for x86_64 only; aarch64 uses glibc.
+    if [ "$ARCH_NAME" = "x86_64" ]; then
+        PLATFORM="${OS_NAME}-${ARCH_NAME}-musl"
+    else
+        PLATFORM="${OS_NAME}-${ARCH_NAME}-gnu"
+    fi
 else
     PLATFORM="${OS_NAME}-${ARCH_NAME}"
 fi
