@@ -164,7 +164,16 @@ fn mac_app() -> Option<PathBuf> {
         .into_iter()
         .flatten()
         // The iPad app on Apple silicon also installs as Reattach.app, but has no Contents/MacOS.
-        .find(|app| app.join("Contents/MacOS").is_dir())
+        .filter(|app| app.join("Contents/MacOS").is_dir())
+        .find(|app| supports_pairing_links(&app.join("Contents/Info.plist")))
+}
+
+// Versions before 2.1 do not handle reattach-mac:// links. Info.plist may be binary,
+// but the scheme name is stored as plain bytes either way.
+fn supports_pairing_links(info_plist: &Path) -> bool {
+    std::fs::read(info_plist)
+        .map(|bytes| bytes.windows(12).any(|w| w == b"reattach-mac"))
+        .unwrap_or(false)
 }
 
 /// Hands a setup token to Reattach for Mac and waits for it to register, so the
@@ -452,6 +461,24 @@ mod tests {
         let unit = systemd_unit(Path::new("/usr/local/bin/reattachd"), &[], "/usr/bin");
         assert!(unit.contains("ExecStart=/usr/local/bin/reattachd\n"));
         assert!(unit.contains("Environment=\"PATH=/usr/bin\""));
+    }
+
+    #[test]
+    fn mac_apps_without_the_pairing_scheme_are_skipped() {
+        let dir = std::env::temp_dir().join(format!("reattach-plist-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let old = dir.join("old.plist");
+        let new = dir.join("new.plist");
+        std::fs::write(
+            &old,
+            "<plist><dict><key>LSUIElement</key><true/></dict></plist>",
+        )
+        .unwrap();
+        std::fs::write(&new, "<array><string>reattach-mac</string></array>").unwrap();
+        assert!(!supports_pairing_links(&old));
+        assert!(supports_pairing_links(&new));
+        assert!(!supports_pairing_links(&dir.join("missing.plist")));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

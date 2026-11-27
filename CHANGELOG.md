@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.1 — Daemon release in preparation
+
+### Daemon
+
+- `reattachd init` connects Reattach for Mac only when the installed version supports it. With Reattach for Mac 2.0.1, it previously waited two minutes before giving up.
+- The install script downloads the glibc build on aarch64 Linux, which has no musl build.
+
 ## 2.1.0 — Daemon release in preparation; iOS, watchOS and Mac 2.1.0 in preparation
 
 ### Daemon
