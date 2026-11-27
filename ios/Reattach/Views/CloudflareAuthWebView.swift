@@ -1,59 +1,10 @@
 //
-//  LoginView.swift
+//  CloudflareAuthWebView.swift
 //  Reattach
 //
 
 import SwiftUI
 import WebKit
-
-struct LoginView: View {
-    var api: ReattachAPI
-    @State private var showWebView = false
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(systemName: "terminal.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(.tint)
-
-            Text(verbatim: "Reattach")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text(String(localized: "Resume your local Claude Code sessions from anywhere"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-
-            Spacer()
-
-            Button {
-                showWebView = true
-            } label: {
-                HStack {
-                    Image(systemName: "person.badge.key.fill")
-                    Text(String(localized: "Sign in with GitHub"))
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal, 40)
-
-            Text(String(localized: "Authentication is handled by Cloudflare Access"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .fullScreenCover(isPresented: $showWebView) {
-            CloudflareAuthWebView(api: api, isPresented: $showWebView)
-        }
-    }
-}
 
 struct CloudflareAuthWebView: View {
     var api: ReattachAPI
@@ -163,8 +114,4 @@ struct WebView: UIViewRepresentable {
             parent.isLoading = false
         }
     }
-}
-
-#Preview {
-    LoginView(api: ReattachAPI.shared)
 }

@@ -35,23 +35,6 @@
         }
       }
     },
-    "While using Reattach, new requests open the inbox automatically. After you close it, the same requests will not reopen it. Presentation waits while typing or changing settings.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "While using Reattach, new requests open the inbox automatically. After you close it, the same requests will not reopen it. Presentation waits while typing or changing settings."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reattachの使用中に新しい許可待ちが届くと、一覧を自動で開きます。一度閉じた同じ依頼では開き直しません。文字入力中や設定中は表示を待ちます。"
-          }
-        }
-      }
-    },
     "Servers": {
       "extractionState": "manual",
       "localizations": {
@@ -1990,57 +1973,6 @@
         }
       }
     },
-    "Resume your local Claude Code sessions from anywhere": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resume your local Claude Code sessions from anywhere"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "どこからでもローカルの Claude Code セッションを再開"
-          }
-        }
-      }
-    },
-    "Sign in with GitHub": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in with GitHub"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub でサインイン"
-          }
-        }
-      }
-    },
-    "Authentication is handled by Cloudflare Access": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Authentication is handled by Cloudflare Access"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloudflare Access で認証します"
-          }
-        }
-      }
-    },
     "Cloudflare Access (Optional)": {
       "extractionState": "manual",
       "localizations": {
@@ -3165,22 +3097,6 @@
         }
       }
     },
-    "Window Layout": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Window Layout"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ウィンドウの分割表示"
-          }
-        }
-      }
-    },
     "Selected Pane Only": {
       "localizations": {
         "en": {
@@ -3193,38 +3109,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "選択ペインのみ"
-          }
-        }
-      }
-    },
-    "Could not load window layout": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not load window layout"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ウィンドウの配置を取得できませんでした"
-          }
-        }
-      }
-    },
-    "Window layout requires an updated daemon": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Window layout requires an updated daemon"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分割表示には対応するデーモンへの更新が必要です"
           }
         }
       }
@@ -3381,57 +3265,6 @@
         }
       }
     },
-    "Previous Request": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previous Request"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前の許可待ち"
-          }
-        }
-      }
-    },
-    "Next Request": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Next Request"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "次の許可待ち"
-          }
-        }
-      }
-    },
-    "Swipe left for the next request": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swipe left for the next request"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左右にスワイプして切り替え"
-          }
-        }
-      }
-    },
     "Pane Context": {
       "extractionState": "manual",
       "localizations": {
@@ -3462,23 +3295,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "プレビューを閉じる"
-          }
-        }
-      }
-    },
-    "Hold to expand pane context": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold to expand pane context"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "長押しでペインの内容を拡大"
           }
         }
       }
@@ -3580,36 +3396,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "すべてのサーバーを確認できません"
-          }
-        }
-      }
-    },
-    "All Servers": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべてのサーバー"
-          }
-        }
-      }
-    },
-    "Unable to update servers": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サーバーを更新できません"
-          }
-        }
-      }
-    },
-    "Add a server in the app.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリでサーバーを追加してください。"
           }
         }
       }
