@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.0 — Daemon release in preparation; iOS, watchOS and Mac 2.1.0 in preparation
+
+### Daemon
+
+- Add `reattachd init`, which sets up a computer in one command: it detects Tailscale (or takes `--url` for Cloudflare Tunnel and other HTTPS proxies), installs a LaunchAgent on macOS or a systemd user service on Linux, offers to install the Claude Code and Codex hooks, connects Reattach for Mac on the same Mac, and shows the pairing QR code. `reattachd setup` then works without `--url`.
+- Find the Tailscale CLI inside the Mac App Store app when it is not on `PATH`.
+- Add `GET /attention/prompts` and `POST /attention/respond` so the Apple Watch app can show a permission request's choices and answer it. A reply is sent only when the prompt on screen still matches.
+- Send widget pushes to the Apple Watch widgets as well as the iPhone widgets. Each platform keeps its own registration, and switching an install between the development and production APNs environments replaces the old registration.
+- Stop sending notifications to devices removed with `reattachd devices revoke`, and remove APNs tokens that Apple reports as unregistered.
+- Keep setup tokens created by `reattachd setup` while paired devices are active. Previously the daemon could overwrite them within seconds, so the QR code was rejected as invalid.
+- Keep the desktop tmux selection when the app's stream reconnects.
+
+### iOS, watchOS and Mac
+
+- New Apple Watch app: see pending permission requests, read them, and reply with a tap (replying requires Reattach Pro). Watch complications and Smart Stack widgets show the pending count. A setting shows the choices above the request details.
+- First launch shows the commands to run on the computer, with a copy button, and asks for notification permission after pairing.
+- Direct input shows esc, ctrl, tab, arrow and symbol keys above the on-screen keyboard. ⌘⇧P opens permission requests and ⌘⇧I switches the input mode.
+- Command history keeps 100 entries for everyone.
+- Reattach for Mac accepts the whole setup URL, and `reattachd init` can connect it directly.
+- Update reattachd to 2.1.0 for the Watch app, `reattachd init`, and widget updates on Apple Watch.
+
 ## 2.0.4 — Daemon release in preparation; iOS 2.0.1 in preparation
 
 ### Daemon
