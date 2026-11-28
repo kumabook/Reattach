@@ -1,1 +1,1 @@
-tmux,reattach,cli,claude,codex,coding agent,ssh,shell
+ターミナル,claude code,codex,AI,エージェント,apple watch,ssh,cli,シェル

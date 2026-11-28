@@ -1,10 +1,8 @@
-• Added Home Screen widgets showing pending permission requests and unread panes across all your servers.
-• Permission requests from every server now appear in one inbox. Replies are sent to the server each request came from.
-• Panes with new output are marked in blue, following tmux's activity indicator when monitor-activity is on.
-• A pulsing purple dot shows panes where Claude Code or Codex is still working.
-• Choose all notifications, permission requests only, or none in App Settings.
-• Added an option to open new permission requests automatically while using the app. The same requests stay dismissed after you close the inbox.
-• Opening a permission notification now shows that request in the permission inbox.
-• Improved parsing of Codex tool-permission choices, and fixed pulling to refresh the session list unexpectedly reopening the last pane.
+• New Apple Watch app: read pending requests on your wrist, and reply with a tap with Reattach Pro. Complications and the Smart Stack show how many are waiting.
+• First launch now shows the commands to run on your computer, with a copy button. reattachd init sets up the connection, the background service, notification hooks, and the QR code in one go.
+• Direct input shows esc, ctrl, tab, arrow, and symbol keys above the on-screen keyboard. With a hardware keyboard, ⌘⇧P opens permission requests and ⌘⇧I switches the input mode.
+• Command history keeps 100 entries for everyone.
+• Notification permission is requested after you pair a server.
+• Notifications no longer show numbered reply buttons. Open a notification to answer with the full list of choices.
 
-Update reattachd on your computer to 2.0.4 to use widgets, unread and running indicators, and notification settings.
+Update reattachd on your computer to 2.1.0 or later to use the Apple Watch app and reattachd init.

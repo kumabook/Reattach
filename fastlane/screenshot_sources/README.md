@@ -1,16 +1,30 @@
-# iPhone store screenshots
+# App Store screenshots
 
-The iPhone set has five images per locale: sessions, progress and replies, push notifications, the permission card, and QR setup.
+## iPhone, iPad and Apple Watch
 
-The English images 0, 1, 2 and 4 are the original store artwork. `render_iphone.py` generates the rest from them:
+`render_store.py` builds the store images from captures in `store/`:
 
-- `3_APP_IPHONE_65_permissions.png` for both locales, placing `permission-capture-<locale>.png` in the device frame of image 0
-- the Japanese images 0, 1, 2 and 4, replacing the English headlines with Japanese ones
+- iPhone (1320 × 2868) and iPad 13" (2064 × 2752): six images per locale with a headline and a device frame
+- Apple Watch Series 11 46mm (416 × 496): the list and detail captures, unchanged
 
 ```sh
-python3 fastlane/screenshot_sources/render_iphone.py
+python3 fastlane/screenshot_sources/render_store.py
 ```
 
-This requires Pillow, SF Pro Display and Hiragino Sans. The output is 1284 × 2778.
+This requires Pillow, SF Pro Display and Hiragino Sans.
 
-The permission captures come from `testPermissionStoreScreenshots`, which relies on a fixture that exists only in debug UI-test builds; the submitted Release app is unaffected. Capture on iPhone 17 with the simulator status bar set to 9:41 and replace the capture PNGs with the exported test attachments.
+### Capturing
+
+iPhone and iPad captures come from `StoreScreenshotTests` (UI tests). Debug builds only: the app's `-store-screenshot` argument names the demo server "MacBook Pro", adds sample sessions and hides the demo banner; `-store-screenshot-input` enables direct input in the demo.
+
+1. Create simulators for screenshots (iPhone 17 Pro Max and iPad Pro 13-inch) and turn off their hardware keyboard, e.g. `PlistBuddy -c "Add :DevicePreferences:<UDID>:ConnectHardwareKeyboard bool false" ~/Library/Preferences/com.apple.iphonesimulator.plist`, before booting them.
+2. Set the status bar: `xcrun simctl status_bar <UDID> override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4`.
+3. Run `xcodebuild test -only-testing:ReattachUITests/StoreScreenshotTests -resultBundlePath …` and export the attachments with `xcrun xcresulttool export attachments`. Save them as `store/{iphone,ipad}/<scene>-<en|ja>.png`.
+
+Do not send key presses with `typeKey` in these tests: the simulator then reports a hardware keyboard and hides the helper keys.
+
+Watch captures: build the `ReattachWatch` scheme for an Apple Watch Series 11 (46mm) simulator, launch it with `-store-screenshot` (and `-store-screenshot-detail` for the detail screen) plus `-AppleLanguages`, and save `xcrun simctl io <UDID> screenshot` as `store/watch/{1-list,2-detail}-<en|ja>.png`.
+
+## Mac
+
+`render_mac.py` renders the Mac images in `../screenshots_mac` from the panel captures in `mac/`.

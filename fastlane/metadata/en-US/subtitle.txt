@@ -1,1 +1,1 @@
-Your terminal, on your phone
+Your tmux, wherever you are

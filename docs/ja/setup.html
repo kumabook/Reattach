@@ -280,10 +280,16 @@ reattachd init
 
 # Linux
 curl -fsSL https://raw.githubusercontent.com/kumabook/Reattach/main/install.sh | sh
-reattachd init
+reattachd init</code></pre>
 
-# Cloudflare Tunnel など HTTPS のプロキシを使う場合
-reattachd init --url https://your-host.example.com</code></pre>
+                    <h3>Tailscale がない場合</h3>
+                    <p>通信は HTTPS だけなので、Tailscale は必須ではありません。Cloudflare Tunnel を使えば、ポートを開けずに外からつながり、iPhone に VPN アプリも要りません。Cloudflare で管理しているドメインがあれば、次の 3 ステップです。</p>
+                    <ol>
+                        <li>Cloudflare のダッシュボードで Zero Trust → Networks → Tunnels を開いてトンネルを作り、表示されたインストール用のコマンド（<code>sudo cloudflared service install …</code>）を実行する。</li>
+                        <li>そのトンネルに公開ホスト名を追加する（例：<code>reattach.example.com</code>、サービスは <code>http://localhost:8787</code>）。</li>
+                        <li><code>reattachd init --url https://reattach.example.com</code> を実行する。</li>
+                    </ol>
+                    <p>コマンドだけで作る手順や、Cloudflare Access でさらに守る方法は <a href="/ja/cloudflare.html">Cloudflare ガイド</a>を見てください。</p>
                     <p>あとで別の端末をつなぐときは <code>reattachd setup</code> を実行します。以下は、手作業で設定する場合の手順です。</p>
                     <div class="note">
                         <p><code>reattachd init</code> は自分で常駐の設定を登録します。<code>brew services</code> でも起動すると二重に動くので、併用しないでください。</p>

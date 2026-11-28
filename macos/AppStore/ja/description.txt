@@ -25,6 +25,9 @@ macOS 26以降の対応するMacでは、Apple Intelligenceで直近の出力を
 • tmuxと無料・オープンソースのreattachdサーバーを実行するMacまたはLinux PC
 • 許可待ち連携にはコーディングエージェント用の通知フック
 
-Mac版は作業一覧と許可応答のためのアプリです。通常のターミナル操作にはターミナルアプリを使用します。サーバーの導入と接続設定が必要です。
+Mac版は作業一覧と許可応答のためのアプリです。通常のターミナル操作にはターミナルアプリを使用します。
+
+【かんたんに接続】
+同じMacでreattachd initを実行すると、Reattach for Macもそのまま接続できます。別のMacのreattachdには、表示されたURLを設定画面に貼り付けるだけでつながります。iPhone・iPad・Apple Watch版のReattachと同じ許可待ちに、Macからも応答できます。
 
 セットアップ方法：https://reattach.tmux.kumabook.tokyo/ja/setup.html

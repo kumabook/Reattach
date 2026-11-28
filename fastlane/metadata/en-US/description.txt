@@ -1,34 +1,43 @@
-Your terminal, on your phone.
-Control your tmux sessions from iPhone and iPad, even when you are away from your computer.
+Your tmux, wherever you are.
 
-TERMINAL CONTROL
-• Direct input with your configured tmux prefix and key bindings
+Reattach brings the tmux you already use to iPhone, iPad, and Apple Watch. No new terminal and no chat view: the same sessions and the same keys as at your desk, and a fast way to answer Claude Code and Codex permission requests from anywhere.
+
+JUST TMUX
+• Browse sessions, windows, and panes, laid out as in tmux. Tap a pane to select it
+• Type directly with your own prefix and key bindings
+• Helper keys on the on-screen keyboard: esc, ctrl, tab, arrows, and more. Hardware keyboard shortcuts too
 • A composer for longer messages and Japanese text conversion
-• Hardware keyboard shortcuts and adjustable text size
-• tmux copy-mode cursor and selection, with automatic copying to the device clipboard when you confirm a copy from the app
-• Terminal links and text pasting
+• tmux copy-mode selection, copied to your device clipboard when you confirm a copy
 • Automatic reconnection with a visible connection status
 
-YOUR WORKSPACE
-• Browse sessions, windows, and panes
-• Match the tmux pane layout, scroll each pane, and tap to select it
-• Sync pane selection with other devices or navigate independently
-• Return to your last selected pane
-• Save frequent commands and reuse command history
+ANSWER YOUR CODING AGENTS
+• Push notifications when Claude Code or Codex needs your permission
+• Every server's pending requests in one list, answered right there
+• Home Screen widgets for pending requests and panes with new output
+• See which panes have an agent at work
 
-CODING AGENTS
-With optional Claude Code or Codex hooks, receive push notifications when your input is needed. Find panes waiting for permission and respond from your phone.
+APPLE WATCH
+• Read pending requests on your wrist
+• Reply with a tap (Reattach Pro)
+• Complications and Smart Stack widgets show how many requests are waiting
 
-ENGLISH AND JAPANESE
-The interface, error messages, and accessibility descriptions follow your app language.
+SET UP IN TWO STEPS
+1. On the Mac or Linux computer that runs tmux, install reattachd and run reattachd init
+2. Scan the QR code it shows
+It's plain HTTPS. Use Tailscale if you already have it, or a Cloudflare Tunnel to reach your machine without opening a port. No VPN app on your iPhone, and no Reattach relay server in between. reattachd is free and open source.
 
-REMOTE ACCESS
-Connect using Tailscale or Cloudflare Tunnel, or use your local network.
+THE SAME ON YOUR MAC
+Reattach for Mac (free) answers the same requests from your menu bar.
+
+REATTACH PRO (ONE-TIME PURCHASE)
+• Unlimited servers (one on the free version)
+• Reply from Apple Watch
+• Unlimited saved commands (five on the free version)
 
 REQUIREMENTS
 • A Mac or Linux computer with tmux
-• reattachd 2.0.0 or later for the new tmux and clipboard features (free and open source)
+• reattachd 2.1.0 or later for the Apple Watch app and reattachd init
 
-Reattach Pro unlocks additional servers, unlimited saved commands, and extended command history.
+Available in English and Japanese.
 
 Setup guide: https://reattach.tmux.kumabook.tokyo/setup.html

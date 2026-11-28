@@ -301,6 +301,14 @@
                 <li><strong>Cloudflare Access</strong> - Add authentication to protect your tunnel with Service Tokens</li>
             </ol>
 
+            <h2>Shortest path (from the dashboard)</h2>
+            <ol>
+                <li>In the Cloudflare dashboard, open Zero Trust → Networks → Tunnels, create a tunnel, and run the install command it shows (<code>sudo cloudflared service install …</code>) on the machine that runs reattachd. cloudflared then starts automatically.</li>
+                <li>Add a public hostname to the tunnel (for example <code>reattach.your-domain.com</code>, with the service <code>http://localhost:8787</code>).</li>
+                <li>Run <code>reattachd init --url https://reattach.your-domain.com</code> and scan the QR code with the app.</li>
+            </ol>
+            <p>That's it. reattachd only accepts paired devices; for an extra layer, add Cloudflare Access in Part 2 below. The rest of this page sets up the tunnel from the command line instead.</p>
+
             <h2>Install cloudflared</h2>
 
             <div class="step">

@@ -25,6 +25,9 @@ REQUIREMENTS
 • A Mac or Linux computer running tmux and the free, open-source reattachd companion server
 • Coding-agent notification hooks for permission-request integration
 
-Reattach for Mac is a work overview and permission companion. Use your terminal app for full terminal interaction. Server installation and connection setup are required.
+Reattach for Mac is a work overview and permission companion. Use your terminal app for full terminal interaction.
+
+EASY CONNECTION
+Run reattachd init on the same Mac and it connects Reattach for Mac too. For reattachd on another computer, paste the URL it shows into Settings. Answer the same requests here as in Reattach on iPhone, iPad, and Apple Watch.
 
 Setup guide: https://reattach.tmux.kumabook.tokyo/setup.html

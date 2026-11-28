@@ -1,1 +1,1 @@
-いつもの tmux 操作を iPhone・iPad でも。カスタムキーバインド、copy mode のクリップボード連携、自動再接続、日本語・英語の表示に対応。
+iPhone・iPad・Apple Watch から、いつもの tmux に。Claude Code や Codex の許可待ちに、どの端末からでもその場で応答できます。新しい Apple Watch アプリと、コマンド 1 つで済むセットアップに対応しました。

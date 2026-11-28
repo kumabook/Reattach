@@ -1,1 +1,1 @@
-Bring your tmux workflow to iPhone and iPad: custom key bindings, copy-mode clipboard sync, automatic reconnection, and an English or Japanese interface.
+Your tmux on iPhone, iPad, and Apple Watch. Answer Claude Code and Codex permission requests from any device. New: an Apple Watch app and one-command setup.

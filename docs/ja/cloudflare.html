@@ -301,6 +301,14 @@
                 <li><strong>Cloudflare Access</strong> - Service Tokenを使用してトンネルに認証を追加し保護</li>
             </ol>
 
+            <h2>いちばん短い手順（ダッシュボードで作る）</h2>
+            <ol>
+                <li>Cloudflare のダッシュボードで Zero Trust → Networks → Tunnels を開いてトンネルを作り、表示されたインストール用のコマンド（<code>sudo cloudflared service install …</code>）を reattachd を動かすマシンで実行します。cloudflared はログイン時に自動で起動するようになります。</li>
+                <li>そのトンネルに公開ホスト名を追加します（例：<code>reattach.your-domain.com</code>、サービスは <code>http://localhost:8787</code>）。</li>
+                <li><code>reattachd init --url https://reattach.your-domain.com</code> を実行し、表示された QR コードをアプリで読み取ります。</li>
+            </ol>
+            <p>これでつながります。reattachd はペアリングした端末しか受け付けませんが、さらに守りたい場合は下の「パート2」で Cloudflare Access を追加してください。以下は、ダッシュボードを使わずコマンドで設定する手順です。</p>
+
             <h2>cloudflaredをインストール</h2>
 
             <div class="step">
