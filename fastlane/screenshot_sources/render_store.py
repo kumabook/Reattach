@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Render the 2.1 App Store screenshots for iPhone, iPad and Apple Watch.
+"""Render the 2.1 App Store screenshots for iPhone, iPhone Duo, iPad and Apple Watch.
 
-Captures live in screenshot_sources/store/{iphone,ipad,watch}. iPhone and iPad
+Captures live in screenshot_sources/store/{iphone,duo,ipad,watch}. iPhone, iPhone Duo and iPad
 captures come from StoreScreenshotTests on simulators with the hardware keyboard
 disconnected and the status bar at 9:41. Watch captures come from the Watch app
 launched with -store-screenshot (and -store-screenshot-detail) on Apple Watch
@@ -34,6 +34,8 @@ DEVICES = {
     # canvas, title top, title size (en, ja), shot width, shot top, bezel, screen radius
     "iphone": dict(canvas=(1320, 2868), title_top=250, sizes=(128, 112), width=1040, top=700, bezel=30, radius=120,
                    scenes=["sessions", "layout", "keys", "permissions", "watch", "setup"], prefix="APP_IPHONE_69"),
+    "duo": dict(canvas=(1398, 2034), title_top=190, sizes=(112, 98), width=930, top=520, bezel=28, radius=70, watch_offset=90, wide=["layout"],
+                scenes=["sessions", "layout", "keys", "permissions", "watch", "setup"], prefix="APP_IPHONE_DUO"),
     "ipad": dict(canvas=(2064, 2752), title_top=230, sizes=(132, 116), width=1600, top=600, bezel=34, radius=60,
                  scenes=["pane", "layout", "keys", "permissions", "watch", "setup"], prefix="APP_IPAD_PRO_13"),
 }
@@ -78,7 +80,23 @@ def title(image, lines, locale, top, size):
         draw.text((image.width / 2, top + i * size * 1.22), line, font=f, fill=(29, 29, 31), anchor="mt")
 
 
+# The iPhone Duo opened flat, in landscape: one-line headline over the wide capture.
+WIDE = dict(canvas=(2853, 2007), title_top=110, size=110, width=2250, top=300, bezel=34, radius=80)
+
+
+def wide_scene(device, scene, locale):
+    image = background(WIDE["canvas"])
+    title(image, [" ".join(TITLES[scene][locale]).replace("、 ", "、")], locale, WIDE["title_top"], WIDE["size"])
+    shot = Image.open(store / device / f"{CAPTURE[scene]}-wide-{LOCALES[locale]}.png").convert("RGB")
+    shot = shot.resize((WIDE["width"], round(shot.height * WIDE["width"] / shot.width)), Image.LANCZOS)
+    device_image = framed(shot, WIDE["bezel"], WIDE["radius"])
+    image.paste(device_image, ((image.width - device_image.width) // 2, WIDE["top"]), device_image)
+    return image
+
+
 def device_scene(device, scene, locale, spec):
+    if scene in spec.get("wide", ()):
+        return wide_scene(device, scene, locale)
     image = background(spec["canvas"])
     title(image, TITLES[scene][locale], locale, spec["title_top"], spec["sizes"][locale == "ja"])
     if scene == "watch":
@@ -100,7 +118,7 @@ def watches(image, locale, spec):
     gap = 120
     total = sum(w.width for w in framed_shots) + gap * (len(framed_shots) - 1)
     x = (image.width - total) // 2
-    y = spec["top"] + 240
+    y = spec["top"] + spec.get("watch_offset", 240)
     for w in framed_shots:
         image.paste(w, (x, y), w)
         x += w.width + gap
