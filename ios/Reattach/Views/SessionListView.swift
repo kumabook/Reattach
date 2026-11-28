@@ -381,7 +381,7 @@ struct SessionListView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
-                if !viewModel.sessions.isEmpty && ReattachAPI.shared.isDemoMode {
+                if !viewModel.sessions.isEmpty && ReattachAPI.shared.isDemoMode && !StoreScreenshot.isActive {
                     Section {
                         HStack {
                             Image(systemName: "play.circle.fill")
@@ -579,7 +579,9 @@ struct SessionListView: View {
     }
 
     private var currentServerName: String {
-        if configManager.isDemoMode {
+        if StoreScreenshot.isActive {
+            return "MacBook Pro"
+        } else if configManager.isDemoMode {
             return String(localized: "Demo")
         } else if let server = configManager.activeServer {
             return server.serverName

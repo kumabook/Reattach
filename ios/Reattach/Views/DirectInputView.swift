@@ -636,6 +636,7 @@ final class TerminalAccessoryBar: UIInputView {
         stack.addArrangedSubview(button(title: "esc", label: String(localized: "Escape")) { [weak self] in self?.onKey?("escape") })
         controlButton.configuration?.title = "ctrl"
         controlButton.accessibilityLabel = String(localized: "Control")
+        controlButton.accessibilityIdentifier = "accessoryControl"
         controlButton.addAction(UIAction { [weak self] _ in self?.onControl?() }, for: .touchUpInside)
         stack.addArrangedSubview(controlButton)
         stack.addArrangedSubview(button(title: "tab", label: String(localized: "Tab")) { [weak self] in self?.onKey?("tab") })

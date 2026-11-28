@@ -106,7 +106,7 @@ class ReattachAPI {
 
     func listSessions() async throws -> [Session] {
         if isDemoMode {
-            return windowCreationFixtureSessions ?? Self.demoSessions
+            return windowCreationFixtureSessions ?? (StoreScreenshot.isActive ? Self.storeSessions : Self.demoSessions)
         }
         let data = try await request(path: "/sessions", method: "GET")
         return try JSONDecoder().decode([Session].self, from: data)
@@ -396,8 +396,34 @@ class ReattachAPI {
     }
 }
 
+/// App Store screenshots run the demo with a realistic server name and more sessions. Debug builds only.
+enum StoreScreenshot {
+    static var isActive: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-store-screenshot")
+        #else
+        false
+        #endif
+    }
+}
+
 // MARK: - Demo Mode Data
 extension ReattachAPI {
+    static var storeSessions: [Session] {
+        demoSessions + [
+            Session(name: "api", attached: false, windows: [
+                Window(index: 0, name: "codex", active: true, panes: [
+                    Pane(index: 0, active: true, target: "api:0.0", currentPath: "/Users/demo/projects/api")
+                ])
+            ]),
+            Session(name: "dotfiles", attached: false, windows: [
+                Window(index: 0, name: "nvim", active: true, panes: [
+                    Pane(index: 0, active: true, target: "dotfiles:0.0", currentPath: "/Users/demo/dotfiles")
+                ])
+            ])
+        ]
+    }
+
     static let demoSessions: [Session] = [
         Session(
             name: "myproject",

@@ -1009,6 +1009,12 @@ struct PaneDetailView: View {
         terminalContent
         .navigationTitle(viewModel.tmuxNavigation?.windowName ?? windowName)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            // Store screenshots: the default text size is too small to read on iPad.
+            guard StoreScreenshot.isActive, UIDevice.current.userInterfaceIdiom == .pad, !showWindowLayout else { return }
+            try? await Task.sleep(for: .seconds(1))
+            zoomRequest = TerminalZoomRequest(scale: 1.8)
+        }
         .onAppear {
             hardwareKeyboardConnected = GCKeyboard.coalesced != nil
         }
@@ -1445,6 +1451,10 @@ class PaneDetailViewModel {
 
         if api.isDemoMode && socketFactory == nil {
             await refresh()
+            #if DEBUG
+            // Store screenshots show the direct-input keyboard, which needs a live stream.
+            if ProcessInfo.processInfo.arguments.contains("-store-screenshot-input") { isStreamConnected = true }
+            #endif
             return
         }
 

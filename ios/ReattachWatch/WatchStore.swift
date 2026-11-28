@@ -39,6 +39,17 @@ final class WatchStore {
     }
 
     func refresh() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-store-screenshot") {
+            connections = [Self.storeConnection]
+            requests = Self.storeRequests
+            hasLoaded = true
+            if ProcessInfo.processInfo.arguments.contains("-store-screenshot-detail"), let first = requests.first {
+                focus = NotificationFocus(serverID: first.connection.serverID, target: first.target, receivedAt: first.receivedAt)
+            }
+            return
+        }
+        #endif
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
@@ -70,4 +81,23 @@ final class WatchStore {
         requests.removeAll { $0.id == request.id }
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    #if DEBUG
+    // Sample requests for App Store screenshots.
+    private static let storeConnection = WatchConnection(serverID: "store", serverName: "MacBook Pro", serverURL: "",
+                                                         token: "", accessClientID: nil, accessClientSecret: nil)
+    private static let storeRequests: [PendingRequest] = [
+        PendingRequest(connection: storeConnection, target: "webapp:0.0", tool: "Bash", receivedAt: 1,
+                       prompt: PermissionPrompt(context: "Bash command\nnpm test", choices: [
+                           PromptChoice(number: "1", label: "Yes"),
+                           PromptChoice(number: "2", label: "Yes, and don't ask again for npm test"),
+                           PromptChoice(number: "3", label: "No, and tell Claude what to do differently"),
+                       ], digest: "store")),
+        PendingRequest(connection: storeConnection, target: "api:0.0", tool: "Edit", receivedAt: 2,
+                       prompt: PermissionPrompt(context: "Edit file\nsrc/routes/users.ts", choices: [
+                           PromptChoice(number: "1", label: "Yes"),
+                           PromptChoice(number: "2", label: "No"),
+                       ], digest: "store")),
+    ]
+    #endif
 }
