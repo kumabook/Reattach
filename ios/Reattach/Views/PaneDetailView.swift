@@ -820,7 +820,7 @@ struct PaneDetailView: View {
                         onCompositionChanged: { isDirectCompositionActive = $0 },
                         keyboardFocusRequest: keyboardFocusRequest,
                         isInputEnabled: viewModel.isStreamConnected,
-                        showsAccessoryKeys: !hardwareKeyboardConnected
+                        showsAccessoryKeys: !hardwareKeyboardConnected || StoreScreenshot.isActive
                     )
                     .frame(width: frame.width, height: frame.height)
                     .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 6))

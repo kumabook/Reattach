@@ -206,6 +206,9 @@ struct SessionListView: View {
         }
         .task {
             await loadAndRestorePane()
+            if let target = StoreScreenshot.paneTarget, let item = PaneNavigationItem.matching(target: target, in: viewModel.sessions) {
+                selectedPane = item
+            }
         }
         .task(id: PermissionPollingIdentity(servers: configManager.servers, active: scenePhase == .active, demo: configManager.isDemoMode)) {
             guard scenePhase == .active else { return }

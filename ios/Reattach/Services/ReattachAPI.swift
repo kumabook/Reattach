@@ -405,6 +405,12 @@ enum StoreScreenshot {
         false
         #endif
     }
+
+    /// `-store-screenshot-pane <target>` opens that pane on launch.
+    static var paneTarget: String? {
+        guard isActive else { return nil }
+        return UserDefaults.standard.string(forKey: "store-screenshot-pane")
+    }
 }
 
 // MARK: - Demo Mode Data
