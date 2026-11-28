@@ -25,6 +25,10 @@ Do not send key presses with `typeKey` in these tests: the simulator then report
 
 Watch captures: build the `ReattachWatch` scheme for an Apple Watch Series 11 (46mm) simulator, launch it with `-store-screenshot` (and `-store-screenshot-detail` for the detail screen) plus `-AppleLanguages`, and save `xcrun simctl io <UDID> screenshot` as `store/watch/{1-list,2-detail}-<en|ja>.png`.
 
+## Header and search results
+
+`render_header.py` renders `../app_store_assets/header-<locale>.png` (5244 × 2950), one universal image for the product page header and search results. Upload and place them with `fastlane/upload_creative_assets.rb`; deliver cannot upload these yet.
+
 ## Mac
 
 `render_mac.py` renders the Mac images in `../screenshots_mac` from the panel captures in `mac/`.
